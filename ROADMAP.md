@@ -178,6 +178,7 @@ underlying document and never invents reviewer claims.
 - Native shell timing (see Decision 0).
 - Whether on-device STT (whisper.cpp via WebAssembly) is viable on iPad for
   fully offline review of confidential manuscripts.
-- Usage analytics: whether to add a privacy-preserving page-view counter (no
-  cookies, no PDF content) behind a build-time variable; GA-style tracking
-  conflicts with the local-first rule.
+- Usage analytics: none for now (decided 2026-10-29); GitHub Insights only. A
+  cookieless page-view counter (no PDF content) behind a build-time variable
+  could be revisited later; GA-style tracking is out because of the
+  local-first rule.
