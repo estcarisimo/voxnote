@@ -220,6 +220,8 @@ describe('CommentComposer', () => {
       'value',
       'faltan los ejes',
     )
+    // One transcript per recording: no second upload is offered.
+    expect(screen.queryByRole('button', { name: 'Transcribe…' })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
       target: { value: 'Faltan los ejes en la figura 2.' },
     })
@@ -234,6 +236,49 @@ describe('CommentComposer', () => {
       },
       audio: blob,
     })
+  })
+
+  it('ignores Escape while an upload is running', async () => {
+    const onCancel = vi.fn()
+    let finish!: (t: null) => void
+    const transcribe = vi.fn(
+      () =>
+        new Promise<null>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const recording = {
+      blob: new Blob(['opus']),
+      mimeType: 'audio/webm',
+      durationMs: 2000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    render(
+      <CommentComposer
+        placement={placement}
+        quote={null}
+        recorder={recorderWith({ status: 'recorded', recording })}
+        transcribe={transcribe}
+        onSave={async () => {}}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment' }), {
+      key: 'Escape',
+    })
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    finish(null)
+    await screen.findByRole('button', { name: 'Transcribe…' })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment' }), {
+      key: 'Escape',
+    })
+    expect(onCancel).toHaveBeenCalled()
   })
 
   it('does not overwrite typed text with the transcript and shows upload errors', async () => {

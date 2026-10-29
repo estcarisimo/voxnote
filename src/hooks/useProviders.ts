@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { openSecretStore, type SecretStore } from '../core/secrets'
 import {
   DEFAULT_SETTINGS,
@@ -105,16 +105,20 @@ export function useProviders(): Providers {
     [store],
   )
 
-  return {
-    ready: store !== null,
-    error,
-    settings,
-    saveSettings,
-    hasKey,
-    setKey,
-    removeKey,
-    readKey,
-  }
+  const ready = store !== null
+  return useMemo(
+    () => ({
+      ready,
+      error,
+      settings,
+      saveSettings,
+      hasKey,
+      setKey,
+      removeKey,
+      readKey,
+    }),
+    [ready, error, settings, saveSettings, hasKey, setKey, removeKey, readKey],
+  )
 }
 
 function loadSettings(): SttSettings {

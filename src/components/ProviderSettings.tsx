@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
+import { useDialogFocus } from '../hooks/useDialogFocus'
 import type { Providers } from '../hooks/useProviders'
-import { MODELS, PROVIDER_LABELS } from '../providers/registry'
+import { isLanguageHint, MODELS, PROVIDER_LABELS } from '../providers/registry'
 import './Dialog.css'
 
 interface ProviderSettingsProps {
@@ -23,7 +24,27 @@ export function ProviderSettings({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [language, setLanguage] = useState(settings.language)
+  const [languageError, setLanguageError] = useState<string | null>(null)
   const hasKey = providers.hasKey(provider)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(dialogRef, onClose)
+
+  /** Validates on blur or Enter, not per keystroke, so "es" can be typed. */
+  function commitLanguage() {
+    const value = language.trim().toLowerCase()
+    if (!isLanguageHint(value)) {
+      setLanguageError(
+        `"${language}" is not a language code; use ISO 639-1 such as es or en, or leave it empty`,
+      )
+      return
+    }
+    setLanguageError(null)
+    setLanguage(value)
+    if (value !== settings.language) {
+      providers.saveSettings({ ...settings, language: value })
+    }
+  }
 
   async function saveKey(event: FormEvent) {
     event.preventDefault()
@@ -57,6 +78,7 @@ export function ProviderSettings({
   return (
     <div className="dialog-backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="dialog"
         role="dialog"
         aria-modal="true"
@@ -109,12 +131,23 @@ export function ProviderSettings({
           <span>Language hint (optional, e.g. es, en)</span>
           <input
             type="text"
-            value={settings.language}
+            value={language}
             placeholder="auto-detect"
-            onChange={(e) =>
-              providers.saveSettings({ ...settings, language: e.target.value })
-            }
+            aria-invalid={languageError !== null}
+            onChange={(e) => setLanguage(e.target.value)}
+            onBlur={commitLanguage}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                commitLanguage()
+              }
+            }}
           />
+          {languageError && (
+            <span role="alert" className="dialog-error">
+              {languageError}
+            </span>
+          )}
         </label>
 
         <form onSubmit={saveKey} className="dialog-field">

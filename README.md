@@ -17,8 +17,9 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
   microphone; stays on this device until you choose to transcribe it).
 - **Transcribe…** sends a recording to OpenAI with your own API key, after a
   consent dialog that says exactly what is sent and where. Add the key under
-  **Providers**; it is encrypted at rest in your browser and never goes
-  anywhere but the provider. The raw transcript is kept verbatim.
+  **Providers**; it is encrypted at rest in your browser (any script running
+  on this origin could still use it) and is sent only to the provider, only
+  when you confirm. The raw transcript is kept verbatim.
 - Annotations are stored locally in your browser (IndexedDB), recordings
   included, and come back when you reopen the same file. Comment bodies can
   be edited in the **Annotations** panel.

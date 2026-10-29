@@ -82,10 +82,13 @@ async function loadOrCreateKey(
   // `add`, not `put`: if another tab created a key meanwhile, keep theirs.
   try {
     await run(db, KEYS, 'readwrite', (s) => s.add(key, MAIN_KEY))
-  } catch {
+  } catch (err: unknown) {
     const theirs = await run(db, KEYS, 'readonly', (s) => s.get(MAIN_KEY))
     if (!isCryptoKey(theirs)) {
-      throw new Error('Could not create or read the secret store key')
+      throw new Error(
+        `Could not store the secret store key: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      )
     }
     return theirs
   }
@@ -111,11 +114,20 @@ class IndexedDbSecretStore implements SecretStore {
     if (!isSecretRecord(record) || record.name !== name) {
       throw new Error(`Corrupt secret record for "${name}"`)
     }
-    const plain = await this.subtle.decrypt(
-      { name: 'AES-GCM', iv: record.iv, additionalData: encode(name) },
-      this.key,
-      record.ciphertext,
-    )
+    let plain: ArrayBuffer
+    try {
+      plain = await this.subtle.decrypt(
+        { name: 'AES-GCM', iv: record.iv, additionalData: encode(name) },
+        this.key,
+        record.ciphertext,
+      )
+    } catch (err: unknown) {
+      // WebCrypto reports a bare OperationError with no message.
+      throw new Error(
+        `The stored "${name}" could not be decrypted (changed or corrupted); remove it and add it again`,
+        { cause: err },
+      )
+    }
     return new TextDecoder().decode(plain)
   }
 

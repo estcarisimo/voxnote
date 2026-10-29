@@ -89,4 +89,50 @@ describe('TranscribeDialog', () => {
       { audio: input.audio, mimeType: 'audio/webm' },
     ])
   })
+
+  it('lets the user cancel while sending and swallows the resulting abort', async () => {
+    let rejectUpload!: (err: Error) => void
+    const onConfirm = vi.fn(
+      () =>
+        new Promise<typeof transcript>((_, reject) => {
+          rejectUpload = reject
+        }),
+    )
+    const onCancel = vi.fn()
+    render(
+      <TranscribeDialog
+        input={{ ...input, quote: null }}
+        provider={provider}
+        language=""
+        onConfirm={onConfirm}
+        onDone={() => {}}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Fake STT' }))
+    const cancel = await screen.findByRole('button', { name: 'Cancel upload' })
+    fireEvent.click(cancel)
+    expect(onCancel).toHaveBeenCalled()
+    const abort = new Error('The operation was aborted')
+    abort.name = 'AbortError'
+    rejectUpload(abort)
+    await Promise.resolve()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('cancels on Escape', () => {
+    const onCancel = vi.fn()
+    render(
+      <TranscribeDialog
+        input={input}
+        provider={provider}
+        language=""
+        onConfirm={vi.fn()}
+        onDone={() => {}}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalled()
+  })
 })

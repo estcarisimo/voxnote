@@ -83,7 +83,7 @@ describe('secret store', () => {
       }
       req.onerror = () => reject(req.error)
     })
-    await expect(store.get('k')).rejects.toThrow()
+    await expect(store.get('k')).rejects.toThrow(/could not be decrypted/)
     store.close()
   })
 })

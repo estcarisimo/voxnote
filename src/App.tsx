@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { AnnotationList } from './components/AnnotationList'
 import { OpenPdf } from './components/OpenPdf'
 import {
@@ -8,17 +8,8 @@ import {
 } from './components/PdfViewer'
 import type { Tool } from './components/PdfPage'
 import { ProviderSettings } from './components/ProviderSettings'
-import {
-  TranscribeDialog,
-  type TranscribeFn,
-  type TranscriptionInput,
-} from './components/TranscribeDialog'
-import type {
-  Anchor,
-  Annotation,
-  Comment,
-  Transcript,
-} from './core/annotations'
+import { TranscribeDialog } from './components/TranscribeDialog'
+import type { Anchor, Annotation, Comment } from './core/annotations'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
   computeDocumentId,
@@ -29,16 +20,8 @@ import {
 } from './core/pdf'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useProviders } from './hooks/useProviders'
-import { createProvider, PROVIDER_LABELS } from './providers/registry'
-import { transcribe, type SpeechToTextProvider } from './providers/stt'
+import { useTranscription } from './hooks/useTranscription'
 import './App.css'
-
-/** An upload waiting for the user's consent in the dialog. */
-interface PendingUpload {
-  input: TranscriptionInput
-  provider: SpeechToTextProvider
-  resolve: (transcript: Transcript | null) => void
-}
 
 interface OpenDocument {
   id: string
@@ -55,57 +38,16 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [listOpen, setListOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [upload, setUpload] = useState<PendingUpload | null>(null)
   const viewerRef = useRef<PdfViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
   const providers = useProviders()
-
-  // Transcription is consent-gated: this only opens the dialog. The promise
-  // settles when the user sends (with the transcript), cancels (null), or
-  // the upload fails (rejects, shown where the user asked for it).
-  const requestTranscription = useCallback<TranscribeFn>(
-    (input) =>
-      new Promise((resolve, reject) => {
-        const { settings } = providers
-        if (!providers.ready) {
-          reject(new Error('Provider keys are not ready yet'))
-          return
-        }
-        if (!providers.hasKey(settings.provider)) {
-          reject(
-            new Error(
-              `Add your ${PROVIDER_LABELS[settings.provider]} API key under Providers first`,
-            ),
-          )
-          return
-        }
-        let provider: SpeechToTextProvider
-        try {
-          provider = createProvider(settings)
-        } catch (err: unknown) {
-          reject(err instanceof Error ? err : new Error(String(err)))
-          return
-        }
-        setUpload({ input, provider, resolve })
-      }),
-    [providers],
-  )
-
-  async function runUpload(
-    request: Parameters<SpeechToTextProvider['transcribe']>[0],
-  ) {
-    if (!upload) throw new Error('No upload is pending')
-    const apiKey = await providers.readKey(providers.settings.provider)
-    if (!apiKey)
-      throw new Error('The API key is missing; add it under Providers')
-    return transcribe(upload.provider, request, { apiKey })
-  }
+  const transcription = useTranscription(providers)
 
   async function transcribeStored(comment: Comment) {
     if (!comment.voice) throw new Error('This comment has no recording')
     const audio = await store.getAudio(comment.id)
     if (!audio) throw new Error('The recording is missing from local storage')
-    const transcript = await requestTranscription({
+    const transcript = await transcription.request({
       audio,
       mimeType: comment.voice.mimeType,
       durationMs: comment.voice.durationMs,
@@ -129,6 +71,8 @@ function App() {
         loadDocument(bytes),
       ])
       if (doc) void destroyDocument(doc.pdf)
+      // A consent dialog for the old document must not outlive it.
+      transcription.finish(null)
       setDoc({ id, name: file.name, bytes, pdf })
       setSelectedId(null)
     } catch (err: unknown) {
@@ -142,6 +86,7 @@ function App() {
 
   function closeDocument() {
     if (doc) void destroyDocument(doc.pdf)
+    transcription.finish(null)
     setDoc(null)
     setSelectedId(null)
     setTool('select')
@@ -263,7 +208,7 @@ function App() {
           selectedId={selectedId}
           onCreateHighlight={createHighlight}
           onCreateComment={createComment}
-          transcribe={requestTranscription}
+          transcribe={transcription.request}
         />
         {listOpen && (
           <AnnotationList
@@ -283,20 +228,14 @@ function App() {
           onClose={() => setSettingsOpen(false)}
         />
       )}
-      {upload && (
+      {transcription.pending && (
         <TranscribeDialog
-          input={upload.input}
-          provider={upload.provider}
+          input={transcription.pending.input}
+          provider={transcription.pending.provider}
           language={providers.settings.language}
-          onConfirm={runUpload}
-          onDone={(transcript) => {
-            upload.resolve(transcript)
-            setUpload(null)
-          }}
-          onCancel={() => {
-            upload.resolve(null)
-            setUpload(null)
-          }}
+          onConfirm={transcription.confirm}
+          onDone={transcription.finish}
+          onCancel={() => transcription.finish(null)}
         />
       )}
     </main>

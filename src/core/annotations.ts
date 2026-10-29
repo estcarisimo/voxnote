@@ -165,6 +165,11 @@ export function withTranscript(
   if (!comment.voice) {
     throw new Error(`Comment ${comment.id} has no voice note to transcribe`)
   }
+  if (comment.voice.transcript) {
+    throw new Error(
+      `Comment ${comment.id} already has a transcript; the raw text is never replaced`,
+    )
+  }
   if (!isTranscript(transcript)) {
     throw new Error(`Invalid transcript: ${JSON.stringify(transcript)}`)
   }

@@ -76,14 +76,28 @@ describe('OpenAI provider', () => {
     expect((form.get('file') as File).name).toBe('recording.mp4')
   })
 
-  it('surfaces API errors with the message OpenAI sent', async () => {
+  it('surfaces API errors with the message OpenAI sent, minus any key it echoes', async () => {
     const fetch = fetchReplying(401, {
-      error: { message: 'Incorrect API key provided' },
+      error: { message: 'Incorrect API key provided: sk-abc123XYZ. Check it.' },
     })
     const provider = createOpenAiProvider('gpt-transcribe', fetch)
     await expect(
-      provider.transcribe(request, { apiKey: 'bad' }),
-    ).rejects.toThrow(/OpenAI responded 401: Incorrect API key provided/)
+      provider.transcribe(request, { apiKey: 'sk-abc123XYZ' }),
+    ).rejects.toThrow(
+      /^OpenAI responded 401: Incorrect API key provided: sk-…\. Check it\.$/,
+    )
+  })
+
+  it('passes the abort signal to fetch', async () => {
+    const fetch = fetchReplying(200, { text: 'x' })
+    const controller = new AbortController()
+    await createOpenAiProvider('gpt-transcribe', fetch).transcribe(request, {
+      apiKey: 'k',
+      signal: controller.signal,
+    })
+    expect((fetch.mock.calls[0][1] as RequestInit).signal).toBe(
+      controller.signal,
+    )
   })
 
   it('fails loudly on a non-JSON or shapeless success body', async () => {

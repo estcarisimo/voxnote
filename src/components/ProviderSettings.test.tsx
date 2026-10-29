@@ -58,13 +58,42 @@ describe('ProviderSettings', () => {
       ...DEFAULT_SETTINGS,
       model: 'whisper-1',
     })
-    fireEvent.change(screen.getByLabelText(/Language hint/), {
-      target: { value: 'es' },
-    })
-    expect(providers.saveSettings).toHaveBeenCalledWith({
+    // Typed letter by letter: nothing is saved or reset until blur.
+    const language = screen.getByLabelText(/Language hint/) as HTMLInputElement
+    fireEvent.change(language, { target: { value: 'E' } })
+    fireEvent.change(language, { target: { value: 'ES' } })
+    expect(language.value).toBe('ES')
+    expect(providers.saveSettings).toHaveBeenCalledTimes(1)
+    fireEvent.blur(language)
+    expect(language.value).toBe('es')
+    expect(providers.saveSettings).toHaveBeenLastCalledWith({
       ...DEFAULT_SETTINGS,
       language: 'es',
     })
+  })
+
+  it('rejects a language hint that is not a code, loudly, without saving it', () => {
+    const providers = providersWith()
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    const language = screen.getByLabelText(/Language hint/) as HTMLInputElement
+    fireEvent.change(language, { target: { value: 'spanish' } })
+    fireEvent.keyDown(language, { key: 'Enter' })
+    expect(screen.getByRole('alert').textContent).toMatch(/not a language code/)
+    expect(language.getAttribute('aria-invalid')).toBe('true')
+    expect(providers.saveSettings).not.toHaveBeenCalled()
+    fireEvent.change(language, { target: { value: '' } })
+    fireEvent.blur(language)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('closes on Escape and starts with focus inside the dialog', () => {
+    const onClose = vi.fn()
+    render(<ProviderSettings providers={providersWith()} onClose={onClose} />)
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(
+      true,
+    )
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalled()
   })
 
   it('surfaces a failed save', async () => {

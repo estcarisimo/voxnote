@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Transcript } from '../core/annotations'
 import { formatDuration } from '../core/recording'
+import { useDialogFocus } from '../hooks/useDialogFocus'
 import type {
   SpeechToTextProvider,
   TranscriptionRequest,
@@ -31,6 +32,7 @@ interface TranscribeDialogProps {
   /** Runs the upload; resolves with the transcript or rejects. */
   onConfirm: (request: TranscriptionRequest) => Promise<Transcript>
   onDone: (transcript: Transcript) => void
+  /** Also called while sending: the caller aborts the upload. */
   onCancel: () => void
 }
 
@@ -49,6 +51,8 @@ export function TranscribeDialog({
   const [includeQuote, setIncludeQuote] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(dialogRef, onCancel)
 
   const request: TranscriptionRequest = {
     audio: input.audio,
@@ -63,6 +67,8 @@ export function TranscribeDialog({
     try {
       onDone(await onConfirm(request))
     } catch (err: unknown) {
+      // An abort came from Cancel: the dialog is already closing.
+      if (err instanceof Error && err.name === 'AbortError') return
       setError(err instanceof Error ? err.message : String(err))
       setSending(false)
     }
@@ -71,6 +77,7 @@ export function TranscribeDialog({
   return (
     <div className="dialog-backdrop">
       <div
+        ref={dialogRef}
         className="dialog"
         role="dialog"
         aria-modal="true"
@@ -103,8 +110,8 @@ export function TranscribeDialog({
           </p>
         )}
         <div className="dialog-actions">
-          <button type="button" onClick={onCancel} disabled={sending}>
-            Cancel
+          <button type="button" onClick={onCancel}>
+            {sending ? 'Cancel upload' : 'Cancel'}
           </button>
           <button
             type="button"

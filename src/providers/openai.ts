@@ -160,7 +160,9 @@ function fileName(mimeType: string): string {
 function errorMessage(body: string): string {
   try {
     const json = JSON.parse(body) as { error?: { message?: unknown } }
-    if (typeof json.error?.message === 'string') return json.error.message
+    if (typeof json.error?.message === 'string') {
+      return redact(json.error.message)
+    }
   } catch {
     // Not JSON: fall through to the raw excerpt.
   }
@@ -168,7 +170,12 @@ function errorMessage(body: string): string {
 }
 
 function excerpt(text: string): string {
-  return text.length > 200 ? `${text.slice(0, 200)}…` : text
+  return redact(text.length > 200 ? `${text.slice(0, 200)}…` : text)
+}
+
+/** OpenAI error messages can quote the key that was sent; never show it. */
+function redact(text: string): string {
+  return text.replace(/sk-[A-Za-z0-9_-]{4,}/g, 'sk-…')
 }
 
 function formatBytes(bytes: number): string {

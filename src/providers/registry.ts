@@ -74,9 +74,17 @@ export function normalizeSettings(value: unknown): SttSettings {
       ? v.model
       : DEFAULT_MODELS[provider]
   const language =
-    typeof v.language === 'string' &&
-    /^[a-z]{2,3}(-[a-z]{2})?$/i.test(v.language)
+    typeof v.language === 'string' && isLanguageHint(v.language)
       ? v.language.toLowerCase()
       : ''
   return { provider, model, language }
+}
+
+/**
+ * ISO 639-1 two-letter codes, plus the regional Chinese tags the OpenAI
+ * guide lists. Empty means auto-detect. Three-letter codes are left out:
+ * the older models reject them.
+ */
+export function isLanguageHint(value: string): boolean {
+  return value === '' || /^([a-z]{2}|zh-(cn|tw|hk))$/i.test(value)
 }

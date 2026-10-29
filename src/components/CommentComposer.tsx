@@ -138,7 +138,8 @@ export function CommentComposer({
         autoFocus={!recorder}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onCancel()
+          // Not while an upload runs: the result would be lost after paying.
+          if (e.key === 'Escape' && !transcribing && !saving) onCancel()
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.currentTarget.form?.requestSubmit()
           }
@@ -217,13 +218,15 @@ function RecorderControls({
           >
             Re-record
           </button>
-          <button
-            type="button"
-            onClick={() => onTranscribe(state.recording)}
-            disabled={!canTranscribe}
-          >
-            {transcribing ? 'Transcribing…' : 'Transcribe…'}
-          </button>
+          {!transcript && (
+            <button
+              type="button"
+              onClick={() => onTranscribe(state.recording)}
+              disabled={!canTranscribe}
+            >
+              {transcribing ? 'Transcribing…' : 'Transcribe…'}
+            </button>
+          )}
           {transcript ? (
             <details className="comment-composer-raw">
               <summary>Raw transcript ({transcript.provider})</summary>

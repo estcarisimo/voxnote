@@ -246,6 +246,9 @@ describe('createComment / withBody', () => {
     const noVoice = createComment({ documentId: 'doc', anchor, body: 'x' })
     expect(() => withTranscript(noVoice, transcript)).toThrow(/no voice note/)
     expect(() =>
+      withTranscript(filled, { ...transcript, raw: 'something else' }),
+    ).toThrow(/already has a transcript/)
+    expect(() =>
       withTranscript(empty, { ...transcript, transcribedAt: 'yesterday' }),
     ).toThrow(/Invalid transcript/)
   })
