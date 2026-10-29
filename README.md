@@ -54,7 +54,7 @@ yet (see [Status](#-status-and-caveats)).
 - 📲 **Installable PWA**: works offline once loaded; a new version waits
   until you tap **Reload**
 
-### ⚠️ Status and caveats
+### 🚧 Status and caveats
 
 Everything above works on `main` today, with these limits, all tracked in
 [ROADMAP.md](ROADMAP.md):
@@ -100,7 +100,7 @@ The review flow is select, act, export:
 
 1. **Open a PDF** with the file picker or by dropping it on the page.
 2. **Select** a passage: drag with the Apple Pencil or the mouse, or use
-   touch selection. For a figure with no text, switch to the **Region** tool
+   touch selection (on an iPad, a finger needs a long press). For a figure with no text, switch to the **Region** tool
    and drag a box.
 3. **Act** from the floating toolbar:
    - **Highlight** — marks the passage, no note needed.
