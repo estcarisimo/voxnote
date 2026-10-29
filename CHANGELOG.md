@@ -55,6 +55,14 @@ All notable changes to this project are documented here. The format follows
   struck through and the replacement inserted, editable. Exported as native
   `/StrikeOut` annotations over the original with "Replace with: …" in the
   note. The PDF itself is never changed.
+- Export group in the header: **Export PDF**, **Markdown** and **JSON**. The
+  Markdown report (`<name>.voxnote.md`) lists annotations page by page, top
+  to bottom, with the quoted passage or region, comment bodies, suggestions as
+  original and replacement, and voice notes with duration and the raw
+  transcript marked as raw; the export time is labeled UTC. The JSON export
+  (`<name>.voxnote.json`) holds the document name, SHA-256 id and page count
+  and the annotations exactly as stored, without audio. Both are generated in
+  the browser and only downloaded; nothing is uploaded.
 - Installable PWA: web app manifest, VoxNote icons (SVG plus PNG, maskable
   and Apple touch) and an offline app shell precached by a service worker
   (`vite-plugin-pwa`); a new version waits behind a dismissible "Update

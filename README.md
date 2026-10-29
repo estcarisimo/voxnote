@@ -27,6 +27,8 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
   be edited in the **Annotations** panel.
 - **Export PDF** downloads a copy with native PDF annotations; comment text
   goes into the note. The original file is never modified.
+- **Markdown** and **JSON** download a page-by-page review report and a
+  machine-readable copy of the annotations (no audio). Nothing is uploaded.
 - It can be installed as an app (Add to Home Screen) and reopened without a
   network once loaded; updates wait until you tap **Reload**. Checked in
   desktop Chromium only, not yet tried on an iPad.
