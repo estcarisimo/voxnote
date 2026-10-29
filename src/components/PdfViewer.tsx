@@ -86,6 +86,9 @@ export function PdfViewer({
   const [pending, setPending] = useState<PendingAnchor | null>(null)
   const [composer, setComposer] = useState<Composer>(null)
   const composerRef = useRef<Composer>(null)
+  // True while a pen drag is building a selection: the toolbar waits for
+  // the pen to lift instead of chasing every intermediate range.
+  const penSelectingRef = useRef(false)
   const recorder = useVoiceRecorder()
 
   // A tool switch drops whatever was pending: a region anchor must not
@@ -132,6 +135,10 @@ export function PdfViewer({
     }
   })
 
+  const onPenSelecting = useCallback((active: boolean) => {
+    penSelectingRef.current = active
+  }, [])
+
   const onGeometry = useCallback(
     (page: number, geometry: PageGeometry | null) => {
       if (geometry) geometries.current.set(page, geometry)
@@ -152,16 +159,17 @@ export function PdfViewer({
   }, [])
 
   // Watch the selection; when it settles inside one page's text layer, offer
-  // the toolbar. selectionchange covers touch and pen (no pointerup with a
-  // selection on iOS); pointerup covers the mouse. While a composer is open
-  // the anchor is frozen: typing in it moves the DOM selection.
+  // the toolbar. selectionchange covers touch (no pointerup with a selection
+  // on iOS); pointerup covers the mouse and the end of a pen drag, whose
+  // range PdfPage builds itself. While a composer is open the anchor is
+  // frozen: typing in it moves the DOM selection.
   useEffect(() => {
     if (tool !== 'select') return
     let timer: ReturnType<typeof setTimeout> | undefined
     const update = () => {
       clearTimeout(timer)
       timer = setTimeout(() => {
-        if (composerRef.current) return
+        if (composerRef.current || penSelectingRef.current) return
         setPending(
           readSelection(geometries.current, containerRef.current, tool),
         )
@@ -261,6 +269,7 @@ export function PdfViewer({
           pendingAnchor={pendingAnchor}
           onGeometry={onGeometry}
           onCreateRegion={onRegion}
+          onPenSelecting={onPenSelecting}
         />
       ))}
       {shown && !composer && (

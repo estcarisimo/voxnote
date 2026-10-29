@@ -25,6 +25,11 @@ All notable changes to this project are documented here. The format follows
   figure, chart or equation.
 - Local-first persistence in IndexedDB keyed by the document's SHA-256;
   reopening the same PDF restores its highlights.
+- App-driven pen text selection: a pen drag over the text layer builds the
+  selection itself and cancels the pen's touch pan, for Apple Pencil on
+  iPad, where native selection did not respond to a Pencil drag. Verified
+  headless with emulated pen events; real-iPad confirmation pending. Touch
+  and mouse keep native selection.
 - **Highlights** panel listing annotations with jump-to-page and delete.
 - **Export PDF**: writes a copy with native `/Highlight` and `/Square`
   annotations (pdf-lib); the original file is never modified.
