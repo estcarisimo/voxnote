@@ -84,6 +84,10 @@ All notable changes to this project are documented here. The format follows
   to `main` (or on demand) and publishes the static build to
   <https://estcarisimo.github.io/voxnote/>; production builds and
   `npm run preview` use the `/voxnote/` base path.
+- README rewritten to the maintainer's standard (badges, features with
+  caveats, usage, privacy, configuration, architecture, about the name);
+  CodeQL code scanning and a Security workflow (weekly `npm audit`, zizmor on
+  the workflows); workflow checkouts no longer persist credentials.
 
 ### Changed
 
