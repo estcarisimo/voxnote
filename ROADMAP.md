@@ -121,7 +121,11 @@ the success criterion on real iPad hardware.
       tap → jump to the source passage.
 - [ ] Export: annotated PDF, Markdown report with page and quote references,
       machine-readable JSON. Nothing is ever sent or published automatically.
-- [ ] PWA manifest + offline shell so it installs on the iPad home screen.
+- [~] PWA manifest + offline shell so it installs on the iPad home screen.
+  Manifest, icons and a Workbox service worker (update applied only on
+  tap) verified in headless Chromium on 2026-10-29: registers, reloads
+  offline, opens a PDF offline, at `/` and under a subpath. Not yet tried
+  on an iPad: install on a real iPad is pending.
 
 ### M1 exit criterion
 
