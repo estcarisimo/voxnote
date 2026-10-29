@@ -96,11 +96,6 @@ export class PenSelection {
     this.anchor = this.caretAt(start)
   }
 
-  /** Whether the gesture has passed the tap threshold. */
-  get isDragging(): boolean {
-    return this.dragging
-  }
-
   /**
    * Extends the gesture to `point`. Returns the range to show, or null while
    * the gesture is still a tap or no text has been reached.

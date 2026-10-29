@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PDFDocumentProxy } from '../core/pdf'
 import { PdfPage, type Tool } from './PdfPage'
@@ -11,27 +11,33 @@ const pendingDocument = {
 
 function renderPage(tool: Tool = 'select') {
   const onPenSelecting = vi.fn()
-  const { container } = render(
+  const page = (t: Tool) => (
     <PdfPage
       document={pendingDocument}
       pageNumber={1}
       width={600}
-      tool={tool}
+      tool={t}
       annotations={[]}
       selectedId={null}
       pendingAnchor={null}
       onGeometry={() => {}}
       onCreateRegion={() => {}}
       onPenSelecting={onPenSelecting}
-    />,
+    />
   )
+  const { container, rerender, unmount } = render(page(tool))
   const layer = container.querySelector<HTMLDivElement>('.textLayer')!
   for (const text of ['alpha', 'beta']) {
     const span = document.createElement('span')
     span.textContent = text
     layer.appendChild(span)
   }
-  return { layer, onPenSelecting }
+  return {
+    layer,
+    onPenSelecting,
+    switchTool: (t: Tool) => rerender(page(t)),
+    unmount,
+  }
 }
 
 function caretRangeFromPoint(x: number, y: number): Range | null {
@@ -46,18 +52,27 @@ function caretRangeFromPoint(x: number, y: number): Range | null {
 const pen = { pointerId: 7, pointerType: 'pen', button: 0 }
 const selected = () => window.getSelection()!.toString()
 
+// jsdom lacks both the caret lookup and pointer capture.
+const captured = new Set<number>()
+const captureStubs = {
+  setPointerCapture: (id: number) => void captured.add(id),
+  releasePointerCapture: (id: number) => void captured.delete(id),
+  hasPointerCapture: (id: number) => captured.has(id),
+}
+
 beforeEach(() => {
-  // jsdom lacks both the caret lookup and pointer capture.
+  captured.clear()
   Object.assign(document, { caretRangeFromPoint })
-  Object.assign(Element.prototype, {
-    setPointerCapture: vi.fn(),
-    releasePointerCapture: vi.fn(),
-    hasPointerCapture: () => true,
-  })
+  Object.assign(Element.prototype, captureStubs)
 })
 
 afterEach(() => {
+  // Unmount first: a gesture left open ends in cleanup and needs the stubs.
+  cleanup()
   Reflect.deleteProperty(document, 'caretRangeFromPoint')
+  for (const name of Object.keys(captureStubs)) {
+    Reflect.deleteProperty(Element.prototype, name)
+  }
   window.getSelection()?.removeAllRanges()
 })
 
@@ -111,6 +126,83 @@ describe('PdfPage pen selection', () => {
     expect(onPenSelecting).toHaveBeenLastCalledWith(false)
   })
 
+  it('releases the pointer capture when the pen lifts', () => {
+    const { layer } = renderPage()
+    fireEvent.pointerDown(layer, { ...pen, clientX: 10, clientY: 0 })
+    expect(captured.has(7)).toBe(true)
+    fireEvent.pointerUp(layer, { ...pen, clientX: 10, clientY: 0 })
+    expect(captured.size).toBe(0)
+  })
+
+  it('ignores other pointers during a pen gesture', () => {
+    const { layer, onPenSelecting } = renderPage()
+    fireEvent.pointerDown(layer, { ...pen, clientX: 10, clientY: 0 })
+    fireEvent.pointerMove(layer, { ...pen, clientX: 40, clientY: 0 })
+    const other = { pointerId: 8, pointerType: 'pen', clientX: 0, clientY: 10 }
+    fireEvent.pointerMove(layer, other)
+    fireEvent.pointerUp(layer, other)
+    expect(selected()).toBe('lph')
+    expect(onPenSelecting).toHaveBeenLastCalledWith(true)
+  })
+
+  it('treats a lost pointer capture as a cancel', () => {
+    const { layer, onPenSelecting } = renderPage()
+    fireEvent.pointerDown(layer, { ...pen, clientX: 10, clientY: 0 })
+    fireEvent.pointerMove(layer, { ...pen, clientX: 40, clientY: 0 })
+    fireEvent.lostPointerCapture(layer, pen)
+    expect(window.getSelection()!.rangeCount).toBe(0)
+    expect(onPenSelecting).toHaveBeenLastCalledWith(false)
+  })
+
+  it('ends a gesture cut short by a tool switch, then accepts a new one', () => {
+    const { layer, onPenSelecting, switchTool } = renderPage()
+    fireEvent.pointerDown(layer, { ...pen, clientX: 10, clientY: 0 })
+    fireEvent.pointerMove(layer, { ...pen, clientX: 40, clientY: 0 })
+    switchTool('region')
+    expect(onPenSelecting).toHaveBeenLastCalledWith(false)
+    expect(window.getSelection()!.rangeCount).toBe(0)
+    expect(captured.size).toBe(0)
+
+    switchTool('select')
+    fireEvent.pointerDown(layer, {
+      ...pen,
+      pointerId: 9,
+      clientX: 0,
+      clientY: 0,
+    })
+    fireEvent.pointerMove(layer, {
+      ...pen,
+      pointerId: 9,
+      clientX: 30,
+      clientY: 0,
+    })
+    fireEvent.pointerUp(layer, {
+      ...pen,
+      pointerId: 9,
+      clientX: 30,
+      clientY: 0,
+    })
+    expect(selected()).toBe('alp')
+    expect(onPenSelecting).toHaveBeenLastCalledWith(false)
+  })
+
+  it('ends a gesture cut short by unmounting', () => {
+    const { layer, onPenSelecting, unmount } = renderPage()
+    fireEvent.pointerDown(layer, { ...pen, clientX: 10, clientY: 0 })
+    unmount()
+    expect(onPenSelecting).toHaveBeenLastCalledWith(false)
+  })
+
+  it('selects across a gap between spans', () => {
+    const { layer } = renderPage()
+    fireEvent.pointerDown(layer, { ...pen, clientX: 0, clientY: 90 })
+    fireEvent.pointerMove(layer, { ...pen, clientX: 30, clientY: 0 })
+    fireEvent.pointerMove(layer, { ...pen, clientX: 20, clientY: 10 })
+    fireEvent.pointerMove(layer, { ...pen, clientX: 20, clientY: 90 })
+    fireEvent.pointerUp(layer, { ...pen, clientX: 20, clientY: 90 })
+    expect(selected()).toBe('habe')
+  })
+
   it('leaves touch and mouse to the browser', () => {
     const { layer, onPenSelecting } = renderPage()
     for (const pointerType of ['touch', 'mouse']) {
@@ -157,5 +249,14 @@ describe('PdfPage pen selection', () => {
     fireEvent.pointerDown(layer, { ...pen, clientX: 10, clientY: 0 })
     expect(screen.getByRole('alert').textContent).toMatch(/caretRangeFromPoint/)
     expect(onPenSelecting).not.toHaveBeenCalled()
+  })
+
+  it('clears the caret error once the tool changes', () => {
+    Reflect.deleteProperty(document, 'caretRangeFromPoint')
+    const { layer, switchTool } = renderPage()
+    fireEvent.pointerDown(layer, { ...pen, clientX: 10, clientY: 0 })
+    expect(screen.getByRole('alert')).toBeTruthy()
+    switchTool('region')
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

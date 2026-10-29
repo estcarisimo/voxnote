@@ -114,7 +114,6 @@ describe('PenSelection', () => {
     const layer = layerWithSpans(['alpha', 'beta'])
     const pen = new PenSelection(layer, { x: 10, y: 0 }, gridLookup(layer))
     expect(pen.move({ x: 30, y: 10 })?.toString()).toBe('lphabet')
-    expect(pen.isDragging).toBe(true)
   })
 
   it('keeps the range forward when dragging backwards', () => {
@@ -127,7 +126,6 @@ describe('PenSelection', () => {
     const layer = layerWithSpans(['alpha'])
     const pen = new PenSelection(layer, { x: 10, y: 0 }, gridLookup(layer))
     expect(pen.move({ x: 12, y: 1 })).toBeNull()
-    expect(pen.isDragging).toBe(false)
     expect(pen.range()).toBeNull()
   })
 

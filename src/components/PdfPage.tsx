@@ -144,7 +144,8 @@ export function PdfPage({
   // touch-action applies to touch and stylus alike (section 8), so no CSS
   // value lets a finger scroll while a pen selects. The pen's pan is
   // cancelled at the touch-event level instead: WebKit marks Pencil touches
-  // with touchType 'stylus', and any touch during a pen gesture is blocked.
+  // with touchType 'stylus', and any touch during a pen gesture is blocked
+  // too, as palm rejection (a deliberate finger scroll waits for the pen).
   // React registers touch listeners as passive, hence addEventListener.
   useEffect(() => {
     const layer = textLayerRef.current
@@ -162,6 +163,24 @@ export function PdfPage({
     }
   }, [tool])
 
+  // A tool switch or unmount removes the handlers that would see the pen
+  // lift; end the gesture here so neither this page nor the viewer stays
+  // stuck in it.
+  useEffect(() => {
+    const layer = textLayerRef.current
+    return () => {
+      setPenError(null)
+      const pen = penRef.current
+      if (!pen) return
+      penRef.current = null
+      if (layer?.hasPointerCapture(pen.pointerId)) {
+        layer.releasePointerCapture(pen.pointerId)
+      }
+      showSelection(null)
+      onPenSelecting?.(false)
+    }
+  }, [tool, onPenSelecting])
+
   function penDown(event: PointerEvent<HTMLDivElement>) {
     if (event.pointerType !== 'pen' || event.button !== 0) return
     if (penRef.current) return
@@ -177,7 +196,8 @@ export function PdfPage({
     // mousedown, whose default would start a native selection.
     event.preventDefault()
     layer.setPointerCapture(event.pointerId)
-    window.getSelection()?.removeAllRanges()
+    setPenError(null)
+    showSelection(null)
     penRef.current = {
       pointerId: event.pointerId,
       selection: new PenSelection(
@@ -287,6 +307,9 @@ export function PdfPage({
           onPointerMove: penMove,
           onPointerUp: (e: PointerEvent<HTMLDivElement>) => penEnd(e, false),
           onPointerCancel: (e: PointerEvent<HTMLDivElement>) => penEnd(e, true),
+          // Capture lost before the pen lifted: treat it as a cancel.
+          onLostPointerCapture: (e: PointerEvent<HTMLDivElement>) =>
+            penEnd(e, true),
         })}
       />
       {tool === 'region' && (
