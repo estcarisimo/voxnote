@@ -75,3 +75,96 @@
   padding: 16px;
   font-size: 0.95rem;
 }
+
+.annotation-list-comment {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.annotation-list-quote {
+  color: var(--text);
+  font-size: 0.8rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.annotation-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 0 6px 6px;
+}
+
+.annotation-list-actions button,
+.annotation-list-editor button {
+  font: inherit;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.annotation-list-actions button.annotation-list-delete {
+  border: 0;
+}
+
+.annotation-list-actions audio {
+  flex: 1;
+  min-width: 140px;
+  height: 36px;
+}
+
+.annotation-list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 6px 6px;
+}
+
+.annotation-list-editor textarea {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  resize: vertical;
+}
+
+.annotation-list-editor button.is-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.annotation-list-editor button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.annotation-list-raw {
+  font-size: 0.85rem;
+}
+
+.annotation-list-raw p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+
+.annotation-list-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fde8e8;
+  color: #8a1c1c;
+  font-size: 0.85rem;
+}

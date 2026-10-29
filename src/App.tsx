@@ -1,9 +1,13 @@
 import { useRef, useState } from 'react'
 import { AnnotationList } from './components/AnnotationList'
 import { OpenPdf } from './components/OpenPdf'
-import { PdfViewer, type PdfViewerHandle } from './components/PdfViewer'
+import {
+  PdfViewer,
+  type NewCommentRequest,
+  type PdfViewerHandle,
+} from './components/PdfViewer'
 import type { Tool } from './components/PdfPage'
-import type { Anchor, Annotation } from './core/annotations'
+import type { Anchor, Annotation, Comment } from './core/annotations'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
   computeDocumentId,
@@ -70,6 +74,15 @@ function App() {
       (a) => setSelectedId(a.id),
       (err: unknown) => setError(messageOf(err)),
     )
+  }
+
+  async function createComment(request: NewCommentRequest) {
+    const comment = await store.addComment(request)
+    setSelectedId(comment.id)
+  }
+
+  async function updateBody(comment: Comment, body: string) {
+    await store.updateBody(comment.id, body)
   }
 
   function deleteAnnotation(a: Annotation) {
@@ -139,7 +152,7 @@ function App() {
           aria-pressed={listOpen}
           onClick={() => setListOpen((v) => !v)}
         >
-          Highlights ({store.annotations.length})
+          Annotations ({store.annotations.length})
         </button>
         <button
           type="button"
@@ -162,6 +175,7 @@ function App() {
           annotations={store.annotations}
           selectedId={selectedId}
           onCreateHighlight={createHighlight}
+          onCreateComment={createComment}
         />
         {listOpen && (
           <AnnotationList
@@ -169,6 +183,8 @@ function App() {
             selectedId={selectedId}
             onSelect={selectAnnotation}
             onDelete={deleteAnnotation}
+            onUpdateBody={updateBody}
+            onLoadAudio={(c) => store.getAudio(c.id)}
           />
         )}
       </div>

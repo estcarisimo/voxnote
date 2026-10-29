@@ -2,12 +2,15 @@
  * Writes annotations into a *copy* of the PDF as native annotation objects
  * (PDF 32000-1:2008, section 12.5.6). The original bytes are never modified.
  *
- * Text highlights become /Highlight annotations with one quadrilateral per
- * line; regions become /Square annotations.
+ * Text anchors become /Highlight annotations with one quadrilateral per line;
+ * regions become /Square annotations. A comment's body goes into /Contents,
+ * which viewers show as the annotation's note. Voice recordings are not
+ * embedded: only the text is exported.
  */
 import {
   PDFArray,
   PDFDocument,
+  PDFHexString,
   PDFString,
   type PDFDict,
   type PDFObject,
@@ -16,6 +19,7 @@ import {
 import { unionRects, type Annotation, type PdfRect } from './annotations'
 
 const HIGHLIGHT_COLOR = [1, 0.85, 0.2] as const
+const COMMENT_COLOR = [0.3, 0.55, 1] as const
 const AUTHOR = 'VoxNote'
 
 export async function exportAnnotatedPdf(
@@ -54,8 +58,14 @@ function annotationDict(
     M: PDFString.fromDate(new Date(annotation.updatedAt)),
     CreationDate: PDFString.fromDate(new Date(annotation.createdAt)),
     F: 4, // Print
-    C: pdf.context.obj([...HIGHLIGHT_COLOR]),
+    C: pdf.context.obj([
+      ...(annotation.kind === 'comment' ? COMMENT_COLOR : HIGHLIGHT_COLOR),
+    ]),
     P: page.ref,
+    // PDFHexString handles any Unicode; PDFString.of would mangle non-Latin-1.
+    Contents: PDFHexString.fromText(
+      annotation.kind === 'comment' ? annotation.body : '',
+    ),
   }
 
   if (anchor.type === 'text') {
@@ -64,7 +74,6 @@ function annotationDict(
       Subtype: 'Highlight',
       Rect: rectArray(pdf, unionRects(anchor.rects)),
       QuadPoints: quadPoints(pdf, anchor.rects),
-      Contents: PDFString.of(''),
     }
   }
   return {
@@ -72,7 +81,6 @@ function annotationDict(
     Subtype: 'Square',
     Rect: rectArray(pdf, anchor.rect),
     BS: pdf.context.obj({ W: 1.5, S: 'S' }),
-    Contents: PDFString.of(''),
   }
 }
 

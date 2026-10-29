@@ -3,18 +3,38 @@
  * on the way out; a corrupt record is an error, not something to skip. Writes
  * resolve only once the transaction has committed, so a failed commit (quota,
  * eviction) rejects instead of leaving the UI believing the data is saved.
+ *
+ * Two object stores: `annotations` (JSON records, indexed by document) and
+ * `audio` (one Blob per voice note, keyed by the annotation id). A comment and
+ * its recording are written in one transaction so neither can exist alone.
  */
 import { isAnnotation, type Annotation } from './annotations'
 
+/** The recording behind a comment's voice note. */
+export interface AudioRecord {
+  /** The annotation id. */
+  id: string
+  blob: Blob
+}
+
 export interface AnnotationStore {
   list(documentId: string): Promise<Annotation[]>
-  put(annotation: Annotation): Promise<void>
+  /**
+   * Inserts or replaces an annotation. A comment with a voice note must be
+   * written with its audio the first time; later updates (editing the body)
+   * leave the audio untouched when `audio` is omitted.
+   */
+  put(annotation: Annotation, audio?: AudioRecord): Promise<void>
+  /** The recording of a voice note, or null when none is stored. */
+  getAudio(id: string): Promise<AudioRecord | null>
+  /** Removes the annotation and its audio, if any. */
   delete(id: string): Promise<void>
   close(): void
 }
 
-const DB_VERSION = 1
-const STORE = 'annotations'
+const DB_VERSION = 2
+const ANNOTATIONS = 'annotations'
+const AUDIO = 'audio'
 const BY_DOCUMENT = 'documentId'
 
 export function openDatabase(
@@ -25,9 +45,13 @@ export function openDatabase(
     const request = factory.open(dbName, DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
-      if (!db.objectStoreNames.contains(STORE)) {
-        const store = db.createObjectStore(STORE, { keyPath: 'id' })
+      // v1: annotations. v2: audio. Both guards make the upgrade idempotent.
+      if (!db.objectStoreNames.contains(ANNOTATIONS)) {
+        const store = db.createObjectStore(ANNOTATIONS, { keyPath: 'id' })
         store.createIndex(BY_DOCUMENT, 'documentId', { unique: false })
+      }
+      if (!db.objectStoreNames.contains(AUDIO)) {
+        db.createObjectStore(AUDIO, { keyPath: 'id' })
       }
     }
     request.onerror = () => reject(toError(request.error, 'open'))
@@ -61,8 +85,8 @@ class IndexedDbAnnotationStore implements AnnotationStore {
   }
 
   list(documentId: string): Promise<Annotation[]> {
-    return this.run('readonly', (store) =>
-      store.index(BY_DOCUMENT).getAll(documentId),
+    return this.run([ANNOTATIONS], 'readonly', (tx) =>
+      tx.objectStore(ANNOTATIONS).index(BY_DOCUMENT).getAll(documentId),
     ).then((records: unknown[]) => {
       const bad: unknown = records.find((r) => !isAnnotation(r))
       if (bad !== undefined) {
@@ -76,7 +100,7 @@ class IndexedDbAnnotationStore implements AnnotationStore {
     })
   }
 
-  put(annotation: Annotation): Promise<void> {
+  put(annotation: Annotation, audio?: AudioRecord): Promise<void> {
     // Validate at the edge even though the type says it is fine: callers may
     // hand us records parsed from an import file.
     const candidate: unknown = annotation
@@ -87,29 +111,67 @@ class IndexedDbAnnotationStore implements AnnotationStore {
         ),
       )
     }
-    return this.run('readwrite', (store) => store.put(annotation)).then(
-      () => undefined,
-    )
+    if (audio) {
+      if (candidate.kind !== 'comment' || !candidate.voice) {
+        return Promise.reject(
+          new Error(
+            `Annotation ${candidate.id} has no voice note for its audio`,
+          ),
+        )
+      }
+      if (audio.id !== candidate.id) {
+        return Promise.reject(
+          new Error(
+            `Audio id ${audio.id} does not match annotation ${candidate.id}`,
+          ),
+        )
+      }
+      if (!(audio.blob instanceof Blob) || audio.blob.size === 0) {
+        return Promise.reject(new Error('Refusing to store empty audio'))
+      }
+    }
+    return this.run([ANNOTATIONS, AUDIO], 'readwrite', (tx) => {
+      if (audio) tx.objectStore(AUDIO).put(audio)
+      return tx.objectStore(ANNOTATIONS).put(annotation)
+    }).then(() => undefined)
+  }
+
+  getAudio(id: string): Promise<AudioRecord | null> {
+    return this.run([AUDIO], 'readonly', (tx) =>
+      tx.objectStore(AUDIO).get(id),
+    ).then((record: unknown) => {
+      if (record === undefined) return null
+      if (!isAudioRecord(record) || record.id !== id) {
+        throw new Error(`Corrupt audio record in IndexedDB for ${id}`)
+      }
+      return record
+    })
   }
 
   delete(id: string): Promise<void> {
-    return this.run('readwrite', (store) => store.delete(id)).then(
-      () => undefined,
-    )
+    return this.run([ANNOTATIONS, AUDIO], 'readwrite', (tx) => {
+      tx.objectStore(AUDIO).delete(id)
+      return tx.objectStore(ANNOTATIONS).delete(id)
+    }).then(() => undefined)
   }
 
   close(): void {
     this.db.close()
   }
 
-  /** Runs one request in its own transaction; settles when it commits. */
+  /**
+   * Runs requests in one transaction; settles when it commits with the result
+   * of the request `operation` returned. Any request error aborts the
+   * transaction, so a multi-store write is all or nothing.
+   */
   private run<T>(
+    stores: string[],
     mode: IDBTransactionMode,
-    operation: (store: IDBObjectStore) => IDBRequest<T>,
+    operation: (tx: IDBTransaction) => IDBRequest<T>,
   ): Promise<T> {
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction(STORE, mode)
-      const request = operation(transaction.objectStore(STORE))
+      const transaction = this.db.transaction(stores, mode)
+      const request = operation(transaction)
       let result: T | undefined
       let settled = false
       const fail = (error: Error) => {
@@ -130,6 +192,12 @@ class IndexedDbAnnotationStore implements AnnotationStore {
       }
     })
   }
+}
+
+function isAudioRecord(value: unknown): value is AudioRecord {
+  if (typeof value !== 'object' || value === null) return false
+  const r = value as Record<string, unknown>
+  return typeof r.id === 'string' && r.blob instanceof Blob
 }
 
 function toError(error: DOMException | null, context: string): Error {

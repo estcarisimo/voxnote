@@ -28,12 +28,26 @@ All notable changes to this project are documented here. The format follows
 - **Highlights** panel listing annotations with jump-to-page and delete.
 - **Export PDF**: writes a copy with native `/Highlight` and `/Square`
   annotations (pdf-lib); the original file is never modified.
+- Comments: the selection toolbar now offers **Highlight**, **Comment** and
+  **Voice** for text selections and regions. A typed comment needs no
+  provider. A voice comment records with the microphone (record, stop,
+  replay, re-record); the audio stays on this device in IndexedDB and can be
+  replayed from the panel. Comment bodies are editable in the panel.
+- Speech-to-text adapter interface (`src/providers/stt.ts`) with the
+  disclosure hook every provider must implement; no provider ships yet, so
+  nothing leaves the device.
+- Exported comments carry their text in `/Contents`, so PDF viewers show them
+  as notes. Audio is not embedded in the export.
+
+### Changed
+
+- The **Highlights** panel is now **Annotations** and lists comments with
+  their quote, body and voice badge.
+- IndexedDB schema version 2 adds an `audio` object store; version 1
+  databases upgrade in place.
+- The session log moved from `docs/SESSION_LOG.md` to the project's Notion
+  page; the repository only links to it.
 
 ### Fixed
 
 - Stray selection box at the top-left corner of a page while selecting text.
-
-### Changed
-
-- The session log moved from `docs/SESSION_LOG.md` to the project's Notion
-  page; the repository only links to it.

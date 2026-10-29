@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   ANNOTATION_SCHEMA_VERSION,
+  createComment,
   createHighlight,
   isAnnotation,
+  isVoiceNote,
   isAnchor,
   mergeLineRects,
   rectFromCorners,
   unionRects,
+  withBody,
   type Annotation,
   type PdfRect,
 } from './annotations'
@@ -151,5 +154,85 @@ describe('isAnchor / isAnnotation', () => {
     ).toBe(false)
     expect(isAnnotation({ ...good, kind: 'sticker' })).toBe(false)
     expect(isAnnotation(null)).toBe(false)
+  })
+})
+
+describe('createComment / withBody', () => {
+  const anchor = {
+    type: 'region',
+    page: 1,
+    rect: rect(0, 0, 10, 10),
+  } as const
+  const voice = {
+    mimeType: 'audio/webm;codecs=opus',
+    durationMs: 1500,
+    recordedAt: '2026-10-29T12:00:00.000Z',
+  }
+
+  it('creates a typed comment', () => {
+    const c = createComment({ documentId: 'doc', anchor, body: ' Hola ' })
+    expect(c.kind).toBe('comment')
+    expect(c.body).toBe(' Hola ')
+    expect(c.voice).toBeUndefined()
+    expect(isAnnotation(c)).toBe(true)
+  })
+
+  it('accepts an empty body when a voice note is attached', () => {
+    const c = createComment({ documentId: 'doc', anchor, body: '', voice })
+    expect(c.voice).toEqual(voice)
+    expect(isAnnotation(c)).toBe(true)
+  })
+
+  it('rejects a comment with nothing to say', () => {
+    expect(() =>
+      createComment({ documentId: 'doc', anchor, body: '   ' }),
+    ).toThrow(/needs a body or a voice note/)
+  })
+
+  it('rejects a malformed voice note', () => {
+    expect(() =>
+      createComment({
+        documentId: 'doc',
+        anchor,
+        body: 'x',
+        voice: { ...voice, recordedAt: '2026-10-29T12:00:00' },
+      }),
+    ).toThrow(/Invalid voice note/)
+  })
+
+  it('withBody keeps createdAt and bumps updatedAt', () => {
+    const c = createComment(
+      { documentId: 'doc', anchor, body: 'a' },
+      new Date('2026-10-29T12:00:00.000Z'),
+    )
+    const edited = withBody(c, 'b', new Date('2026-10-29T12:05:00.000Z'))
+    expect(edited.body).toBe('b')
+    expect(edited.createdAt).toBe('2026-10-29T12:00:00.000Z')
+    expect(edited.updatedAt).toBe('2026-10-29T12:05:00.000Z')
+    expect(c.body).toBe('a')
+    expect(() => withBody(c, '')).toThrow(/needs a body/)
+  })
+
+  it('validates transcripts inside voice notes', () => {
+    const transcript = {
+      raw: 'hola',
+      provider: 'test/model',
+      transcribedAt: '2026-10-29T12:01:00.000Z',
+    }
+    expect(isVoiceNote({ ...voice, transcript })).toBe(true)
+    expect(
+      isVoiceNote({ ...voice, transcript: { ...transcript, raw: 1 } }),
+    ).toBe(false)
+    expect(isVoiceNote({ ...voice, durationMs: -1 })).toBe(false)
+  })
+
+  it('isAnnotation rejects comments without body or voice and unknown kinds', () => {
+    const c = createComment({ documentId: 'doc', anchor, body: 'x' })
+    expect(isAnnotation({ ...c, body: '' })).toBe(false)
+    expect(isAnnotation({ ...c, body: 3 })).toBe(false)
+    expect(isAnnotation({ ...c, kind: 'suggestion' })).toBe(false)
+    expect(isAnnotation({ ...c, voice: { mimeType: 'audio/webm' } })).toBe(
+      false,
+    )
   })
 })

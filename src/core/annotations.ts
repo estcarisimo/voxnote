@@ -42,22 +42,62 @@ export interface RegionAnchor {
 
 export type Anchor = TextAnchor | RegionAnchor
 
-export type AnnotationKind = 'highlight' | 'comment' | 'suggestion'
+export type AnnotationKind = 'highlight' | 'comment'
 
 export type Visibility = 'private' | 'author-facing'
 
-export interface Annotation {
+interface AnnotationBase {
   schemaVersion: typeof ANNOTATION_SCHEMA_VERSION
   id: string
   /** SHA-256 of the PDF bytes; see computeDocumentId. */
   documentId: string
-  kind: AnnotationKind
   anchor: Anchor
   visibility: Visibility
   /** ISO 8601 timestamps in UTC (always end in "Z"). */
   createdAt: string
   updatedAt: string
 }
+
+export interface Highlight extends AnnotationBase {
+  kind: 'highlight'
+}
+
+/**
+ * What a speech-to-text provider returned for a voice note. Kept verbatim and
+ * never edited: the user edits the comment body, not this.
+ */
+export interface Transcript {
+  raw: string
+  /** Provider and model that produced it, e.g. "openai/gpt-4o-transcribe". */
+  provider: string
+  /** BCP 47 tag when the provider reported one. */
+  language?: string
+  /** UTC. */
+  transcribedAt: string
+}
+
+/**
+ * A recording attached to a comment. The audio bytes live in the store's
+ * audio table under the annotation id (see AnnotationStore.getAudio); this
+ * record only carries what is needed to describe and replay them.
+ */
+export interface VoiceNote {
+  mimeType: string
+  durationMs: number
+  /** UTC. */
+  recordedAt: string
+  transcript?: Transcript
+}
+
+/** A note attached to an anchor, typed or dictated. */
+export interface Comment extends AnnotationBase {
+  kind: 'comment'
+  /** The editable text. Starts as the raw transcript when dictated. */
+  body: string
+  voice?: VoiceNote
+}
+
+export type Annotation = Highlight | Comment
 
 export interface CreateHighlightInput {
   documentId: string
@@ -68,14 +108,57 @@ export interface CreateHighlightInput {
 export function createHighlight(
   input: CreateHighlightInput,
   now: Date = new Date(),
-): Annotation {
+): Highlight {
+  return { ...base(input, now), kind: 'highlight' }
+}
+
+export interface CreateCommentInput extends CreateHighlightInput {
+  body: string
+  voice?: VoiceNote
+}
+
+/**
+ * A comment needs something to say: a body, or a voice note that will be
+ * transcribed or listened to later. An empty typed comment is a mistake.
+ */
+export function createComment(
+  input: CreateCommentInput,
+  now: Date = new Date(),
+): Comment {
+  if (input.body.trim() === '' && !input.voice) {
+    throw new Error('A comment needs a body or a voice note')
+  }
+  if (input.voice && !isVoiceNote(input.voice)) {
+    throw new Error(`Invalid voice note: ${JSON.stringify(input.voice)}`)
+  }
+  const comment: Comment = {
+    ...base(input, now),
+    kind: 'comment',
+    body: input.body,
+  }
+  if (input.voice) comment.voice = input.voice
+  return comment
+}
+
+/** Returns a copy with the new body and a fresh updatedAt. */
+export function withBody(
+  comment: Comment,
+  body: string,
+  now: Date = new Date(),
+): Comment {
+  if (body.trim() === '' && !comment.voice) {
+    throw new Error('A comment needs a body or a voice note')
+  }
+  return { ...comment, body, updatedAt: now.toISOString() }
+}
+
+function base(input: CreateHighlightInput, now: Date): AnnotationBase {
   validateAnchor(input.anchor)
   const timestamp = now.toISOString()
   return {
     schemaVersion: ANNOTATION_SCHEMA_VERSION,
     id: crypto.randomUUID(),
     documentId: input.documentId,
-    kind: 'highlight',
     anchor: input.anchor,
     visibility: input.visibility ?? 'private',
     createdAt: timestamp,
@@ -190,30 +273,61 @@ export function isAnchor(value: unknown): value is Anchor {
   return false
 }
 
-const KINDS: readonly string[] = ['highlight', 'comment', 'suggestion']
 const VISIBILITIES: readonly string[] = ['private', 'author-facing']
 const UTC_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
+
+function isUtcTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && UTC_ISO.test(value)
+}
+
+export function isTranscript(value: unknown): value is Transcript {
+  if (typeof value !== 'object' || value === null) return false
+  const t = value as Record<string, unknown>
+  return (
+    typeof t.raw === 'string' &&
+    typeof t.provider === 'string' &&
+    t.provider.length > 0 &&
+    (t.language === undefined || typeof t.language === 'string') &&
+    isUtcTimestamp(t.transcribedAt)
+  )
+}
+
+export function isVoiceNote(value: unknown): value is VoiceNote {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  return (
+    typeof v.mimeType === 'string' &&
+    v.mimeType.length > 0 &&
+    isFiniteNumber(v.durationMs) &&
+    v.durationMs >= 0 &&
+    isUtcTimestamp(v.recordedAt) &&
+    (v.transcript === undefined || isTranscript(v.transcript))
+  )
+}
 
 /** Structural validation for records read from storage or import files. */
 export function isAnnotation(value: unknown): value is Annotation {
   if (typeof value !== 'object' || value === null) return false
   const a = value as Record<string, unknown>
-  return (
+  const baseOk =
     a.schemaVersion === ANNOTATION_SCHEMA_VERSION &&
     typeof a.id === 'string' &&
     a.id.length > 0 &&
     typeof a.documentId === 'string' &&
     a.documentId.length > 0 &&
-    typeof a.kind === 'string' &&
-    KINDS.includes(a.kind) &&
     isAnchor(a.anchor) &&
     typeof a.visibility === 'string' &&
     VISIBILITIES.includes(a.visibility) &&
-    typeof a.createdAt === 'string' &&
-    UTC_ISO.test(a.createdAt) &&
-    typeof a.updatedAt === 'string' &&
-    UTC_ISO.test(a.updatedAt)
-  )
+    isUtcTimestamp(a.createdAt) &&
+    isUtcTimestamp(a.updatedAt)
+  if (!baseOk) return false
+  if (a.kind === 'highlight') return true
+  if (a.kind === 'comment') {
+    if (typeof a.body !== 'string') return false
+    if (a.voice !== undefined && !isVoiceNote(a.voice)) return false
+    return a.body.trim() !== '' || a.voice !== undefined
+  }
+  return false
 }
 
 function validateAnchor(anchor: Anchor): void {

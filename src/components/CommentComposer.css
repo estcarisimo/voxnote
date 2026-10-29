@@ -1,0 +1,98 @@
+.comment-composer {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, 12px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(380px, calc(100% - 32px));
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.comment-composer-quote {
+  margin: 0;
+  padding: 4px 8px;
+  border-left: 3px solid rgba(255, 200, 40, 0.9);
+  color: var(--text);
+  font-size: 0.85rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.comment-composer textarea {
+  font: inherit;
+  font-size: 1rem;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+  resize: vertical;
+}
+
+.comment-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.comment-composer button {
+  font: inherit;
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.comment-composer button.is-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.comment-composer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.comment-composer-recorder {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-composer-recorder audio {
+  flex: 1;
+  min-width: 160px;
+  height: 40px;
+}
+
+.comment-composer-live {
+  color: #c0392b;
+  font-weight: 600;
+}
+
+.comment-composer-note {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.comment-composer-error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fde8e8;
+  color: #8a1c1c;
+  font-size: 0.9rem;
+}

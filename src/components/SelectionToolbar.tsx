@@ -3,19 +3,25 @@ import './SelectionToolbar.css'
 export interface ToolbarPlacement {
   /** Horizontal center, in the scroll container's content coordinates. */
   left: number
-  /** Top edge of the selection; the toolbar sits above it. */
+  /** Top edge of the anchored area; the toolbar sits above it. */
   top: number
+  /** Bottom edge of the anchored area; the composer opens below it. */
+  bottom: number
 }
 
 interface SelectionToolbarProps {
   placement: ToolbarPlacement
   onHighlight: () => void
+  onComment: () => void
+  onVoice: () => void
 }
 
-/** Floating actions for the current text selection. */
+/** Floating actions for the current selection or region. */
 export function SelectionToolbar({
   placement,
   onHighlight,
+  onComment,
+  onVoice,
 }: SelectionToolbarProps) {
   return (
     <div
@@ -28,6 +34,12 @@ export function SelectionToolbar({
     >
       <button type="button" onClick={onHighlight}>
         Highlight
+      </button>
+      <button type="button" onClick={onComment}>
+        Comment
+      </button>
+      <button type="button" onClick={onVoice} aria-label="Voice comment">
+        🎤 Voice
       </button>
     </div>
   )

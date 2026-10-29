@@ -30,9 +30,24 @@
   outline-offset: -1px;
 }
 
+.pdf-page .highlight--comment {
+  background: rgba(120, 175, 255, 0.45);
+}
+
+.pdf-page .highlight--region.highlight--comment {
+  background: rgba(120, 175, 255, 0.15);
+  outline-color: rgba(60, 120, 230, 0.9);
+}
+
 .pdf-page .highlight--selected {
   background: rgba(60, 140, 255, 0.4);
   outline: 2px solid rgba(40, 100, 220, 0.95);
+}
+
+.pdf-page .highlight--pending {
+  background: rgba(60, 140, 255, 0.25);
+  outline: 2px dashed rgba(40, 100, 220, 0.9);
+  outline-offset: -1px;
 }
 
 /* Text layer: transparent glyph boxes positioned by pdf.js over the canvas.
