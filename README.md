@@ -127,13 +127,14 @@ The review flow is select, act, export:
 - **Local-first by default.** PDFs, annotations and recordings are stored in
   your browser's IndexedDB on this origin. The site has no server, and
   documents never leave the browser.
-- **Visit counting (decided, not yet live).** The live site will count
-  visits with Google Analytics 4: page views on the landing view only, no
-  custom events, never a file name, document id, annotation or transcript,
-  and consent mode denied by default so no cookies are set. The measurement
-  id is a build-time variable (`VITE_GA_MEASUREMENT_ID`) set only for the
-  Pages build, so forks and local builds have no analytics. Until that
-  change lands, the site has no analytics at all.
+- **Visit counting.** The live site counts visits with Google Analytics 4,
+  without cookies: the build reads the measurement id from the repository
+  variable `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only,
+  denies analytics and ad storage and every ad signal by default, and sends a
+  single page view. No custom events; never a file name, document id,
+  annotation or transcript. A build without the variable (your own checkout,
+  a fork) ships no analytics at all. Counting starts once the maintainer sets
+  the variable in the repository settings and `main` is deployed again.
 - **Keys are yours.** Provider API keys are entered in **Providers** and
   stored AES-GCM encrypted at rest, with a non-extractable key kept in
   IndexedDB. Any script running on this origin could still use them; they
@@ -163,6 +164,11 @@ All settings live in the **Providers** dialog, in your browser:
 Build-time: `npm run build` targets the GitHub Pages path `/voxnote/`, so
 `npm run preview` serves the build at `http://localhost:4173/voxnote/`; the
 dev server and the tests stay at the root path.
+
+`VITE_GA_MEASUREMENT_ID` (build-time, optional): a Google Analytics 4
+measurement id. The Pages workflow passes the GitHub Actions repository
+variable of the same name into the build; leave it unset for a build with
+no analytics. The id is never committed.
 
 ## 🏗️ Architecture
 

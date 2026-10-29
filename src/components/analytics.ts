@@ -1,6 +1,6 @@
 /**
  * Visit counting with Google Analytics 4, decided 2026-10-29 with strict
- * limits (see README, "Privacy"):
+ * limits (see README, "Privacy and keys"):
  *
  * - The measurement id comes from the build-time variable
  *   `VITE_GA_MEASUREMENT_ID`. When it is unset (local dev, forks, tests)

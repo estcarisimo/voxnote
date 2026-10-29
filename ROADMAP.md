@@ -68,14 +68,17 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
       configuration and architecture sections; CodeQL and Security (weekly
       `npm audit`, zizmor) workflows; repository homepage and topics set with
       `gh repo edit` (command and output in the PR).
-- [ ] Visit counting, decided 2026-10-29: Google Analytics 4 for visit
+- [x] Visit counting, decided 2026-10-29: Google Analytics 4 for visit
       counting only, on the live site. The measurement id comes from the
       build-time variable `VITE_GA_MEASUREMENT_ID`, set as a GitHub Actions
       variable for the Pages build, so forks and local builds have no analytics
       unless they set it. The tag loads only on the landing view and only when
       the variable is set; it records page views only (no custom events, never
       a file name, document id, annotation or transcript); consent mode defaults
-      to denied, so no cookies are set. Implementation pending in a separate PR.
+      to denied, so no cookies are set. Implemented 2026-10-29
+      (`src/components/analytics.ts`, verified headless: no request with the
+      variable unset, one gtag script request and zero cookies with it set).
+      Counting starts only once the repository variable is set.
 - [ ] Open and install the deployed PWA on a real iPad.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.
