@@ -10,6 +10,7 @@ import {
   rectFromCorners,
   unionRects,
   withBody,
+  withTranscript,
   type Annotation,
   type PdfRect,
 } from './annotations'
@@ -211,6 +212,45 @@ describe('createComment / withBody', () => {
     expect(edited.updatedAt).toBe('2026-10-29T12:05:00.000Z')
     expect(c.body).toBe('a')
     expect(() => withBody(c, '')).toThrow(/needs a body/)
+  })
+
+  it('withTranscript keeps the raw text and fills an empty body only', () => {
+    const transcript = {
+      raw: 'la figura dos no tiene ejes',
+      provider: 'openai/gpt-transcribe',
+      language: 'es',
+      transcribedAt: '2026-10-29T12:01:00.000Z',
+    }
+    const empty = createComment({ documentId: 'doc', anchor, body: '', voice })
+    const filled = withTranscript(
+      empty,
+      transcript,
+      new Date('2026-10-29T12:02:00.000Z'),
+    )
+    expect(filled.body).toBe(transcript.raw)
+    expect(filled.voice?.transcript).toEqual(transcript)
+    expect(filled.updatedAt).toBe('2026-10-29T12:02:00.000Z')
+    expect(empty.voice?.transcript).toBeUndefined()
+
+    const typed = createComment({
+      documentId: 'doc',
+      anchor,
+      body: 'my own words',
+      voice,
+    })
+    expect(withTranscript(typed, transcript).body).toBe('my own words')
+    expect(withTranscript(typed, transcript).voice?.transcript?.raw).toBe(
+      transcript.raw,
+    )
+
+    const noVoice = createComment({ documentId: 'doc', anchor, body: 'x' })
+    expect(() => withTranscript(noVoice, transcript)).toThrow(/no voice note/)
+    expect(() =>
+      withTranscript(filled, { ...transcript, raw: 'something else' }),
+    ).toThrow(/already has a transcript/)
+    expect(() =>
+      withTranscript(empty, { ...transcript, transcribedAt: 'yesterday' }),
+    ).toThrow(/Invalid transcript/)
   })
 
   it('validates transcripts inside voice notes', () => {

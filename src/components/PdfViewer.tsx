@@ -20,6 +20,7 @@ import { CommentComposer, type CommentDraft } from './CommentComposer'
 import type { PageGeometry } from './geometry'
 import { PdfPage, type Tool } from './PdfPage'
 import { SelectionToolbar, type ToolbarPlacement } from './SelectionToolbar'
+import type { TranscribeFn } from './TranscribeDialog'
 import './PdfViewer.css'
 
 export interface PdfViewerHandle {
@@ -38,6 +39,8 @@ interface PdfViewerProps {
   onCreateHighlight: (anchor: Anchor) => void
   /** Rejecting keeps the composer open with the error shown. */
   onCreateComment: (request: NewCommentRequest) => Promise<void>
+  /** Consent-gated transcription for a fresh recording; null if unavailable. */
+  transcribe: TranscribeFn | null
   ref?: Ref<PdfViewerHandle>
 }
 
@@ -66,6 +69,7 @@ export function PdfViewer({
   selectedId,
   onCreateHighlight,
   onCreateComment,
+  transcribe,
   ref,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -243,6 +247,7 @@ export function PdfViewer({
           placement={shown.placement}
           quote={shown.anchor.type === 'text' ? shown.anchor.quote : null}
           recorder={composer === 'voice' ? recorder : null}
+          transcribe={composer === 'voice' ? transcribe : null}
           onSave={saveComment}
           onCancel={clear}
         />

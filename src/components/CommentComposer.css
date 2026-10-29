@@ -96,3 +96,13 @@
   color: #8a1c1c;
   font-size: 0.9rem;
 }
+
+.comment-composer-raw {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+}
+
+.comment-composer-raw p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}

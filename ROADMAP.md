@@ -90,13 +90,18 @@ the success criterion on real iPad hardware.
   Safari's MP4 path and the real permission prompt are untested. Taps from selection to saved comment, counted in the headless
   run on 2026-10-29: typed = Comment, type, Save (2 taps + typing); voice =
   Voice (starts recording), Stop, Save (3 taps). Not yet counted on iPad.
-- [~] STT adapter interface done (`src/providers/stt.ts`); first providers
-  (OpenAI Whisper / gpt-4o-transcribe, Deepgram) and encrypted key storage
-  pending. Keys never in the repo or in a server.
-- [~] Editable comment body done; the raw transcript field exists and is kept
-  verbatim, shown read-only next to the editor once a provider fills it.
-- [ ] Explicit disclosure before anything leaves the device: what is sent
-      (audio, quote, nothing else) and to which provider.
+- [~] STT adapter interface (`src/providers/stt.ts`) and the OpenAI provider
+  (`gpt-transcribe`, plus the deprecated `gpt-4o-transcribe`,
+  `gpt-4o-mini-transcribe`, `whisper-1`) done, verified against a mocked
+  endpoint only on 2026-10-29: no real transcription has been run yet. Keys
+  are encrypted at rest in the browser (AES-GCM, non-extractable key in
+  IndexedDB; any script on this origin can still use them). Deepgram pending.
+  Keys never in the repo or in a server.
+- [x] Editable comment body; the raw transcript is kept verbatim and shown
+      read-only next to the editor once a provider fills it.
+- [x] Explicit disclosure before anything leaves the device: the consent
+      dialog states what is sent (recording, optional quote hint, language
+      hint) and to which host; nothing is uploaded until Send is tapped.
 - [ ] Evaluation set: Argentine Spanish, accented English, code-switching,
       technical vocabulary. Record WER per provider with the audio, the
       parameters and the date. No unmeasured claims.

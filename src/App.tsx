@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnnotationList } from './components/AnnotationList'
 import { OpenPdf } from './components/OpenPdf'
 import {
@@ -7,6 +7,8 @@ import {
   type PdfViewerHandle,
 } from './components/PdfViewer'
 import type { Tool } from './components/PdfPage'
+import { ProviderSettings } from './components/ProviderSettings'
+import { TranscribeDialog } from './components/TranscribeDialog'
 import type { Anchor, Annotation, Comment } from './core/annotations'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
@@ -17,6 +19,8 @@ import {
   type PDFDocumentProxy,
 } from './core/pdf'
 import { useAnnotations } from './hooks/useAnnotations'
+import { useProviders } from './hooks/useProviders'
+import { useTranscription } from './hooks/useTranscription'
 import './App.css'
 
 interface OpenDocument {
@@ -33,8 +37,32 @@ function App() {
   const [tool, setTool] = useState<Tool>('select')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [listOpen, setListOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const viewerRef = useRef<PdfViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
+  const providers = useProviders()
+  const transcription = useTranscription(providers)
+  // The open document's id as of the last render, for checks after an await.
+  const docIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    docIdRef.current = doc?.id ?? null
+  }, [doc])
+
+  async function transcribeStored(comment: Comment) {
+    if (!comment.voice) throw new Error('This comment has no recording')
+    const audio = await store.getAudio(comment.id)
+    if (!audio) throw new Error('The recording is missing from local storage')
+    if (docIdRef.current !== comment.documentId) {
+      throw new Error('The document changed; open it again to transcribe')
+    }
+    const transcript = await transcription.request({
+      audio,
+      mimeType: comment.voice.mimeType,
+      durationMs: comment.voice.durationMs,
+      quote: comment.anchor.type === 'text' ? comment.anchor.quote : null,
+    })
+    if (transcript) await store.setTranscript(comment.id, transcript)
+  }
 
   async function openFile(file: File) {
     if (loading) return
@@ -51,6 +79,8 @@ function App() {
         loadDocument(bytes),
       ])
       if (doc) void destroyDocument(doc.pdf)
+      // A consent dialog for the old document must not outlive it.
+      transcription.finish(null)
       setDoc({ id, name: file.name, bytes, pdf })
       setSelectedId(null)
     } catch (err: unknown) {
@@ -64,6 +94,7 @@ function App() {
 
   function closeDocument() {
     if (doc) void destroyDocument(doc.pdf)
+    transcription.finish(null)
     setDoc(null)
     setSelectedId(null)
     setTool('select')
@@ -161,6 +192,13 @@ function App() {
         >
           Export PDF
         </button>
+        <button
+          type="button"
+          aria-pressed={settingsOpen}
+          onClick={() => setSettingsOpen(true)}
+        >
+          Providers
+        </button>
       </header>
       {(error || store.error) && (
         <p role="alert" className="app-error">
@@ -178,6 +216,7 @@ function App() {
           selectedId={selectedId}
           onCreateHighlight={createHighlight}
           onCreateComment={createComment}
+          transcribe={transcription.request}
         />
         {listOpen && (
           <AnnotationList
@@ -187,9 +226,31 @@ function App() {
             onDelete={deleteAnnotation}
             onUpdateBody={updateBody}
             onLoadAudio={(c) => store.getAudio(c.id)}
+            onTranscribe={transcribeStored}
           />
         )}
       </div>
+      {settingsOpen && (
+        <ProviderSettings
+          providers={providers}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {transcription.pending && (
+        <TranscribeDialog
+          key={transcription.pending.id}
+          input={transcription.pending.input}
+          provider={transcription.pending.provider}
+          language={providers.settings.language}
+          onConfirm={transcription.confirm}
+          onDone={(t) =>
+            transcription.finish(t, transcription.pending ?? undefined)
+          }
+          onCancel={() =>
+            transcription.finish(null, transcription.pending ?? undefined)
+          }
+        />
+      )}
     </main>
   )
 }

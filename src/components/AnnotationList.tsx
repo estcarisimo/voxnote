@@ -11,6 +11,8 @@ interface AnnotationListProps {
   /** Rejecting keeps the editor open with the error shown. */
   onUpdateBody: (comment: Comment, body: string) => Promise<void>
   onLoadAudio: (comment: Comment) => Promise<Blob | null>
+  /** Consent-gated transcription of a stored voice note; rejects on failure. */
+  onTranscribe: (comment: Comment) => Promise<void>
 }
 
 /** The document's annotations: jump to one, edit a comment, or delete it. */
@@ -21,6 +23,7 @@ export function AnnotationList({
   onDelete,
   onUpdateBody,
   onLoadAudio,
+  onTranscribe,
 }: AnnotationListProps) {
   if (annotations.length === 0) {
     return (
@@ -47,6 +50,7 @@ export function AnnotationList({
                 onDelete={onDelete}
                 onUpdateBody={onUpdateBody}
                 onLoadAudio={onLoadAudio}
+                onTranscribe={onTranscribe}
               />
             ) : (
               <HighlightItem
@@ -105,14 +109,30 @@ function CommentItem({
   onDelete,
   onUpdateBody,
   onLoadAudio,
+  onTranscribe,
 }: {
   comment: Comment
   onSelect: (a: Annotation) => void
   onDelete: (a: Annotation) => void
   onUpdateBody: (comment: Comment, body: string) => Promise<void>
   onLoadAudio: (comment: Comment) => Promise<Blob | null>
+  onTranscribe: (comment: Comment) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const [transcribeError, setTranscribeError] = useState<string | null>(null)
+
+  async function transcribe() {
+    setTranscribing(true)
+    setTranscribeError(null)
+    try {
+      await onTranscribe(c)
+    } catch (err: unknown) {
+      setTranscribeError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTranscribing(false)
+    }
+  }
   return (
     <div className="annotation-list-comment">
       <button
@@ -146,7 +166,21 @@ function CommentItem({
         />
       ) : (
         <div className="annotation-list-actions">
+          {transcribeError && (
+            <p role="alert" className="annotation-list-error">
+              {transcribeError}
+            </p>
+          )}
           {c.voice && <AudioPlayer comment={c} onLoadAudio={onLoadAudio} />}
+          {c.voice && !c.voice.transcript && (
+            <button
+              type="button"
+              onClick={() => void transcribe()}
+              disabled={transcribing}
+            >
+              {transcribing ? 'Transcribing…' : 'Transcribe…'}
+            </button>
+          )}
           <button type="button" onClick={() => setEditing(true)}>
             Edit
           </button>

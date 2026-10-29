@@ -92,6 +92,7 @@ function setup(tool: 'select' | 'region' = 'region') {
       selectedId={null}
       onCreateHighlight={onCreateHighlight}
       onCreateComment={onCreateComment}
+      transcribe={null}
     />,
   )
   const rerenderWith = (nextTool: 'select' | 'region') =>
@@ -103,6 +104,7 @@ function setup(tool: 'select' | 'region' = 'region') {
         selectedId={null}
         onCreateHighlight={onCreateHighlight}
         onCreateComment={onCreateComment}
+        transcribe={null}
       />,
     )
   return { onCreateHighlight, onCreateComment, rerenderWith }

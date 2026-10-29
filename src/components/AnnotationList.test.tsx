@@ -20,6 +20,7 @@ const noop = {
   onDelete: () => {},
   onUpdateBody: async () => {},
   onLoadAudio: async () => null,
+  onTranscribe: async () => {},
 }
 
 describe('AnnotationList', () => {
@@ -94,6 +95,48 @@ describe('AnnotationList', () => {
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'The recording is missing from local storage',
+    )
+  })
+
+  it('offers Transcribe… only for voice notes without a transcript and shows failures', async () => {
+    const voice = {
+      mimeType: 'audio/webm',
+      durationMs: 1000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+    }
+    const pending = createComment({ documentId: 'd', anchor, body: '', voice })
+    const done = createComment({
+      documentId: 'd',
+      anchor,
+      body: 'ya',
+      voice: {
+        ...voice,
+        transcript: {
+          raw: 'ya',
+          provider: 'openai/gpt-transcribe',
+          transcribedAt: '2026-10-29T10:01:00.000Z',
+        },
+      },
+    })
+    const typed = createComment({ documentId: 'd', anchor, body: 'typed' })
+    const onTranscribe = vi.fn(async () => {
+      throw new Error('Add your OpenAI API key under Providers first')
+    })
+    render(
+      <AnnotationList
+        annotations={[pending, done, typed]}
+        selectedId={null}
+        {...noop}
+        onTranscribe={onTranscribe}
+      />,
+    )
+    const buttons = screen.getAllByRole('button', { name: 'Transcribe…' })
+    expect(buttons).toHaveLength(1)
+    fireEvent.click(buttons[0])
+    expect(onTranscribe).toHaveBeenCalledWith(pending)
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Add your OpenAI API key under Providers first',
     )
   })
 })

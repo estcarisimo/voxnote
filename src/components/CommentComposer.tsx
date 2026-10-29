@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import type { VoiceNote } from '../core/annotations'
+import type { Transcript, VoiceNote } from '../core/annotations'
 import { formatDuration } from '../core/recording'
-import type { VoiceRecorder } from '../hooks/useVoiceRecorder'
+import type { Recording, VoiceRecorder } from '../hooks/useVoiceRecorder'
 import type { ToolbarPlacement } from './SelectionToolbar'
+import type { TranscribeFn } from './TranscribeDialog'
 import './CommentComposer.css'
 
 export interface CommentDraft {
@@ -17,8 +18,16 @@ interface CommentComposerProps {
   quote: string | null
   /** When set, the composer shows recording controls. */
   recorder: VoiceRecorder | null
+  /** Opens the consent dialog and transcribes; null when unavailable. */
+  transcribe: TranscribeFn | null
   onSave: (draft: CommentDraft) => Promise<void>
   onCancel: () => void
+}
+
+/** A transcript belongs to one recording; re-recording drops it. */
+interface Transcribed {
+  url: string
+  transcript: Transcript
 }
 
 /**
@@ -30,19 +39,52 @@ export function CommentComposer({
   placement,
   quote,
   recorder,
+  transcribe,
   onSave,
   onCancel,
 }: CommentComposerProps) {
   const [body, setBody] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [transcribed, setTranscribed] = useState<Transcribed | null>(null)
+  const [transcribing, setTranscribing] = useState(false)
 
   const recording =
     recorder?.state.status === 'recorded' ? recorder.state.recording : null
+  const transcript =
+    recording && transcribed?.url === recording.url
+      ? transcribed.transcript
+      : null
+
+  async function runTranscription(current: Recording) {
+    if (!transcribe) return
+    setTranscribing(true)
+    setError(null)
+    try {
+      const result = await transcribe({
+        audio: current.blob,
+        mimeType: current.mimeType,
+        durationMs: current.durationMs,
+        quote,
+      })
+      if (!result) return
+      setTranscribed({ url: current.url, transcript: result })
+      // The raw text becomes the body only when the user typed nothing.
+      setBody((prev) => (prev.trim() === '' ? result.raw : prev))
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setTranscribing(false)
+    }
+  }
   const busy =
     recorder?.state.status === 'recording' ||
     recorder?.state.status === 'requesting'
-  const canSave = !saving && !busy && (body.trim() !== '' || recording !== null)
+  const canSave =
+    !saving &&
+    !busy &&
+    !transcribing &&
+    (body.trim() !== '' || recording !== null)
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -56,6 +98,7 @@ export function CommentComposer({
         durationMs: Math.round(recording.durationMs),
         recordedAt: recording.recordedAt,
       }
+      if (transcript) draft.voice.transcript = transcript
       draft.audio = recording.blob
     }
     try {
@@ -76,7 +119,15 @@ export function CommentComposer({
       {quote && (
         <blockquote className="comment-composer-quote">{quote}</blockquote>
       )}
-      {recorder && <RecorderControls recorder={recorder} />}
+      {recorder && (
+        <RecorderControls
+          recorder={recorder}
+          canTranscribe={transcribe !== null && !transcribing}
+          transcribing={transcribing}
+          transcript={transcript}
+          onTranscribe={(current) => void runTranscription(current)}
+        />
+      )}
       <textarea
         aria-label="Comment"
         placeholder={
@@ -87,7 +138,8 @@ export function CommentComposer({
         autoFocus={!recorder}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') onCancel()
+          // Not while an upload runs: the result would be lost after paying.
+          if (e.key === 'Escape' && !transcribing && !saving) onCancel()
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.currentTarget.form?.requestSubmit()
           }
@@ -99,7 +151,11 @@ export function CommentComposer({
         </p>
       )}
       <div className="comment-composer-actions">
-        <button type="button" onClick={onCancel} disabled={saving}>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving || transcribing}
+        >
           Cancel
         </button>
         <button type="submit" className="is-primary" disabled={!canSave}>
@@ -110,7 +166,19 @@ export function CommentComposer({
   )
 }
 
-function RecorderControls({ recorder }: { recorder: VoiceRecorder }) {
+function RecorderControls({
+  recorder,
+  canTranscribe,
+  transcribing,
+  transcript,
+  onTranscribe,
+}: {
+  recorder: VoiceRecorder
+  canTranscribe: boolean
+  transcribing: boolean
+  transcript: Transcript | null
+  onTranscribe: (recording: Recording) => void
+}) {
   const { state } = recorder
   switch (state.status) {
     case 'idle':
@@ -143,13 +211,33 @@ function RecorderControls({ recorder }: { recorder: VoiceRecorder }) {
         <div className="comment-composer-recorder">
           <audio controls src={state.recording.url} />
           <span>{formatDuration(state.recording.durationMs)}</span>
-          <button type="button" onClick={recorder.discard}>
+          <button
+            type="button"
+            onClick={recorder.discard}
+            disabled={transcribing}
+          >
             Re-record
           </button>
-          <p className="comment-composer-note">
-            The recording stays on this device. Transcription will need a
-            speech-to-text provider and your consent.
-          </p>
+          {!transcript && (
+            <button
+              type="button"
+              onClick={() => onTranscribe(state.recording)}
+              disabled={!canTranscribe}
+            >
+              {transcribing ? 'Transcribing…' : 'Transcribe…'}
+            </button>
+          )}
+          {transcript ? (
+            <details className="comment-composer-raw">
+              <summary>Raw transcript ({transcript.provider})</summary>
+              <p>{transcript.raw}</p>
+            </details>
+          ) : (
+            <p className="comment-composer-note">
+              The recording stays on this device until you choose Transcribe and
+              confirm what is sent.
+            </p>
+          )}
         </div>
       )
     case 'error':

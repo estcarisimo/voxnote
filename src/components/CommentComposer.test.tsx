@@ -23,6 +23,7 @@ describe('CommentComposer', () => {
         placement={placement}
         quote="the quoted passage"
         recorder={null}
+        transcribe={null}
         onSave={onSave}
         onCancel={() => {}}
       />,
@@ -53,6 +54,7 @@ describe('CommentComposer', () => {
         placement={placement}
         quote={null}
         recorder={null}
+        transcribe={null}
         onSave={onSave}
         onCancel={() => {}}
       />,
@@ -79,6 +81,7 @@ describe('CommentComposer', () => {
         placement={placement}
         quote={null}
         recorder={recording}
+        transcribe={null}
         onSave={onSave}
         onCancel={() => {}}
       />,
@@ -105,6 +108,7 @@ describe('CommentComposer', () => {
             url: 'blob:test',
           },
         })}
+        transcribe={null}
         onSave={onSave}
         onCancel={() => {}}
       />,
@@ -134,6 +138,7 @@ describe('CommentComposer', () => {
         placement={placement}
         quote={null}
         recorder={recorder}
+        transcribe={null}
         onSave={async () => {}}
         onCancel={() => {}}
       />,
@@ -153,6 +158,7 @@ describe('CommentComposer', () => {
         placement={placement}
         quote={null}
         recorder={null}
+        transcribe={null}
         onSave={async () => {}}
         onCancel={onCancel}
       />,
@@ -161,5 +167,161 @@ describe('CommentComposer', () => {
       key: 'Escape',
     })
     expect(onCancel).toHaveBeenCalled()
+  })
+
+  it('transcribes a recording on request, fills an empty body and saves the transcript', async () => {
+    const onSave = vi.fn(async () => {})
+    const blob = new Blob(['opus'], { type: 'audio/webm' })
+    const recording = {
+      blob,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 2000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    const transcript = {
+      raw: 'faltan los ejes',
+      provider: 'openai/gpt-transcribe',
+      language: 'es',
+      transcribedAt: '2026-10-29T10:00:05.000Z',
+    }
+    const transcribe = vi
+      .fn<(i: { quote: string | null }) => Promise<typeof transcript | null>>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(transcript)
+    render(
+      <CommentComposer
+        placement={placement}
+        quote="the quote"
+        recorder={recorderWith({ status: 'recorded', recording })}
+        transcribe={transcribe}
+        onSave={onSave}
+        onCancel={() => {}}
+      />,
+    )
+    // Cancelled in the consent dialog: nothing changes, no error.
+    fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
+    await vi.waitFor(() => expect(transcribe).toHaveBeenCalledTimes(1))
+    expect(transcribe).toHaveBeenCalledWith({
+      audio: blob,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 2000,
+      quote: 'the quote',
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+      'value',
+      '',
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Transcribe…' }))
+    await screen.findByText('faltan los ejes', { selector: 'p' })
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+      'value',
+      'faltan los ejes',
+    )
+    // One transcript per recording: no second upload is offered.
+    expect(screen.queryByRole('button', { name: 'Transcribe…' })).toBeNull()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+      target: { value: 'Faltan los ejes en la figura 2.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith({
+      body: 'Faltan los ejes en la figura 2.',
+      voice: {
+        mimeType: 'audio/webm;codecs=opus',
+        durationMs: 2000,
+        recordedAt: '2026-10-29T10:00:00.000Z',
+        transcript,
+      },
+      audio: blob,
+    })
+  })
+
+  it('ignores Escape while an upload is running', async () => {
+    const onCancel = vi.fn()
+    let finish!: (t: null) => void
+    const transcribe = vi.fn(
+      () =>
+        new Promise<null>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const recording = {
+      blob: new Blob(['opus']),
+      mimeType: 'audio/webm',
+      durationMs: 2000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    render(
+      <CommentComposer
+        placement={placement}
+        quote={null}
+        recorder={recorderWith({ status: 'recorded', recording })}
+        transcribe={transcribe}
+        onSave={async () => {}}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment' }), {
+      key: 'Escape',
+    })
+    expect(onCancel).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    finish(null)
+    await screen.findByRole('button', { name: 'Transcribe…' })
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment' }), {
+      key: 'Escape',
+    })
+    expect(onCancel).toHaveBeenCalled()
+  })
+
+  it('does not overwrite typed text with the transcript and shows upload errors', async () => {
+    const recording = {
+      blob: new Blob(['opus']),
+      mimeType: 'audio/webm',
+      durationMs: 2000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    const transcribe = vi
+      .fn<
+        () => Promise<{ raw: string; provider: string; transcribedAt: string }>
+      >()
+      .mockRejectedValueOnce(new Error('OpenAI responded 401: bad key'))
+      .mockResolvedValueOnce({
+        raw: 'dictated',
+        provider: 'openai/gpt-transcribe',
+        transcribedAt: '2026-10-29T10:00:05.000Z',
+      })
+    render(
+      <CommentComposer
+        placement={placement}
+        quote={null}
+        recorder={recorderWith({ status: 'recorded', recording })}
+        transcribe={transcribe}
+        onSave={async () => {}}
+        onCancel={() => {}}
+      />,
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+      target: { value: 'typed first' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'OpenAI responded 401: bad key',
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Transcribe…' }))
+    await screen.findByText('dictated', { selector: 'p' })
+    expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+      'value',
+      'typed first',
+    )
   })
 })
