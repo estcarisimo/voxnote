@@ -152,6 +152,30 @@ export function withBody(
   return { ...comment, body, updatedAt: now.toISOString() }
 }
 
+/**
+ * Attaches a provider's transcript to a voice comment. The raw text is kept
+ * verbatim in the voice note; the editable body only takes it when the user
+ * had not typed anything, so a typed note is never overwritten.
+ */
+export function withTranscript(
+  comment: Comment,
+  transcript: Transcript,
+  now: Date = new Date(),
+): Comment {
+  if (!comment.voice) {
+    throw new Error(`Comment ${comment.id} has no voice note to transcribe`)
+  }
+  if (!isTranscript(transcript)) {
+    throw new Error(`Invalid transcript: ${JSON.stringify(transcript)}`)
+  }
+  return {
+    ...comment,
+    body: comment.body.trim() === '' ? transcript.raw : comment.body,
+    voice: { ...comment.voice, transcript },
+    updatedAt: now.toISOString(),
+  }
+}
+
 function base(input: CreateHighlightInput, now: Date): AnnotationBase {
   validateAnchor(input.anchor)
   const timestamp = now.toISOString()

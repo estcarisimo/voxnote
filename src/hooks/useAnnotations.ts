@@ -3,9 +3,11 @@ import {
   createComment,
   createHighlight,
   withBody,
+  withTranscript,
   type Anchor,
   type Annotation,
   type Comment,
+  type Transcript,
   type VoiceNote,
 } from '../core/annotations'
 import { openAnnotationStore, type AnnotationStore } from '../core/store'
@@ -26,6 +28,8 @@ interface AnnotationsState {
   addHighlight: (anchor: Anchor) => Promise<Annotation>
   addComment: (input: NewComment) => Promise<Comment>
   updateBody: (id: string, body: string) => Promise<Comment>
+  /** Attaches a transcript to a voice comment; fills an empty body. */
+  setTranscript: (id: string, transcript: Transcript) => Promise<Comment>
   /** The recording behind a voice comment, or null when it has none. */
   getAudio: (id: string) => Promise<Blob | null>
   remove: (id: string) => Promise<void>
@@ -152,6 +156,23 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     [current, apply],
   )
 
+  const setTranscript = useCallback(
+    async (id: string, transcript: Transcript) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      const existing = current.annotations.find((a) => a.id === id)
+      if (!existing || existing.kind !== 'comment') {
+        throw new Error(`No comment with id ${id}`)
+      }
+      const updated = withTranscript(existing, transcript)
+      await current.store.put(updated)
+      apply(current.documentId, (list) =>
+        list.map((a) => (a.id === id ? updated : a)),
+      )
+      return updated
+    },
+    [current, apply],
+  )
+
   const getAudio = useCallback(
     async (id: string) => {
       if (!current) throw new Error('Annotation store is not ready')
@@ -177,6 +198,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     addHighlight,
     addComment,
     updateBody,
+    setTranscript,
     getAudio,
     remove,
   }

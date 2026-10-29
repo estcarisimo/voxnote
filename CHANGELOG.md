@@ -34,8 +34,19 @@ All notable changes to this project are documented here. The format follows
   replay, re-record); the audio stays on this device in IndexedDB and can be
   replayed from the panel. Comment bodies are editable in the panel.
 - Speech-to-text adapter interface (`src/providers/stt.ts`) with the
-  disclosure hook every provider must implement; no provider ships yet, so
-  nothing leaves the device.
+  disclosure hook every provider must implement.
+- OpenAI transcription provider (`gpt-transcribe` by default; the older
+  `gpt-4o-transcribe`, `gpt-4o-mini-transcribe` and `whisper-1` selectable).
+  **Providers** dialog to store your own API key, pick the model and set an
+  optional language hint. The key is AES-GCM encrypted at rest with a
+  non-extractable key kept in IndexedDB on this origin; it is sent only in
+  the request you confirm, straight to the provider. VoxNote has no server.
+- **Transcribe…** on a fresh recording or on a stored voice note opens a
+  consent dialog that states exactly what is sent (the recording, optionally
+  the quoted passage as a vocabulary hint, the language hint) and to which
+  host. Nothing is uploaded until **Send** is tapped. The raw transcript is
+  stored verbatim; it fills the comment body only when nothing was typed and
+  stays visible read-only next to the editor.
 - Exported comments carry their text in `/Contents`, so PDF viewers show them
   as notes. Audio is not embedded in the export.
 

@@ -14,7 +14,11 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
   selectable text layer, rendered by pdf.js.
 - Select text, or drag a region over a figure with the **Region** tool, then
   tap **Highlight**, **Comment** (typed) or **Voice** (recorded with the
-  microphone; stays on this device, no transcription provider yet).
+  microphone; stays on this device until you choose to transcribe it).
+- **Transcribe…** sends a recording to OpenAI with your own API key, after a
+  consent dialog that says exactly what is sent and where. Add the key under
+  **Providers**; it is encrypted at rest in your browser and never goes
+  anywhere but the provider. The raw transcript is kept verbatim.
 - Annotations are stored locally in your browser (IndexedDB), recordings
   included, and come back when you reopen the same file. Comment bodies can
   be edited in the **Annotations** panel.
