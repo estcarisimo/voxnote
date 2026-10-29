@@ -197,6 +197,10 @@ describe('AnnotationList', () => {
       'Comments1',
       'Highlights1',
     ])
+    // The count is decoration for screen readers: the heading name is the label.
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Comments' }),
+    ).toBeTruthy()
     expect(screen.getByText('3')).toBeTruthy()
 
     fireEvent.change(screen.getByLabelText('Group by'), {
@@ -275,19 +279,16 @@ describe('AnnotationList', () => {
         onUpdateVisibility={onUpdateVisibility}
       />,
     )
-    const toggle = screen.getByRole('button', {
-      name: 'Private; mark for the author',
-    })
-    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    const toggle = screen.getByRole('button', { name: '🔒 Private' })
+    expect(toggle.getAttribute('data-visibility')).toBe('private')
+    expect(toggle.title).toMatch(/exports still include it/)
     fireEvent.click(toggle)
     expect(onUpdateVisibility).toHaveBeenCalledWith(h, 'author-facing')
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'store closed',
     )
-    expect(
-      screen.getByRole('button', { name: 'Private; mark for the author' }),
-    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: '🔒 Private' })).toBeTruthy()
 
     // The parent stores the change and re-renders with the new value.
     rerender(
@@ -298,10 +299,8 @@ describe('AnnotationList', () => {
         onUpdateVisibility={onUpdateVisibility}
       />,
     )
-    const shared = screen.getByRole('button', {
-      name: 'For the author; mark private',
-    })
-    expect(shared.getAttribute('aria-pressed')).toBe('true')
+    const shared = screen.getByRole('button', { name: '✉ For author' })
+    expect(shared.getAttribute('data-visibility')).toBe('author-facing')
     fireEvent.click(shared)
     expect(onUpdateVisibility).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: h.id, visibility: 'author-facing' }),

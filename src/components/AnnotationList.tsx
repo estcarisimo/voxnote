@@ -274,7 +274,9 @@ function ReviewGroupSection({
       {headed && (
         <h3 id={headingId} className="annotation-list-heading">
           {label}
-          <span className="annotation-list-count">{annotations.length}</span>
+          <span className="annotation-list-count" aria-hidden="true">
+            {annotations.length}
+          </span>
         </h3>
       )}
       <ul>
@@ -341,14 +343,14 @@ function VisibilityToggle({
       <button
         type="button"
         className="annotation-list-visibility"
-        aria-label={`${VISIBILITY_LABELS[a.visibility]}; mark ${
-          next === 'private' ? 'private' : 'for the author'
-        }`}
-        aria-pressed={a.visibility === 'author-facing'}
+        data-visibility={a.visibility}
+        // The visible text is the accessible name and states the stored
+        // value; the title says what a tap does. Exports do not filter on
+        // visibility yet, so "private" is a label, not a guarantee.
         title={
           a.visibility === 'private'
-            ? 'Only you see this. Tap to mark it for the author.'
-            : 'Meant for the author. Tap to make it private.'
+            ? 'A note to yourself; exports still include it. Tap to mark it for the author.'
+            : 'Meant for the author. Tap to mark it as a note to yourself.'
         }
         disabled={busy}
         onClick={() => void toggle()}

@@ -113,7 +113,7 @@
   font-size: 0.85rem;
 }
 
-.annotation-list-visibility[aria-pressed='true'] {
+.annotation-list-visibility[data-visibility='author-facing'] {
   border-color: var(--accent-border);
   color: var(--accent);
 }

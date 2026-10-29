@@ -26,7 +26,8 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
   included, and come back when you reopen the same file. The **Annotations**
   panel groups them by kind, visibility or page, filters by kind, visibility,
   untranscribed voice notes or text, lets you edit bodies and mark each one
-  **Private** or **For author**, and jumps to the passage on tap.
+  **Private** or **For author** (a label for your own triage: exports do not
+  filter on it yet), and jumps to the passage on tap.
 - **Export PDF** downloads a copy with native PDF annotations; comment text
   goes into the note. The original file is never modified.
 
