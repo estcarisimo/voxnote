@@ -123,6 +123,26 @@ describe('exportAnnotatedPdf', () => {
     expect(numbers(h, 'C')).toEqual([1, 0.85, 0.2])
   })
 
+  it('round-trips non-Latin-1 comment text through Contents', async () => {
+    const body = 'Señor, café ☕ — 日本語 𝒳'
+    const comment = createComment({
+      documentId: 'doc',
+      anchor: {
+        type: 'region',
+        page: 1,
+        rect: { x: 0, y: 0, width: 10, height: 10 },
+      },
+      body,
+    })
+    const pdf = await PDFDocument.load(
+      await exportAnnotatedPdf(await twoPagePdf(), [comment]),
+    )
+    const [annot] = annots(pdf.getPages()[0], pdf)
+    expect(
+      (annot.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
+    ).toBe(body)
+  })
+
   it('fails loudly when an annotation points past the last page', async () => {
     const original = await twoPagePdf()
     const bad = createHighlight({

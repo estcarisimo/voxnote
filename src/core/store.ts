@@ -54,11 +54,24 @@ export function openDatabase(
         db.createObjectStore(AUDIO, { keyPath: 'id' })
       }
     }
-    request.onerror = () => reject(toError(request.error, 'open'))
-    request.onblocked = () =>
+    let settled = false
+    request.onerror = () => {
+      settled = true
+      reject(toError(request.error, 'open'))
+    }
+    request.onblocked = () => {
+      settled = true
       reject(new Error('IndexedDB open is blocked by another connection'))
+    }
     request.onsuccess = () => {
       const db = request.result
+      if (settled) {
+        // Rejected as blocked, then the other connection went away: nobody
+        // is waiting for this handle any more.
+        db.close()
+        return
+      }
+      settled = true
       // Let a future schema upgrade in another tab proceed.
       db.onversionchange = () => db.close()
       resolve(db)
@@ -171,13 +184,27 @@ class IndexedDbAnnotationStore implements AnnotationStore {
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(stores, mode)
-      const request = operation(transaction)
       let result: T | undefined
       let settled = false
       const fail = (error: Error) => {
         if (settled) return
         settled = true
         reject(error)
+      }
+      let request: IDBRequest<T>
+      try {
+        request = operation(transaction)
+      } catch (err: unknown) {
+        // A request that throws synchronously (DataError, DataCloneError)
+        // leaves the earlier requests queued; without this the transaction
+        // would commit them alone.
+        transaction.abort()
+        fail(
+          new Error(
+            `IndexedDB ${mode} failed: ${err instanceof Error ? err.message : String(err)}`,
+          ),
+        )
+        return
       }
       request.onsuccess = () => {
         result = request.result

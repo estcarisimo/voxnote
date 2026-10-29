@@ -5,6 +5,7 @@ import { pickRecordingMimeType } from '../core/recording'
 export interface Recording {
   blob: Blob
   mimeType: string
+  /** Wall-clock time between start and stop, not the decoded media length. */
   durationMs: number
   /** UTC. */
   recordedAt: string
@@ -38,20 +39,32 @@ const TICK_MS = 250
  * memory on this device; nothing is uploaded here. Errors are surfaced in
  * `state`, never swallowed: a missing microphone or a denied permission is
  * something the user must see.
+ *
+ * Every start gets a generation number. A discard or unmount bumps it, so a
+ * start still waiting on the permission prompt releases the microphone as
+ * soon as it gets it instead of recording with no UI attached.
  */
 export function useVoiceRecorder(): VoiceRecorder {
   const [state, setState] = useState<RecorderState>({ status: 'idle' })
   const [elapsedMs, setElapsedMs] = useState(0)
+  const generation = useRef(0)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const urlRef = useRef<string | null>(null)
 
-  const releaseStream = useCallback(() => {
+  /** Stops the microphone and detaches the recorder without publishing data. */
+  const teardown = useCallback(() => {
+    generation.current += 1
+    const recorder = recorderRef.current
+    if (recorder) {
+      recorder.ondataavailable = null
+      recorder.onstop = null
+      recorder.onerror = null
+      if (recorder.state !== 'inactive') recorder.stop()
+    }
+    recorderRef.current = null
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
-  }, [])
-
-  const revokeUrl = useCallback(() => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current)
     urlRef.current = null
   }, [])
@@ -65,26 +78,27 @@ export function useVoiceRecorder(): VoiceRecorder {
   }, [state])
 
   // Unmount: stop the microphone and free the replay URL.
-  useEffect(
-    () => () => {
-      const recorder = recorderRef.current
-      if (recorder && recorder.state !== 'inactive') recorder.stop()
-      releaseStream()
-      revokeUrl()
-    },
-    [releaseStream, revokeUrl],
-  )
+  useEffect(() => teardown, [teardown])
 
   const start = useCallback(async () => {
-    if (recorderRef.current) return
+    if (recorderRef.current || streamRef.current) return
+    const mine = (generation.current += 1)
+    const live = () => generation.current === mine
     setState({ status: 'requesting' })
     setElapsedMs(0)
     try {
       if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices) {
         throw new Error('This browser cannot record audio')
       }
-      const mimeType = pickRecordingMimeType(MediaRecorder.isTypeSupported)
+      const mimeType = pickRecordingMimeType((type) =>
+        MediaRecorder.isTypeSupported(type),
+      )
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (!live()) {
+        // Discarded or unmounted while the permission prompt was up.
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
       streamRef.current = stream
       const recorder = new MediaRecorder(stream, { mimeType })
       recorderRef.current = recorder
@@ -96,16 +110,14 @@ export function useVoiceRecorder(): VoiceRecorder {
         if (event.data.size > 0) chunks.push(event.data)
       }
       recorder.onerror = () => {
-        recorderRef.current = null
-        releaseStream()
+        teardown()
         setState({ status: 'error', message: 'Recording failed' })
       }
       recorder.onstop = () => {
         const durationMs = performance.now() - startedAt
-        recorderRef.current = null
-        releaseStream()
         const type = recorder.mimeType || mimeType
         const blob = new Blob(chunks, { type })
+        teardown()
         if (blob.size === 0) {
           setState({
             status: 'error',
@@ -113,7 +125,6 @@ export function useVoiceRecorder(): VoiceRecorder {
           })
           return
         }
-        revokeUrl()
         const url = URL.createObjectURL(blob)
         urlRef.current = url
         setState({
@@ -121,17 +132,22 @@ export function useVoiceRecorder(): VoiceRecorder {
           recording: { blob, mimeType: type, durationMs, recordedAt, url },
         })
       }
+      // Device unplugged or permission revoked mid-recording: finish with
+      // what we have rather than sit in "recording" forever.
+      for (const track of stream.getTracks()) {
+        track.onended = () => recorder.state === 'recording' && recorder.stop()
+      }
       recorder.start()
       setState({ status: 'recording', startedAt })
     } catch (err: unknown) {
-      recorderRef.current = null
-      releaseStream()
+      if (!live()) return
+      teardown()
       setState({
         status: 'error',
         message: err instanceof Error ? err.message : String(err),
       })
     }
-  }, [releaseStream, revokeUrl])
+  }, [teardown])
 
   const stop = useCallback(() => {
     const recorder = recorderRef.current
@@ -139,18 +155,10 @@ export function useVoiceRecorder(): VoiceRecorder {
   }, [])
 
   const discard = useCallback(() => {
-    const recorder = recorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      // Drop the data: onstop would otherwise publish it.
-      recorder.onstop = null
-      recorder.stop()
-    }
-    recorderRef.current = null
-    releaseStream()
-    revokeUrl()
+    teardown()
     setElapsedMs(0)
-    setState({ status: 'idle' })
-  }, [releaseStream, revokeUrl])
+    setState((s) => (s.status === 'idle' ? s : { status: 'idle' }))
+  }, [teardown])
 
   return { state, elapsedMs, start, stop, discard }
 }

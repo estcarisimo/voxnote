@@ -188,3 +188,96 @@ describe('IndexedDB audio records', () => {
     store.close()
   })
 })
+
+describe('IndexedDB write atomicity with audio', () => {
+  const voice = {
+    mimeType: 'audio/webm;codecs=opus',
+    durationMs: 1200,
+    recordedAt: '2026-10-29T12:00:00.000Z',
+  }
+  const blob = () => new Blob(['opus'], { type: voice.mimeType })
+
+  /** Patches `put` on the named object store of every transaction. */
+  function patchPut(
+    db: IDBDatabase,
+    storeName: string,
+    patch: (
+      realPut: IDBObjectStore['put'],
+      tx: IDBTransaction,
+    ) => IDBObjectStore['put'],
+  ) {
+    const realTransaction = db.transaction.bind(db)
+    db.transaction = ((...args: Parameters<IDBDatabase['transaction']>) => {
+      const tx = realTransaction(...args)
+      const realObjectStore = tx.objectStore.bind(tx)
+      tx.objectStore = (name: string) => {
+        const store = realObjectStore(name)
+        if (name === storeName) store.put = patch(store.put.bind(store), tx)
+        return store
+      }
+      return tx
+    }) as IDBDatabase['transaction']
+  }
+
+  it('rolls back the audio row when the annotation request throws synchronously', async () => {
+    const db = await openDatabase('test', new IDBFactory())
+    patchPut(db, 'annotations', () => () => {
+      throw new DOMException('simulated DataCloneError', 'DataCloneError')
+    })
+    const store = createAnnotationStore(db)
+    const c = createComment({
+      documentId: 'doc',
+      anchor: region(1),
+      body: '',
+      voice,
+    })
+    await expect(store.put(c, { id: c.id, blob: blob() })).rejects.toThrow(
+      /simulated DataCloneError/,
+    )
+    expect(await store.getAudio(c.id)).toBeNull()
+    expect(await store.list('doc')).toEqual([])
+    store.close()
+  })
+
+  it('rolls back the annotation when the audio write fails at commit', async () => {
+    const db = await openDatabase('test', new IDBFactory())
+    patchPut(db, 'audio', (realPut, tx) => (...args) => {
+      const request = realPut(...args)
+      request.addEventListener('success', () => tx.abort())
+      return request
+    })
+    const store = createAnnotationStore(db)
+    const c = createComment({
+      documentId: 'doc',
+      anchor: region(1),
+      body: 'text too',
+      voice,
+    })
+    await expect(store.put(c, { id: c.id, blob: blob() })).rejects.toThrow(
+      /abort/,
+    )
+    expect(await store.list('doc')).toEqual([])
+    expect(await store.getAudio(c.id)).toBeNull()
+    store.close()
+  })
+
+  it('fails loudly on a corrupt audio record', async () => {
+    const factory = new IDBFactory()
+    const store = await openAnnotationStore('test', factory)
+    await new Promise<void>((resolve, reject) => {
+      const req = factory.open('test', 2)
+      req.onsuccess = () => {
+        const tx = req.result.transaction('audio', 'readwrite')
+        tx.objectStore('audio').put({ id: 'x', blob: 'not a blob' })
+        tx.oncomplete = () => {
+          req.result.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+    await expect(store.getAudio('x')).rejects.toThrow(/Corrupt audio record/)
+    store.close()
+  })
+})

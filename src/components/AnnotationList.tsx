@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Annotation, Comment } from '../core/annotations'
 import { formatDuration } from '../core/recording'
 import './AnnotationList.css'
@@ -243,6 +243,14 @@ function AudioPlayer({
 }) {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const mounted = useRef(true)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!url) return
@@ -253,9 +261,13 @@ function AudioPlayer({
     try {
       const blob = await onLoadAudio(comment)
       if (!blob) throw new Error('The recording is missing from local storage')
-      setUrl(URL.createObjectURL(blob))
+      // The item may be gone by now (deleted while loading): don't create a
+      // URL nobody will revoke.
+      if (mounted.current) setUrl(URL.createObjectURL(blob))
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err))
+      if (mounted.current) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
     }
   }
 

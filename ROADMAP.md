@@ -85,10 +85,11 @@ the success criterion on real iPad hardware.
 
 - [x] **Comment** attached to an anchor; typed path first, so the flow works
       without any provider.
-- [x] Microphone button in the selection toolbar; record, stop, replay,
-      re-record. Taps from selection to saved comment, counted in the headless
-      run on 2026-10-29: typed = Comment, type, Save (2 taps + typing); voice =
-      Voice (starts recording), Stop, Save (3 taps). Not yet counted on iPad.
+- [~] Microphone button in the selection toolbar; record, stop, replay,
+  re-record. Verified in headless Chromium with a fake microphone only;
+  Safari's MP4 path and the real permission prompt are untested. Taps from selection to saved comment, counted in the headless
+  run on 2026-10-29: typed = Comment, type, Save (2 taps + typing); voice =
+  Voice (starts recording), Stop, Save (3 taps). Not yet counted on iPad.
 - [~] STT adapter interface done (`src/providers/stt.ts`); first providers
   (OpenAI Whisper / gpt-4o-transcribe, Deepgram) and encrypted key storage
   pending. Keys never in the repo or in a server.

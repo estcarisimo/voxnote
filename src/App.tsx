@@ -169,6 +169,8 @@ function App() {
       )}
       <div className="app-body">
         <PdfViewer
+          // A new document starts with no pending anchor or open composer.
+          key={doc.id}
           ref={viewerRef}
           document={doc.pdf}
           tool={tool}

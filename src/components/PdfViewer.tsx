@@ -76,9 +76,26 @@ export function PdfViewer({
   const composerRef = useRef<Composer>(null)
   const recorder = useVoiceRecorder()
 
+  // A tool switch drops whatever was pending: a region anchor must not
+  // reappear later, and a composer must not survive hidden with its
+  // recorder running. Adjusting state during render is React's pattern
+  // for reacting to a prop change.
+  const [seenTool, setSeenTool] = useState(tool)
+  if (seenTool !== tool) {
+    setSeenTool(tool)
+    setPending(null)
+    setComposer(null)
+  }
+
   useEffect(() => {
     composerRef.current = composer
   }, [composer])
+
+  // Whatever closed the composer, the microphone and replay URL go with it.
+  const { discard } = recorder
+  useEffect(() => {
+    if (composer !== 'voice') discard()
+  }, [composer, discard])
 
   useImperativeHandle(ref, () => ({
     scrollToPage(page) {
@@ -139,7 +156,6 @@ export function PdfViewer({
     window.getSelection()?.removeAllRanges()
     setPending(null)
     setComposer(null)
-    recorder.discard()
   }
 
   function highlight() {
