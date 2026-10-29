@@ -6,11 +6,13 @@ import {
   isNote,
   withBody,
   withTranscript,
+  withVisibility,
   type Anchor,
   type Annotation,
   type Note,
   type TextAnchor,
   type Transcript,
+  type Visibility,
   type VoiceNote,
 } from '../core/annotations'
 import { openAnnotationStore, type AnnotationStore } from '../core/store'
@@ -41,6 +43,8 @@ interface AnnotationsState {
   addHighlight: (anchor: Anchor) => Promise<Annotation>
   addNote: (input: NewNote) => Promise<Note>
   updateBody: (id: string, body: string) => Promise<Note>
+  /** Marks an annotation private or for the author. */
+  updateVisibility: (id: string, visibility: Visibility) => Promise<Annotation>
   /** Attaches a transcript to a dictated note; fills an empty body. */
   setTranscript: (id: string, transcript: Transcript) => Promise<Note>
   /** The recording behind a voice comment, or null when it has none. */
@@ -177,6 +181,21 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     [current, apply],
   )
 
+  const updateVisibility = useCallback(
+    async (id: string, visibility: Visibility) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      const existing = current.annotations.find((a) => a.id === id)
+      if (!existing) throw new Error(`No annotation with id ${id}`)
+      const updated = withVisibility(existing, visibility)
+      await current.store.put(updated)
+      apply(current.documentId, (list) =>
+        list.map((a) => (a.id === id ? updated : a)),
+      )
+      return updated
+    },
+    [current, apply],
+  )
+
   const setTranscript = useCallback(
     async (id: string, transcript: Transcript) => {
       if (!current) throw new Error('Annotation store is not ready')
@@ -219,6 +238,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     addHighlight,
     addNote,
     updateBody,
+    updateVisibility,
     setTranscript,
     getAudio,
     remove,

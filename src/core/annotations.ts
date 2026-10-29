@@ -221,6 +221,18 @@ export function withBody<N extends Note>(
   return updated
 }
 
+/** Changes who an annotation is meant for; nothing else moves. */
+export function withVisibility<A extends Annotation>(
+  annotation: A,
+  visibility: Visibility,
+  now: Date = new Date(),
+): A {
+  if (!VISIBILITIES.includes(visibility)) {
+    throw new Error(`Unknown visibility "${String(visibility)}"`)
+  }
+  return { ...annotation, visibility, updatedAt: now.toISOString() }
+}
+
 /**
  * Attaches a provider's transcript to a dictated note. The raw text is kept
  * verbatim in the voice note; the editable body only takes it when the user

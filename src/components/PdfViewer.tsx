@@ -25,6 +25,8 @@ import './PdfViewer.css'
 
 export interface PdfViewerHandle {
   scrollToPage(page: number): void
+  /** Brings the annotation's marks into view; falls back to its page. */
+  scrollToAnnotation(annotation: Annotation): void
 }
 
 export type NewNoteRequest = CommentDraft &
@@ -107,13 +109,28 @@ export function PdfViewer({
     if (composer === null) discard()
   }, [composer, discard])
 
-  useImperativeHandle(ref, () => ({
-    scrollToPage(page) {
+  useImperativeHandle(ref, () => {
+    function scrollToPage(page: number) {
       geometries.current
         .get(page)
         ?.element.scrollIntoView({ block: 'start', behavior: 'smooth' })
-    },
-  }))
+    }
+    return {
+      scrollToPage,
+      scrollToAnnotation(annotation) {
+        // Marks exist only for pages that have rendered; an unrendered page
+        // gets the page scroll instead, which makes its marks appear.
+        const mark = containerRef.current?.querySelector(
+          `[data-annotation-id="${annotation.id}"]`,
+        )
+        if (mark) {
+          mark.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        } else {
+          scrollToPage(annotation.anchor.page)
+        }
+      },
+    }
+  })
 
   const onGeometry = useCallback(
     (page: number, geometry: PageGeometry | null) => {

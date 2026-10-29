@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sibling-session worktrees created by the Claude desktop app
+.claude/worktrees/

@@ -8,7 +8,114 @@
 .annotation-list ul {
   list-style: none;
   margin: 0;
+  padding: 0 8px 8px;
+}
+
+.annotation-list-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.annotation-list-search {
+  font: inherit;
+  min-height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.annotation-list-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.annotation-list-chip {
+  font: inherit;
+  font-size: 0.85rem;
+  min-height: 32px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.annotation-list-chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.annotation-list-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.annotation-list-meta select {
+  font: inherit;
+  font-size: 0.85rem;
+  min-height: 32px;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.annotation-list-meta .annotation-list-count {
+  margin-left: auto;
+}
+
+.annotation-list-link {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.annotation-list-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 12px 8px 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.annotation-list-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.annotation-list-visibility {
+  margin-right: auto;
+  font-size: 0.85rem;
+}
+
+.annotation-list-visibility[data-visibility='author-facing'] {
+  border-color: var(--accent-border);
+  color: var(--accent);
 }
 
 .annotation-list li {

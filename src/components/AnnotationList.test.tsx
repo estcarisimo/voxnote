@@ -4,8 +4,11 @@ import {
   createComment,
   createHighlight,
   createSuggestion,
+  withVisibility,
+  type Annotation,
   type Note,
   type TextAnchor,
+  type Visibility,
 } from '../core/annotations'
 import { AnnotationList } from './AnnotationList'
 
@@ -20,6 +23,7 @@ const noop = {
   onSelect: () => {},
   onDelete: () => {},
   onUpdateBody: async () => {},
+  onUpdateVisibility: async () => {},
   onLoadAudio: async () => null,
   onTranscribe: async () => {},
 }
@@ -171,5 +175,151 @@ describe('AnnotationList', () => {
     await vi.waitFor(() =>
       expect(onUpdateBody).toHaveBeenCalledWith(s, 'quoted phrases'),
     )
+  })
+
+  it('groups by kind with headings and counts, and switches to page grouping', () => {
+    const onP1 = { ...anchor, page: 1 }
+    const h = createHighlight({ documentId: 'd', anchor })
+    const c = createComment(
+      { documentId: 'd', anchor: onP1, body: 'note' },
+      new Date('2026-10-29T10:00:00.000Z'),
+    )
+    const s = createSuggestion(
+      { documentId: 'd', anchor: onP1, body: 'fix' },
+      new Date('2026-10-29T10:01:00.000Z'),
+    )
+    render(
+      <AnnotationList annotations={[h, c, s]} selectedId={null} {...noop} />,
+    )
+    const headings = screen.getAllByRole('heading', { level: 3 })
+    expect(headings.map((e) => e.textContent)).toEqual([
+      'Suggestions1',
+      'Comments1',
+      'Highlights1',
+    ])
+    // The count is decoration for screen readers: the heading name is the label.
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Comments' }),
+    ).toBeTruthy()
+    expect(screen.getByText('3')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Group by'), {
+      target: { value: 'page' },
+    })
+    expect(
+      screen.getAllByRole('heading', { level: 3 }).map((e) => e.textContent),
+    ).toEqual(['Page 12', 'Page 31'])
+    // Within page 1 the suggestion and comment share a position: creation
+    // order wins, so the comment (created first) comes first.
+    const items = screen.getAllByRole('listitem')
+    expect(items[0].textContent).toContain('note')
+    expect(items[1].textContent).toContain('fix')
+  })
+
+  it('filters by kind chips, visibility, untranscribed voice and text, with a clear action', () => {
+    const h = createHighlight({ documentId: 'd', anchor })
+    const c = withVisibility(
+      createComment({ documentId: 'd', anchor, body: 'Cite the source' }),
+      'author-facing',
+    )
+    const v = createComment({
+      documentId: 'd',
+      anchor,
+      body: '',
+      voice: {
+        mimeType: 'audio/webm',
+        durationMs: 1000,
+        recordedAt: '2026-10-29T10:00:00.000Z',
+      },
+    })
+    render(
+      <AnnotationList annotations={[h, c, v]} selectedId={null} {...noop} />,
+    )
+    const chip = (name: string) => screen.getByRole('button', { name })
+
+    fireEvent.click(chip('Highlights'))
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('1 of 3')).toBeTruthy()
+    expect(chip('Highlights').getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(chip('Highlights'))
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+
+    fireEvent.click(chip('For the author'))
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('Cite the source')).toBeTruthy()
+    fireEvent.click(chip('Private'))
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    fireEvent.click(chip('Private'))
+
+    fireEvent.click(chip('🎤 Untranscribed'))
+    expect(screen.getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.getByText('Voice note, not transcribed yet')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Search annotations'), {
+      target: { value: 'SOURCE' },
+    })
+    expect(screen.queryAllByRole('listitem')).toHaveLength(0)
+    expect(screen.getByText(/No annotations match the filter/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filter' }))
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.queryByText(/of 3/)).toBeNull()
+  })
+
+  it('toggles visibility through the callback and shows a failure without flipping', async () => {
+    const h = createHighlight({ documentId: 'd', anchor })
+    const onUpdateVisibility = vi
+      .fn<(a: Annotation, v: Visibility) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('store closed'))
+    const { rerender } = render(
+      <AnnotationList
+        annotations={[h]}
+        selectedId={null}
+        {...noop}
+        onUpdateVisibility={onUpdateVisibility}
+      />,
+    )
+    const toggle = screen.getByRole('button', { name: '🔒 Private' })
+    expect(toggle.getAttribute('data-visibility')).toBe('private')
+    expect(toggle.title).toMatch(/exports still include it/)
+    fireEvent.click(toggle)
+    expect(onUpdateVisibility).toHaveBeenCalledWith(h, 'author-facing')
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'store closed',
+    )
+    expect(screen.getByRole('button', { name: '🔒 Private' })).toBeTruthy()
+
+    // The parent stores the change and re-renders with the new value.
+    rerender(
+      <AnnotationList
+        annotations={[withVisibility(h, 'author-facing')]}
+        selectedId={null}
+        {...noop}
+        onUpdateVisibility={onUpdateVisibility}
+      />,
+    )
+    const shared = screen.getByRole('button', { name: '✉ For author' })
+    expect(shared.getAttribute('data-visibility')).toBe('author-facing')
+    fireEvent.click(shared)
+    expect(onUpdateVisibility).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: h.id, visibility: 'author-facing' }),
+      'private',
+    )
+  })
+
+  it('selects an annotation from a group', () => {
+    const h = createHighlight({ documentId: 'd', anchor })
+    const onSelect = vi.fn()
+    render(
+      <AnnotationList
+        annotations={[h]}
+        selectedId={null}
+        {...noop}
+        onSelect={onSelect}
+      />,
+    )
+    fireEvent.click(screen.getByText('quoted words'))
+    expect(onSelect).toHaveBeenCalledWith(h)
   })
 })

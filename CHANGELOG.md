@@ -67,6 +67,14 @@ All notable changes to this project are documented here. The format follows
   and Apple touch) and an offline app shell precached by a service worker
   (`vite-plugin-pwa`); a new version waits behind a dismissible "Update
   available — Reload" bar. Not yet tried on an iPad.
+- Review sidebar: the **Annotations** panel groups annotations by kind,
+  visibility or page (reading order within each group), filters them by kind,
+  visibility, untranscribed voice notes and free text across quotes, notes
+  and raw transcripts, and shows how many of the total are shown. Each
+  annotation can be marked **Private** or **For author**; this is stored
+  metadata for now, the exports do not filter on it yet. Tapping an
+  annotation scrolls to its marks when its page has rendered, else to the
+  page.
 
 ### Changed
 
