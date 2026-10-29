@@ -33,4 +33,4 @@ End the review with exactly one line:
 - `VERDICT: REQUEST_CHANGES` — list each blocking item with file and line.
 
 Post the full review as a PR comment. The author records the number of rounds
-in `docs/SESSION_LOG.md`.
+in the session log on the project's Notion page.

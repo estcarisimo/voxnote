@@ -2,7 +2,7 @@
 
 VoxNote is an open-source, AI-native PDF reviewer: highlight, comment and
 suggest on a PDF without ever editing it. Read `ROADMAP.md` for scope and
-`docs/SESSION_LOG.md` (last entry) before touching code.
+the last session-log entry on the project's Notion page before touching code.
 
 ## Language policy (mandatory)
 
@@ -26,9 +26,10 @@ text and docs follow the same rule.
 - **Review gate.** Every PR is reviewed by a fresh-context, read-only subagent
   following `.github/REVIEW.md`. New subagent per round; it reads earlier
   rounds. Merge only after `VERDICT: APPROVE` on the final commit with CI green.
-- **Session log.** Close every session with an entry in `docs/SESSION_LOG.md`:
-  what was done, what was verified, what is pending, branch/commit/PR, next
-  concrete action.
+- **Session log.** Lives on the project's Notion page ("VoxNote — AI-native
+  PDF reviewing", section "Session log"), not in this repository. Close every
+  session with an entry there: what was done, what was verified, what is
+  pending, branch/commit/PR, next concrete action.
 - **One PR at a time when PRs touch `CHANGELOG.md`.**
 - **Verified state, with date and evidence.** Repository facts (rulesets, PVR,
   Pages) are recorded with the date and the command that showed them. Anything
