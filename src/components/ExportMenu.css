@@ -1,0 +1,5 @@
+/* Middle buttons of the segmented export group: square corners, shared border. */
+.export-menu button:not(:first-child):not(:last-child) {
+  border-radius: 0;
+  margin-left: -1px;
+}

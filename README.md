@@ -27,6 +27,8 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
   be edited in the **Annotations** panel.
 - **Export PDF** downloads a copy with native PDF annotations; comment text
   goes into the note. The original file is never modified.
+- **Markdown** and **JSON** download a page-by-page review report and a
+  machine-readable copy of the annotations (no audio). Nothing is uploaded.
 
 ## Run it
 

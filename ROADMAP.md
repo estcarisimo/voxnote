@@ -119,8 +119,10 @@ the success criterion on real iPad hardware.
 
 - [ ] Sidebar listing annotations grouped by kind and visibility; filter;
       tap → jump to the source passage.
-- [ ] Export: annotated PDF, Markdown report with page and quote references,
+- [x] Export: annotated PDF, Markdown report with page and quote references,
       machine-readable JSON. Nothing is ever sent or published automatically.
+      PDF since M1.1; Markdown and JSON added 2026-10-29 (unit-tested,
+      `src/core/exportNotes.test.ts`).
 - [ ] PWA manifest + offline shell so it installs on the iPad home screen.
 
 ### M1 exit criterion
