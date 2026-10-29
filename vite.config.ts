@@ -4,7 +4,11 @@ import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command, isPreview }) => ({
+  // GitHub Pages serves the site from https://estcarisimo.github.io/voxnote/,
+  // so production builds (and `npm run preview`, which serves them) live under
+  // /voxnote/. `npm run dev` and the tests keep the root path.
+  base: command === 'build' || isPreview ? '/voxnote/' : '/',
   plugins: [
     react(),
     VitePWA({
@@ -32,4 +36,4 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     setupFiles: ['src/test/setup.ts'],
   },
-})
+}))

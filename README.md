@@ -8,6 +8,11 @@ comment and suggest on a paper by voice — the PDF itself is never edited.
 **Status:** early scaffold (milestone M0). The name is a working name pending
 availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
 
+**Try it:** <https://estcarisimo.github.io/voxnote/> — a static build with no
+backend, published from `main`. The site uploads nothing: PDFs, annotations
+and recordings stay in your browser, and audio leaves the device only when you
+confirm a transcription with your own provider key.
+
 ## What works today
 
 - Open a local PDF (file picker or drag-and-drop) and read it with a
@@ -45,6 +50,10 @@ npm run dev
 
 Then open the printed URL. To try it on an iPad on the same network, run
 `npm run dev -- --host` and open the LAN address in Safari.
+
+`npm run build` targets the GitHub Pages path `/voxnote/`, so
+`npm run preview` serves the build at `http://localhost:4173/voxnote/`; the
+dev server stays at the root path.
 
 ## Develop
 
