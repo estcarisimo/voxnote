@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { TextLayer, type PageViewport } from 'pdfjs-dist'
-import type { Annotation, RegionAnchor } from '../core/annotations'
+import type { Anchor, Annotation, RegionAnchor } from '../core/annotations'
 import type { PDFDocumentProxy, PDFPageProxy } from '../core/pdf'
 import { createPageGeometry, type PageGeometry } from './geometry'
 import './PdfPage.css'
@@ -15,6 +15,8 @@ interface PdfPageProps {
   tool: Tool
   annotations: readonly Annotation[]
   selectedId: string | null
+  /** An anchor being commented on, drawn until it is saved or dropped. */
+  pendingAnchor: Anchor | null
   onGeometry: (page: number, geometry: PageGeometry | null) => void
   onCreateRegion: (anchor: RegionAnchor) => void
 }
@@ -42,6 +44,7 @@ export function PdfPage({
   tool,
   annotations,
   selectedId,
+  pendingAnchor,
   onGeometry,
   onCreateRegion,
 }: PdfPageProps) {
@@ -172,13 +175,23 @@ export function PdfPage({
       <div className="highlightLayer" aria-hidden="true">
         {geometry &&
           annotations.map((a) => (
-            <HighlightMarks
+            <Marks
               key={a.id}
-              annotation={a}
+              id={a.id}
+              anchor={a.anchor}
               geometry={geometry}
+              kind={a.kind}
               selected={a.id === selectedId}
             />
           ))}
+        {geometry && pendingAnchor && pendingAnchor.page === pageNumber && (
+          <Marks
+            id="pending"
+            anchor={pendingAnchor}
+            geometry={geometry}
+            kind="pending"
+          />
+        )}
       </div>
       <div ref={textLayerRef} className="textLayer" />
       {tool === 'region' && (
@@ -212,25 +225,28 @@ function draftRect(d: Draft) {
   }
 }
 
-function HighlightMarks({
-  annotation,
+function Marks({
+  id,
+  anchor,
   geometry,
-  selected,
+  kind,
+  selected = false,
 }: {
-  annotation: Annotation
+  id: string
+  anchor: Anchor
   geometry: PageGeometry
-  selected: boolean
+  kind: 'highlight' | 'comment' | 'pending'
+  selected?: boolean
 }) {
-  const { anchor } = annotation
   const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]
-  const className = `highlight highlight--${anchor.type}${selected ? ' highlight--selected' : ''}`
+  const className = `highlight highlight--${anchor.type} highlight--${kind}${selected ? ' highlight--selected' : ''}`
   return (
     <>
       {rects.map((r, i) => (
         <div
           key={i}
           className={className}
-          data-annotation-id={annotation.id}
+          data-annotation-id={id}
           style={geometry.toCssRect(r)}
         />
       ))}

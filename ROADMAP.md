@@ -83,15 +83,18 @@ the success criterion on real iPad hardware.
 
 ### M1.2 Comments by voice
 
-- [ ] **Comment** attached to an anchor; typed path first, so the flow works
+- [x] **Comment** attached to an anchor; typed path first, so the flow works
       without any provider.
-- [ ] Microphone button in the selection toolbar; record, stop, replay,
-      re-record. Measure taps from selection to saved comment.
-- [ ] STT adapter interface + first providers: OpenAI (Whisper / gpt-4o
-      transcribe), Deepgram. Keys stored encrypted in the browser, never in the
-      repo or in a server.
-- [ ] Editable transcript; the raw transcript is always kept alongside any
-      polished version.
+- [~] Microphone button in the selection toolbar; record, stop, replay,
+  re-record. Verified in headless Chromium with a fake microphone only;
+  Safari's MP4 path and the real permission prompt are untested. Taps from selection to saved comment, counted in the headless
+  run on 2026-10-29: typed = Comment, type, Save (2 taps + typing); voice =
+  Voice (starts recording), Stop, Save (3 taps). Not yet counted on iPad.
+- [~] STT adapter interface done (`src/providers/stt.ts`); first providers
+  (OpenAI Whisper / gpt-4o-transcribe, Deepgram) and encrypted key storage
+  pending. Keys never in the repo or in a server.
+- [~] Editable comment body done; the raw transcript field exists and is kept
+  verbatim, shown read-only next to the editor once a provider fills it.
 - [ ] Explicit disclosure before anything leaves the device: what is sent
       (audio, quote, nothing else) and to which provider.
 - [ ] Evaluation set: Argentine Spanish, accented English, code-switching,

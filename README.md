@@ -12,12 +12,14 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
 
 - Open a local PDF (file picker or drag-and-drop) and read it with a
   selectable text layer, rendered by pdf.js.
-- Highlight text (select, then tap **Highlight**) or a region (**Region**
-  tool, then drag over a figure).
-- Highlights are stored locally in your browser (IndexedDB) and come back
-  when you reopen the same file.
-- **Export PDF** downloads a copy with native PDF highlight annotations. The
-  original file is never modified.
+- Select text, or drag a region over a figure with the **Region** tool, then
+  tap **Highlight**, **Comment** (typed) or **Voice** (recorded with the
+  microphone; stays on this device, no transcription provider yet).
+- Annotations are stored locally in your browser (IndexedDB), recordings
+  included, and come back when you reopen the same file. Comment bodies can
+  be edited in the **Annotations** panel.
+- **Export PDF** downloads a copy with native PDF annotations; comment text
+  goes into the note. The original file is never modified.
 
 ## Run it
 

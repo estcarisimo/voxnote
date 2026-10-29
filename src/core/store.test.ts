@@ -1,6 +1,9 @@
+// @vitest-environment node
+// Node, not jsdom: fake-indexeddb clones records with Node's structuredClone,
+// which turns a jsdom Blob into an empty object. Browsers have one realm.
 import { IDBFactory } from 'fake-indexeddb'
 import { describe, expect, it } from 'vitest'
-import { createHighlight } from './annotations'
+import { createComment, createHighlight, withBody } from './annotations'
 import {
   createAnnotationStore,
   openAnnotationStore,
@@ -53,7 +56,7 @@ describe('IndexedDB annotation store', () => {
     const store = await openAnnotationStore('test', factory)
     // Write a bad record behind the store's back.
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 1)
+      const req = factory.open('test', 2)
       req.onsuccess = () => {
         const tx = req.result.transaction('annotations', 'readwrite')
         tx.objectStore('annotations').put({
@@ -98,6 +101,183 @@ describe('IndexedDB annotation store', () => {
     const store = createAnnotationStore(db)
     const a = createHighlight({ documentId: 'doc', anchor: region(1) })
     await expect(store.put(a)).rejects.toThrow(/abort/)
+    store.close()
+  })
+})
+
+describe('IndexedDB audio records', () => {
+  const voice = {
+    mimeType: 'audio/webm;codecs=opus',
+    durationMs: 1200,
+    recordedAt: '2026-10-29T12:00:00.000Z',
+  }
+
+  it('stores a comment with its recording and deletes both together', async () => {
+    const store = await openAnnotationStore('test', new IDBFactory())
+    const c = createComment({
+      documentId: 'doc',
+      anchor: region(1),
+      body: '',
+      voice,
+    })
+    const blob = new Blob(['fake-opus'], { type: voice.mimeType })
+    await store.put(c, { id: c.id, blob })
+
+    expect(await store.list('doc')).toEqual([c])
+    const audio = await store.getAudio(c.id)
+    expect(audio?.id).toBe(c.id)
+    expect(await audio?.blob.text()).toBe('fake-opus')
+
+    // Editing the body must not drop the audio.
+    await store.put(withBody(c, 'typed afterwards'))
+    expect((await store.getAudio(c.id))?.id).toBe(c.id)
+
+    await store.delete(c.id)
+    expect(await store.list('doc')).toEqual([])
+    expect(await store.getAudio(c.id)).toBeNull()
+    store.close()
+  })
+
+  it('refuses audio that does not belong to a voice comment', async () => {
+    const store = await openAnnotationStore('test', new IDBFactory())
+    const h = createHighlight({ documentId: 'doc', anchor: region(1) })
+    const blob = new Blob(['x'], { type: 'audio/webm' })
+    await expect(store.put(h, { id: h.id, blob })).rejects.toThrow(
+      /no voice note/,
+    )
+    const c = createComment({
+      documentId: 'doc',
+      anchor: region(1),
+      body: '',
+      voice,
+    })
+    await expect(store.put(c, { id: 'other', blob })).rejects.toThrow(
+      /does not match/,
+    )
+    await expect(
+      store.put(c, { id: c.id, blob: new Blob([], { type: 'audio/webm' }) }),
+    ).rejects.toThrow(/empty audio/)
+    expect(await store.list('doc')).toEqual([])
+    store.close()
+  })
+
+  it('upgrades a version 1 database without losing annotations', async () => {
+    const factory = new IDBFactory()
+    const h = createHighlight({ documentId: 'doc', anchor: region(1) })
+    await new Promise<void>((resolve, reject) => {
+      const req = factory.open('test', 1)
+      req.onupgradeneeded = () => {
+        const s = req.result.createObjectStore('annotations', { keyPath: 'id' })
+        s.createIndex('documentId', 'documentId', { unique: false })
+      }
+      req.onsuccess = () => {
+        const tx = req.result.transaction('annotations', 'readwrite')
+        tx.objectStore('annotations').put(h)
+        tx.oncomplete = () => {
+          req.result.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+
+    const store = await openAnnotationStore('test', factory)
+    expect(await store.list('doc')).toEqual([h])
+    expect(await store.getAudio(h.id)).toBeNull()
+    store.close()
+  })
+})
+
+describe('IndexedDB write atomicity with audio', () => {
+  const voice = {
+    mimeType: 'audio/webm;codecs=opus',
+    durationMs: 1200,
+    recordedAt: '2026-10-29T12:00:00.000Z',
+  }
+  const blob = () => new Blob(['opus'], { type: voice.mimeType })
+
+  /** Patches `put` on the named object store of every transaction. */
+  function patchPut(
+    db: IDBDatabase,
+    storeName: string,
+    patch: (
+      realPut: IDBObjectStore['put'],
+      tx: IDBTransaction,
+    ) => IDBObjectStore['put'],
+  ) {
+    const realTransaction = db.transaction.bind(db)
+    db.transaction = ((...args: Parameters<IDBDatabase['transaction']>) => {
+      const tx = realTransaction(...args)
+      const realObjectStore = tx.objectStore.bind(tx)
+      tx.objectStore = (name: string) => {
+        const store = realObjectStore(name)
+        if (name === storeName) store.put = patch(store.put.bind(store), tx)
+        return store
+      }
+      return tx
+    }) as IDBDatabase['transaction']
+  }
+
+  it('rolls back the audio row when the annotation request throws synchronously', async () => {
+    const db = await openDatabase('test', new IDBFactory())
+    patchPut(db, 'annotations', () => () => {
+      throw new DOMException('simulated DataCloneError', 'DataCloneError')
+    })
+    const store = createAnnotationStore(db)
+    const c = createComment({
+      documentId: 'doc',
+      anchor: region(1),
+      body: '',
+      voice,
+    })
+    await expect(store.put(c, { id: c.id, blob: blob() })).rejects.toThrow(
+      /simulated DataCloneError/,
+    )
+    expect(await store.getAudio(c.id)).toBeNull()
+    expect(await store.list('doc')).toEqual([])
+    store.close()
+  })
+
+  it('rolls back the annotation when the audio write fails at commit', async () => {
+    const db = await openDatabase('test', new IDBFactory())
+    patchPut(db, 'audio', (realPut, tx) => (...args) => {
+      const request = realPut(...args)
+      request.addEventListener('success', () => tx.abort())
+      return request
+    })
+    const store = createAnnotationStore(db)
+    const c = createComment({
+      documentId: 'doc',
+      anchor: region(1),
+      body: 'text too',
+      voice,
+    })
+    await expect(store.put(c, { id: c.id, blob: blob() })).rejects.toThrow(
+      /abort/,
+    )
+    expect(await store.list('doc')).toEqual([])
+    expect(await store.getAudio(c.id)).toBeNull()
+    store.close()
+  })
+
+  it('fails loudly on a corrupt audio record', async () => {
+    const factory = new IDBFactory()
+    const store = await openAnnotationStore('test', factory)
+    await new Promise<void>((resolve, reject) => {
+      const req = factory.open('test', 2)
+      req.onsuccess = () => {
+        const tx = req.result.transaction('audio', 'readwrite')
+        tx.objectStore('audio').put({ id: 'x', blob: 'not a blob' })
+        tx.oncomplete = () => {
+          req.result.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+    await expect(store.getAudio('x')).rejects.toThrow(/Corrupt audio record/)
     store.close()
   })
 })

@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  createComment,
   createHighlight,
+  withBody,
   type Anchor,
   type Annotation,
+  type Comment,
+  type VoiceNote,
 } from '../core/annotations'
 import { openAnnotationStore, type AnnotationStore } from '../core/store'
+
+export interface NewComment {
+  anchor: Anchor
+  body: string
+  voice?: VoiceNote
+  /** Required when `voice` is set: the recording itself. */
+  audio?: Blob
+}
 
 interface AnnotationsState {
   annotations: Annotation[]
@@ -12,6 +24,10 @@ interface AnnotationsState {
   ready: boolean
   error: string | null
   addHighlight: (anchor: Anchor) => Promise<Annotation>
+  addComment: (input: NewComment) => Promise<Comment>
+  updateBody: (id: string, body: string) => Promise<Comment>
+  /** The recording behind a voice comment, or null when it has none. */
+  getAudio: (id: string) => Promise<Blob | null>
   remove: (id: string) => Promise<void>
 }
 
@@ -71,6 +87,18 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
 
   const current = loaded && loaded.documentId === documentId ? loaded : null
 
+  /** Applies a change to this document's list, if it is still the current one. */
+  const apply = useCallback(
+    (documentId: string, change: (list: Annotation[]) => Annotation[]) => {
+      setLoaded((state) =>
+        state && state.documentId === documentId
+          ? { ...state, annotations: change(state.annotations) }
+          : state,
+      )
+    },
+    [],
+  )
+
   const addHighlight = useCallback(
     async (anchor: Anchor) => {
       if (!current) throw new Error('Annotation store is not ready')
@@ -79,12 +107,56 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
         anchor,
       })
       await current.store.put(annotation)
-      setLoaded((state) =>
-        state && state.documentId === current.documentId
-          ? { ...state, annotations: [...state.annotations, annotation] }
-          : state,
-      )
+      apply(current.documentId, (list) => [...list, annotation])
       return annotation
+    },
+    [current, apply],
+  )
+
+  const addComment = useCallback(
+    async (input: NewComment) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      if (input.voice && !input.audio) {
+        throw new Error('A voice note needs its recording')
+      }
+      const comment = createComment({
+        documentId: current.documentId,
+        anchor: input.anchor,
+        body: input.body,
+        voice: input.voice,
+      })
+      await current.store.put(
+        comment,
+        input.audio ? { id: comment.id, blob: input.audio } : undefined,
+      )
+      apply(current.documentId, (list) => [...list, comment])
+      return comment
+    },
+    [current, apply],
+  )
+
+  const updateBody = useCallback(
+    async (id: string, body: string) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      const existing = current.annotations.find((a) => a.id === id)
+      if (!existing || existing.kind !== 'comment') {
+        throw new Error(`No comment with id ${id}`)
+      }
+      const updated = withBody(existing, body)
+      await current.store.put(updated)
+      apply(current.documentId, (list) =>
+        list.map((a) => (a.id === id ? updated : a)),
+      )
+      return updated
+    },
+    [current, apply],
+  )
+
+  const getAudio = useCallback(
+    async (id: string) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      const record = await current.store.getAudio(id)
+      return record?.blob ?? null
     },
     [current],
   )
@@ -93,16 +165,9 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     async (id: string) => {
       if (!current) throw new Error('Annotation store is not ready')
       await current.store.delete(id)
-      setLoaded((state) =>
-        state && state.documentId === current.documentId
-          ? {
-              ...state,
-              annotations: state.annotations.filter((a) => a.id !== id),
-            }
-          : state,
-      )
+      apply(current.documentId, (list) => list.filter((a) => a.id !== id))
     },
-    [current],
+    [current, apply],
   )
 
   return {
@@ -110,6 +175,9 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     ready: current !== null,
     error: failed && failed.documentId === documentId ? failed.message : null,
     addHighlight,
+    addComment,
+    updateBody,
+    getAudio,
     remove,
   }
 }

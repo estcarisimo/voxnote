@@ -1,6 +1,13 @@
-import { PDFArray, PDFDict, PDFDocument, PDFName, PDFNumber } from 'pdf-lib'
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNumber,
+} from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
-import { createHighlight } from './annotations'
+import { createComment, createHighlight } from './annotations'
 import { exportAnnotatedPdf } from './exportPdf'
 
 async function twoPagePdf(): Promise<Uint8Array> {
@@ -80,6 +87,60 @@ describe('exportAnnotatedPdf', () => {
       486, // line 2
     ])
     expect(highlight.lookup(PDFName.of('NM'))?.toString()).toContain(text.id)
+  })
+
+  it('writes a comment body into Contents, with its own color', async () => {
+    const original = await twoPagePdf()
+    const comment = createComment({
+      documentId: 'doc',
+      anchor: {
+        type: 'text',
+        page: 1,
+        quote: 'q',
+        rects: [{ x: 10, y: 500, width: 100, height: 12 }],
+      },
+      body: 'Cita la fuente — ¿de dónde sale el 0.7?',
+    })
+    const highlight = createHighlight({
+      documentId: 'doc',
+      anchor: {
+        type: 'region',
+        page: 1,
+        rect: { x: 0, y: 0, width: 10, height: 10 },
+      },
+    })
+    const pdf = await PDFDocument.load(
+      await exportAnnotatedPdf(original, [comment, highlight]),
+    )
+    const [c, h] = annots(pdf.getPages()[0], pdf)
+    const contents = c.lookup(PDFName.of('Contents'))
+    expect(contents).toBeInstanceOf(PDFHexString)
+    expect((contents as PDFHexString).decodeText()).toBe(comment.body)
+    expect(numbers(c, 'C')).toEqual([0.3, 0.55, 1])
+    expect(
+      (h.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
+    ).toBe('')
+    expect(numbers(h, 'C')).toEqual([1, 0.85, 0.2])
+  })
+
+  it('round-trips non-Latin-1 comment text through Contents', async () => {
+    const body = 'Señor, café ☕ — 日本語 𝒳'
+    const comment = createComment({
+      documentId: 'doc',
+      anchor: {
+        type: 'region',
+        page: 1,
+        rect: { x: 0, y: 0, width: 10, height: 10 },
+      },
+      body,
+    })
+    const pdf = await PDFDocument.load(
+      await exportAnnotatedPdf(await twoPagePdf(), [comment]),
+    )
+    const [annot] = annots(pdf.getPages()[0], pdf)
+    expect(
+      (annot.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
+    ).toBe(body)
   })
 
   it('fails loudly when an annotation points past the last page', async () => {
