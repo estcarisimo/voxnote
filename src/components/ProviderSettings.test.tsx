@@ -112,4 +112,25 @@ describe('ProviderSettings', () => {
       'The secret store is not ready',
     )
   })
+
+  it('keeps focus where it is when the parent re-renders with new props', () => {
+    const providers = providersWith()
+    const { rerender } = render(
+      <ProviderSettings providers={providers} onClose={() => {}} />,
+    )
+    const keyField = screen.getByLabelText('API key')
+    keyField.focus()
+    // What committing the language does in the app: settings change, the
+    // parent re-renders, and every callback prop is a fresh closure.
+    rerender(
+      <ProviderSettings
+        providers={{
+          ...providers,
+          settings: { ...providers.settings, language: 'es' },
+        }}
+        onClose={() => {}}
+      />,
+    )
+    expect(document.activeElement).toBe(keyField)
+  })
 })

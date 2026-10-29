@@ -160,4 +160,36 @@ describe('useTranscription', () => {
       result.current.confirm({ audio: input.audio, mimeType: 'audio/webm' }),
     ).rejects.toThrow(/key is missing/)
   })
+
+  it('ignores a result for a request that was already cancelled, and refuses confirm after it', async () => {
+    const { result } = renderHook(() =>
+      useTranscription(providersWith(), fakeProvider(vi.fn())),
+    )
+    let first!: ReturnType<typeof result.current.request>
+    act(() => {
+      first = result.current.request(input)
+    })
+    const stale = result.current.pending!
+    act(() => result.current.finish(null))
+    await expect(first).resolves.toBeNull()
+    await expect(
+      result.current.confirm({ audio: input.audio, mimeType: 'audio/webm' }),
+    ).rejects.toThrow(/No transcription is pending/)
+
+    let second!: ReturnType<typeof result.current.request>
+    act(() => {
+      second = result.current.request(input)
+    })
+    expect(result.current.pending?.id).not.toBe(stale.id)
+    const transcript = {
+      raw: 'late',
+      provider: 'fake/m',
+      transcribedAt: '2026-10-29T10:00:00.000Z',
+    }
+    // A late result for the stale request must not settle the new one.
+    act(() => result.current.finish(transcript, stale))
+    expect(result.current.pending).not.toBeNull()
+    act(() => result.current.finish(null, result.current.pending!))
+    await expect(second).resolves.toBeNull()
+  })
 })

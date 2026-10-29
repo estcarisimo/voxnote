@@ -18,6 +18,8 @@ import type { Providers } from './useProviders'
 
 /** An upload waiting for the user's consent in the dialog. */
 export interface PendingUpload {
+  /** Distinct per request; the dialog is keyed by it. */
+  id: number
   input: TranscriptionInput
   provider: SpeechToTextProvider
 }
@@ -33,8 +35,12 @@ export interface TranscriptionFlow {
   request: TranscribeFn
   /** Runs the upload for the pending request; called by the dialog's Send. */
   confirm: (request: TranscriptionRequest) => Promise<Transcript>
-  /** Settles the pending request; null aborts an upload in flight. */
-  finish: (transcript: Transcript | null) => void
+  /**
+   * Settles the pending request; null aborts an upload in flight. With
+   * `target`, only that request is settled: a result that arrives for a
+   * request already cancelled is dropped rather than handed to the next one.
+   */
+  finish: (transcript: Transcript | null, target?: PendingUpload) => void
 }
 
 interface Pending extends PendingUpload {
@@ -56,15 +62,20 @@ export function useTranscription(
 ): TranscriptionFlow {
   const [pending, setPending] = useState<Pending | null>(null)
   const pendingRef = useRef<Pending | null>(null)
+  const nextId = useRef(1)
 
-  const finish = useCallback((transcript: Transcript | null) => {
-    const current = pendingRef.current
-    if (!current) return
-    pendingRef.current = null
-    setPending(null)
-    if (transcript === null) current.controller.abort()
-    current.resolve(transcript)
-  }, [])
+  const finish = useCallback(
+    (transcript: Transcript | null, target?: PendingUpload) => {
+      const current = pendingRef.current
+      if (!current) return
+      if (target && target.id !== current.id) return
+      pendingRef.current = null
+      setPending(null)
+      if (transcript === null) current.controller.abort()
+      current.resolve(transcript)
+    },
+    [],
+  )
 
   // Unmount settles whatever is waiting, so no caller hangs.
   useEffect(() => () => finish(null), [finish])
@@ -99,6 +110,7 @@ export function useTranscription(
           return
         }
         const next: Pending = {
+          id: nextId.current++,
           input,
           provider,
           resolve,

@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
@@ -6,11 +6,20 @@ const FOCUSABLE =
 /**
  * Keeps keyboard focus inside a modal dialog: moves focus into it on mount,
  * cycles Tab within it, closes on Escape, and restores focus afterwards.
+ *
+ * `onEscape` is read through a ref: callers pass a fresh closure on every
+ * render, and re-running the effect for that would yank focus back to the
+ * first control each time the parent re-renders.
  */
 export function useDialogFocus(
   ref: RefObject<HTMLElement | null>,
   onEscape: () => void,
 ): void {
+  const onEscapeRef = useRef(onEscape)
+  useEffect(() => {
+    onEscapeRef.current = onEscape
+  }, [onEscape])
+
   useEffect(() => {
     const dialog = ref.current
     if (!dialog) return
@@ -23,7 +32,7 @@ export function useDialogFocus(
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        onEscape()
+        onEscapeRef.current()
         return
       }
       if (event.key !== 'Tab') return
@@ -45,5 +54,5 @@ export function useDialogFocus(
       document.removeEventListener('keydown', onKeyDown)
       previous?.focus()
     }
-  }, [ref, onEscape])
+  }, [ref])
 }

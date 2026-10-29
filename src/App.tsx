@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnnotationList } from './components/AnnotationList'
 import { OpenPdf } from './components/OpenPdf'
 import {
@@ -42,11 +42,19 @@ function App() {
   const store = useAnnotations(doc?.id ?? null)
   const providers = useProviders()
   const transcription = useTranscription(providers)
+  // The open document's id as of the last render, for checks after an await.
+  const docIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    docIdRef.current = doc?.id ?? null
+  }, [doc])
 
   async function transcribeStored(comment: Comment) {
     if (!comment.voice) throw new Error('This comment has no recording')
     const audio = await store.getAudio(comment.id)
     if (!audio) throw new Error('The recording is missing from local storage')
+    if (docIdRef.current !== comment.documentId) {
+      throw new Error('The document changed; open it again to transcribe')
+    }
     const transcript = await transcription.request({
       audio,
       mimeType: comment.voice.mimeType,
@@ -230,12 +238,17 @@ function App() {
       )}
       {transcription.pending && (
         <TranscribeDialog
+          key={transcription.pending.id}
           input={transcription.pending.input}
           provider={transcription.pending.provider}
           language={providers.settings.language}
           onConfirm={transcription.confirm}
-          onDone={transcription.finish}
-          onCancel={() => transcription.finish(null)}
+          onDone={(t) =>
+            transcription.finish(t, transcription.pending ?? undefined)
+          }
+          onCancel={() =>
+            transcription.finish(null, transcription.pending ?? undefined)
+          }
         />
       )}
     </main>
