@@ -50,12 +50,12 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
 - [x] Vite + React + TypeScript scaffold, strict TS, oxlint, Prettier, Vitest.
 - [x] Manifesto hygiene: `AGENTS.md` (+ `CLAUDE.md`), `CONTRIBUTING.md`,
       `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CITATION.cff`, `CHANGELOG.md`,
-      `.github/REVIEW.md`, session log, LICENSE.
+      `.github/REVIEW.md`, LICENSE. The session log lives on the Notion page.
 - [x] Open a local PDF (file picker / drag-drop) and render pages with pdf.js,
       including the selectable text layer.
 - [x] GitHub repository, `protect-main` ruleset, CI (lint, format, typecheck
       and build, test, audit), Dependabot, private vulnerability reporting
-      verified (2026-10-29, see session log).
+      verified (2026-10-29, evidence in the session log on the Notion page).
 - [ ] Deploy the static build (GitHub Pages) so it can be opened on a real iPad.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.
@@ -113,7 +113,7 @@ the success criterion on real iPad hardware.
 ### M1 exit criterion
 
 A real review of one paper done end-to-end on iPad, with the count of taps and
-interruptions compared against the current workflow, written in the session log.
+interruptions compared against the current workflow, written in the session log on the Notion page.
 
 ## M2 — Handwriting
 
