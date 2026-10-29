@@ -12,6 +12,12 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
 
 - Open a local PDF (file picker or drag-and-drop) and read it with a
   selectable text layer, rendered by pdf.js.
+- Highlight text (select, then tap **Highlight**) or a region (**Region**
+  tool, then drag over a figure).
+- Highlights are stored locally in your browser (IndexedDB) and come back
+  when you reopen the same file.
+- **Export PDF** downloads a copy with native PDF highlight annotations. The
+  original file is never modified.
 
 ## Run it
 

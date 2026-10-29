@@ -67,16 +67,19 @@ the success criterion on real iPad hardware.
 
 ### M1.1 Anchors and highlights
 
-- [ ] Annotation data model: document id (content hash), page, selected quote,
+- [x] Annotation data model: document id (content hash), page, selected quote,
       text offsets and bounding rects, kind, visibility (private /
       author-facing), timestamps. Versioned JSON schema.
-- [ ] Text selection with Pencil, touch and pointer → **Highlight** with no
-      obligatory note.
-- [ ] Region (rectangle) selection for figures, charts and equations where
+- [x] Text selection with Pencil, touch and pointer → **Highlight** with no
+      obligatory note. (Pointer verified headless; Pencil and touch pending a
+      real iPad.)
+- [x] Region (rectangle) selection for figures, charts and equations where
       there is no text.
-- [ ] Persist locally in IndexedDB; reload restores annotations onto the PDF.
-- [ ] Interoperability test: export highlights as native PDF annotations with
-      `pdf-lib` and open the result in Preview, Acrobat, PDF Expert, Chrome.
+- [x] Persist locally in IndexedDB; reload restores annotations onto the PDF.
+- [~] Interoperability test: export highlights as native PDF annotations with
+  `pdf-lib` and open the result in Preview, Acrobat, PDF Expert, Chrome.
+  Export done; verified with poppler (pdftoppm) and qpdf. Preview,
+  Acrobat, PDF Expert and Chrome still to check.
 
 ### M1.2 Comments by voice
 
