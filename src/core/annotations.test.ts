@@ -11,6 +11,7 @@ import {
   rectFromCorners,
   unionRects,
   withBody,
+  withVisibility,
   withTranscript,
   type Anchor,
   type Annotation,
@@ -361,5 +362,35 @@ describe('createSuggestion', () => {
     expect(same.body).toBe('')
     expect(same.voice?.transcript?.raw).toBe('the the results')
     expect(isAnnotation(same)).toBe(true)
+  })
+})
+
+describe('withVisibility', () => {
+  it('flips the visibility and bumps updatedAt, leaving the rest alone', () => {
+    const h = createHighlight(
+      {
+        documentId: 'd',
+        anchor: {
+          type: 'region',
+          page: 1,
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+        },
+      },
+      new Date('2026-10-29T12:00:00.000Z'),
+    )
+    expect(h.visibility).toBe('private')
+    const shared = withVisibility(
+      h,
+      'author-facing',
+      new Date('2026-10-29T12:05:00.000Z'),
+    )
+    expect(shared.visibility).toBe('author-facing')
+    expect(shared.updatedAt).toBe('2026-10-29T12:05:00.000Z')
+    expect(shared.createdAt).toBe(h.createdAt)
+    expect(shared.id).toBe(h.id)
+    expect(h.visibility).toBe('private')
+    expect(() => withVisibility(h, 'public' as unknown as 'private')).toThrow(
+      /Unknown visibility/,
+    )
   })
 })

@@ -117,8 +117,10 @@ the success criterion on real iPad hardware.
 
 ### M1.4 Review sidebar and export
 
-- [ ] Sidebar listing annotations grouped by kind and visibility; filter;
-      tap → jump to the source passage.
+- [x] Sidebar listing annotations grouped by kind and visibility; filter;
+      tap → jump to the source passage. (2026-10-29: grouping by kind,
+      visibility or page; filter by kind, visibility, untranscribed voice and
+      text; a tap scrolls to the annotation's marks.)
 - [ ] Export: annotated PDF, Markdown report with page and quote references,
       machine-readable JSON. Nothing is ever sent or published automatically.
 - [ ] PWA manifest + offline shell so it installs on the iPad home screen.

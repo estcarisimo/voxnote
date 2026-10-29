@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { RegionAnchor } from '../core/annotations'
 import type { PDFDocumentProxy } from '../core/pdf'
 import type { PageGeometry } from './geometry'
-import { PdfViewer, type NewNoteRequest } from './PdfViewer'
+import { createRef } from 'react'
+import { createHighlight } from '../core/annotations'
+import {
+  PdfViewer,
+  type NewNoteRequest,
+  type PdfViewerHandle,
+} from './PdfViewer'
 
 // The real page renders a PDF into a canvas, which jsdom cannot do. This
 // stub registers a geometry and exposes a button that plays a region drag.
@@ -181,5 +187,48 @@ describe('PdfViewer', () => {
     expect(screen.getByRole('toolbar')).toBeTruthy()
     fireEvent.pointerDown(screen.getByTestId('page-1'))
     expect(screen.queryByRole('toolbar')).toBeNull()
+  })
+
+  it("scrolls to an annotation's mark when rendered, else to its page", () => {
+    const scrolled: Element[] = []
+    const original = Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this)
+    }
+    try {
+      const ref = createRef<PdfViewerHandle>()
+      const a = createHighlight({
+        documentId: 'd',
+        anchor: {
+          type: 'region',
+          page: 1,
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+        },
+      })
+      const { container } = render(
+        <PdfViewer
+          ref={ref}
+          document={pdf}
+          tool="select"
+          annotations={[a]}
+          selectedId={null}
+          onCreateHighlight={vi.fn()}
+          onCreateNote={vi.fn(async () => {})}
+          transcribe={null}
+        />,
+      )
+      // The stubbed page draws no marks: the page element gets the scroll.
+      ref.current?.scrollToAnnotation(a)
+      expect(scrolled).toHaveLength(1)
+      expect(scrolled[0].hasAttribute('data-annotation-id')).toBe(false)
+
+      const mark = document.createElement('div')
+      mark.setAttribute('data-annotation-id', a.id)
+      container.querySelector('.pdf-viewer')?.appendChild(mark)
+      ref.current?.scrollToAnnotation(a)
+      expect(scrolled[1]).toBe(mark)
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
   })
 })

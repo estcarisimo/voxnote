@@ -55,6 +55,12 @@ All notable changes to this project are documented here. The format follows
   struck through and the replacement inserted, editable. Exported as native
   `/StrikeOut` annotations over the original with "Replace with: …" in the
   note. The PDF itself is never changed.
+- Review sidebar: the **Annotations** panel groups annotations by kind,
+  visibility or page (reading order within each group), filters them by kind,
+  visibility, untranscribed voice notes and free text across quotes, notes
+  and raw transcripts, and shows the count shown of total. Each annotation
+  can be marked **Private** or **For author**; tapping one scrolls to its
+  marks on the page, not just to the page.
 
 ### Changed
 

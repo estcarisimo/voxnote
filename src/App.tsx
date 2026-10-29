@@ -9,7 +9,7 @@ import {
 import type { Tool } from './components/PdfPage'
 import { ProviderSettings } from './components/ProviderSettings'
 import { TranscribeDialog } from './components/TranscribeDialog'
-import type { Anchor, Annotation, Note } from './core/annotations'
+import type { Anchor, Annotation, Note, Visibility } from './core/annotations'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
   computeDocumentId,
@@ -116,6 +116,10 @@ function App() {
     await store.updateBody(note.id, body)
   }
 
+  async function updateVisibility(a: Annotation, visibility: Visibility) {
+    await store.updateVisibility(a.id, visibility)
+  }
+
   function deleteAnnotation(a: Annotation) {
     store.remove(a.id).then(
       () => setSelectedId((id) => (id === a.id ? null : id)),
@@ -125,7 +129,7 @@ function App() {
 
   function selectAnnotation(a: Annotation) {
     setSelectedId(a.id)
-    viewerRef.current?.scrollToPage(a.anchor.page)
+    viewerRef.current?.scrollToAnnotation(a)
   }
 
   async function exportPdf() {
@@ -225,6 +229,7 @@ function App() {
             onSelect={selectAnnotation}
             onDelete={deleteAnnotation}
             onUpdateBody={updateBody}
+            onUpdateVisibility={updateVisibility}
             onLoadAudio={(c) => store.getAudio(c.id)}
             onTranscribe={transcribeStored}
           />
