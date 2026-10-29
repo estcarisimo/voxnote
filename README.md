@@ -125,8 +125,15 @@ The review flow is select, act, export:
 ## 🔐 Privacy and keys
 
 - **Local-first by default.** PDFs, annotations and recordings are stored in
-  your browser's IndexedDB on this origin. The site has no server and no
-  analytics.
+  your browser's IndexedDB on this origin. The site has no server, and
+  documents never leave the browser.
+- **Visit counting (decided, not yet live).** The live site will count
+  visits with Google Analytics 4: page views on the landing view only, no
+  custom events, never a file name, document id, annotation or transcript,
+  and consent mode denied by default so no cookies are set. The measurement
+  id is a build-time variable (`VITE_GA_MEASUREMENT_ID`) set only for the
+  Pages build, so forks and local builds have no analytics. Until that
+  change lands, the site has no analytics at all.
 - **Keys are yours.** Provider API keys are entered in **Providers** and
   stored AES-GCM encrypted at rest, with a non-extractable key kept in
   IndexedDB. Any script running on this origin could still use them; they
