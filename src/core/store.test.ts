@@ -1,7 +1,11 @@
 import { IDBFactory } from 'fake-indexeddb'
 import { describe, expect, it } from 'vitest'
 import { createHighlight } from './annotations'
-import { openAnnotationStore } from './store'
+import {
+  createAnnotationStore,
+  openAnnotationStore,
+  openDatabase,
+} from './store'
 
 const region = (page: number) =>
   ({
@@ -66,6 +70,34 @@ describe('IndexedDB annotation store', () => {
       req.onerror = () => reject(req.error)
     })
     await expect(store.list('doc')).rejects.toThrow(/Corrupt annotation record/)
+    store.close()
+  })
+
+  it('rejects a write whose transaction aborts after the request succeeded', async () => {
+    const db = await openDatabase('test', new IDBFactory())
+    // Abort the transaction from inside the request's success handler, as a
+    // quota failure at commit time would: the request "succeeds" but the
+    // transaction never completes.
+    const realTransaction = db.transaction.bind(db)
+    db.transaction = ((...args: Parameters<IDBDatabase['transaction']>) => {
+      const tx = realTransaction(...args)
+      const realObjectStore = tx.objectStore.bind(tx)
+      tx.objectStore = (name: string) => {
+        const store = realObjectStore(name)
+        const realPut = store.put.bind(store)
+        store.put = (...putArgs: Parameters<IDBObjectStore['put']>) => {
+          const request = realPut(...putArgs)
+          request.addEventListener('success', () => tx.abort())
+          return request
+        }
+        return store
+      }
+      return tx
+    }) as IDBDatabase['transaction']
+
+    const store = createAnnotationStore(db)
+    const a = createHighlight({ documentId: 'doc', anchor: region(1) })
+    await expect(store.put(a)).rejects.toThrow(/abort/)
     store.close()
   })
 })

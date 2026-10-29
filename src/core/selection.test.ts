@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PdfRect } from './annotations'
 import {
+  dropOutsizedRects,
   normalizeQuote,
   quoteFromRange,
   textAnchorFromRange,
@@ -47,6 +48,21 @@ const toPdfRect = (r: RectLike): PdfRect => ({
 describe('normalizeQuote', () => {
   it('collapses whitespace and trims', () => {
     expect(normalizeQuote('  Emden\nR.   Gansner ')).toBe('Emden R. Gansner')
+  })
+})
+
+describe('dropOutsizedRects', () => {
+  it('drops a page-sized rect among line rects but keeps a lone tall one', () => {
+    const lines = [
+      clientRect(0, 0, 50, 10),
+      clientRect(0, 12, 50, 11),
+      clientRect(0, 24, 50, 10),
+    ]
+    const page = clientRect(0, 0, 600, 800)
+    expect(dropOutsizedRects([...lines, page, clientRect(0, 0, 0, 0)])).toEqual(
+      lines,
+    )
+    expect(dropOutsizedRects([page])).toEqual([page])
   })
 })
 

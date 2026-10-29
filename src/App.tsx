@@ -33,6 +33,7 @@ function App() {
   const store = useAnnotations(doc?.id ?? null)
 
   async function openFile(file: File) {
+    if (loading) return
     setError(null)
     if (!isPdfFile(file)) {
       setError(`"${file.name}" is not a PDF.`)

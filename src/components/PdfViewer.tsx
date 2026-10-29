@@ -32,6 +32,8 @@ const MAX_PAGE_WIDTH = 900
 const SELECTION_SETTLE_MS = 120
 
 interface PendingSelection {
+  /** The tool that was active when the selection was read. */
+  tool: Tool
   anchor: TextAnchor
   placement: ToolbarPlacement
 }
@@ -89,7 +91,9 @@ export function PdfViewer({
     const update = () => {
       clearTimeout(timer)
       timer = setTimeout(() => {
-        setPending(readSelection(geometries.current, containerRef.current))
+        setPending(
+          readSelection(geometries.current, containerRef.current, tool),
+        )
       }, SELECTION_SETTLE_MS)
     }
     document.addEventListener('selectionchange', update)
@@ -101,8 +105,8 @@ export function PdfViewer({
     }
   }, [tool])
 
-  // The toolbar only makes sense with the text tool.
-  const shown = tool === 'select' ? pending : null
+  // A selection read under another tool is stale once the tool changes.
+  const shown = pending && pending.tool === tool ? pending : null
 
   function createFromSelection() {
     if (!shown) return
@@ -145,6 +149,7 @@ export function PdfViewer({
 function readSelection(
   geometries: Map<number, PageGeometry>,
   container: HTMLDivElement | null,
+  tool: Tool,
 ): PendingSelection | null {
   const selection = window.getSelection()
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
@@ -173,6 +178,7 @@ function readSelection(
   const bounds = range.getBoundingClientRect()
   const origin = container.getBoundingClientRect()
   return {
+    tool,
     anchor,
     placement: {
       left: bounds.left + bounds.width / 2 - origin.left + container.scrollLeft,

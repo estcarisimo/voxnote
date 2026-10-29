@@ -44,6 +44,12 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
 
     openAnnotationStore()
       .then(async (store) => {
+        if (cancelled) {
+          // The effect was cleaned up while the open was in flight (document
+          // switch, StrictMode double mount): nobody else will close it.
+          store.close()
+          return
+        }
         opened = store
         const annotations = await store.list(documentId)
         if (cancelled) return

@@ -22,6 +22,7 @@ interface PdfPageProps {
 const MIN_REGION_PX = 6
 
 interface Draft {
+  pointerId: number
   startX: number
   startY: number
   x: number
@@ -56,6 +57,7 @@ export function PdfPage({
     let cancelled = false
     let page: PDFPageProxy | null = null
     let renderTask: ReturnType<PDFPageProxy['render']> | null = null
+    let textLayer: TextLayer | null = null
 
     async function render() {
       page = await document.getPage(pageNumber)
@@ -87,7 +89,7 @@ export function PdfPage({
 
       textLayerDiv.replaceChildren()
       textLayerDiv.style.setProperty('--scale-factor', String(scale))
-      const textLayer = new TextLayer({
+      textLayer = new TextLayer({
         textContentSource: page.streamTextContent(),
         container: textLayerDiv,
         viewport,
@@ -108,6 +110,7 @@ export function PdfPage({
     return () => {
       cancelled = true
       renderTask?.cancel()
+      textLayer?.cancel()
       page?.cleanup()
       setGeometry(null)
     }
@@ -119,16 +122,16 @@ export function PdfPage({
   }, [geometry, onGeometry, pageNumber])
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (!geometry || event.button !== 0) return
+    if (!geometry || draft || event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
     const origin = event.currentTarget.getBoundingClientRect()
     const x = event.clientX - origin.left
     const y = event.clientY - origin.top
-    setDraft({ startX: x, startY: y, x, y })
+    setDraft({ pointerId: event.pointerId, startX: x, startY: y, x, y })
   }
 
   function pointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (!draft) return
+    if (!draft || event.pointerId !== draft.pointerId) return
     const origin = event.currentTarget.getBoundingClientRect()
     setDraft({
       ...draft,
@@ -138,10 +141,11 @@ export function PdfPage({
   }
 
   function pointerUp(event: PointerEvent<HTMLDivElement>) {
-    if (!draft || !geometry) return
+    if (!draft || !geometry || event.pointerId !== draft.pointerId) return
     event.currentTarget.releasePointerCapture(event.pointerId)
     const css = draftRect(draft)
     setDraft(null)
+    // A tap, not a drag: nothing to anchor.
     if (css.width < MIN_REGION_PX || css.height < MIN_REGION_PX) return
     const origin = event.currentTarget.getBoundingClientRect()
     const rect = geometry.toPdfRect({
@@ -152,6 +156,8 @@ export function PdfPage({
       width: css.width,
       height: css.height,
     })
+    // Clamping to the page can collapse a drag that was mostly outside it.
+    if (rect.width === 0 || rect.height === 0) return
     onCreateRegion({ type: 'region', page: pageNumber, rect })
   }
 
@@ -181,7 +187,9 @@ export function PdfPage({
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
           onPointerUp={pointerUp}
-          onPointerCancel={() => setDraft(null)}
+          onPointerCancel={(e) => {
+            if (draft && e.pointerId === draft.pointerId) setDraft(null)
+          }}
         >
           {draft && <div className="regionDraft" style={draftRect(draft)} />}
         </div>

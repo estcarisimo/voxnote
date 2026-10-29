@@ -44,9 +44,7 @@ export function textAnchorFromRange(
   if (quote.length === 0) return null
 
   const rects = mergeLineRects(
-    source.clientRects
-      .filter((r) => r.width > 0 && r.height > 0)
-      .map(source.toPdfRect),
+    dropOutsizedRects(source.clientRects).map(source.toPdfRect),
   )
   if (rects.length === 0) return null
 
@@ -59,6 +57,22 @@ export function textAnchorFromRange(
   const offsets = textOffsetsInLayer(range, source.textLayer)
   if (offsets) anchor.textOffsets = offsets
   return anchor
+}
+
+const OUTSIZED_FACTOR = 4
+
+/**
+ * Removes empty rectangles and any rectangle far taller than the typical
+ * line. A range that reaches past the last span can include the text layer's
+ * page-sized `endOfContent` element, which would turn into a highlight over
+ * the whole page.
+ */
+export function dropOutsizedRects(rects: readonly RectLike[]): RectLike[] {
+  const visible = rects.filter((r) => r.width > 0 && r.height > 0)
+  if (visible.length < 2) return visible
+  const heights = visible.map((r) => r.height).sort((a, b) => a - b)
+  const median = heights[Math.floor(heights.length / 2)]
+  return visible.filter((r) => r.height <= median * OUTSIZED_FACTOR)
 }
 
 /**
