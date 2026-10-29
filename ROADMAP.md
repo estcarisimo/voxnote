@@ -108,8 +108,10 @@ the success criterion on real iPad hardware.
 
 ### M1.3 Suggestions
 
-- [ ] **Suggestion** = original text + proposed text, Google Docs style, PDF
-      untouched. Voice or typed.
+- [x] **Suggestion** = original text + proposed text, Google Docs style, PDF
+      untouched. Voice or typed. Exported as `/StrikeOut` with the
+      replacement in `/Contents`; verified with poppler on 2026-10-29, not
+      yet in Preview/Acrobat/PDF Expert/Chrome.
 - [ ] Optional LLM clean-up (punctuation, technical terms) as a separate
       opt-in action. Never silently reinterpret a critique.
 

@@ -235,7 +235,7 @@ function Marks({
   id: string
   anchor: Anchor
   geometry: PageGeometry
-  kind: 'highlight' | 'comment' | 'pending'
+  kind: 'highlight' | 'comment' | 'suggestion' | 'pending'
   selected?: boolean
 }) {
   const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]

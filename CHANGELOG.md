@@ -49,6 +49,12 @@ All notable changes to this project are documented here. The format follows
   stays visible read-only next to the editor.
 - Exported comments carry their text in `/Contents`, so PDF viewers show them
   as notes. Audio is not embedded in the export.
+- Suggestions: **Suggest** in the selection toolbar (text selections only)
+  opens the selected text for editing in place, Google Docs style, typed or
+  dictated; saving needs an actual change. The panel shows the original
+  struck through and the replacement inserted, editable. Exported as native
+  `/StrikeOut` annotations over the original with "Replace with: …" in the
+  note. The PDF itself is never changed.
 
 ### Changed
 

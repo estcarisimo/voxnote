@@ -3,13 +3,13 @@ import { AnnotationList } from './components/AnnotationList'
 import { OpenPdf } from './components/OpenPdf'
 import {
   PdfViewer,
-  type NewCommentRequest,
+  type NewNoteRequest,
   type PdfViewerHandle,
 } from './components/PdfViewer'
 import type { Tool } from './components/PdfPage'
 import { ProviderSettings } from './components/ProviderSettings'
 import { TranscribeDialog } from './components/TranscribeDialog'
-import type { Anchor, Annotation, Comment } from './core/annotations'
+import type { Anchor, Annotation, Note } from './core/annotations'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
   computeDocumentId,
@@ -48,7 +48,7 @@ function App() {
     docIdRef.current = doc?.id ?? null
   }, [doc])
 
-  async function transcribeStored(comment: Comment) {
+  async function transcribeStored(comment: Note) {
     if (!comment.voice) throw new Error('This comment has no recording')
     const audio = await store.getAudio(comment.id)
     if (!audio) throw new Error('The recording is missing from local storage')
@@ -107,13 +107,20 @@ function App() {
     )
   }
 
-  async function createComment(request: NewCommentRequest) {
-    const comment = await store.addComment(request)
-    setSelectedId(comment.id)
+  async function createNote(request: NewNoteRequest) {
+    if (request.kind === 'suggestion' && request.anchor.type !== 'text') {
+      throw new Error('A suggestion needs selected text')
+    }
+    const note = await store.addNote(
+      request.kind === 'suggestion'
+        ? { ...request, kind: 'suggestion', anchor: request.anchor as never }
+        : { ...request, kind: 'comment' },
+    )
+    setSelectedId(note.id)
   }
 
-  async function updateBody(comment: Comment, body: string) {
-    await store.updateBody(comment.id, body)
+  async function updateBody(note: Note, body: string) {
+    await store.updateBody(note.id, body)
   }
 
   function deleteAnnotation(a: Annotation) {
@@ -215,7 +222,7 @@ function App() {
           annotations={store.annotations}
           selectedId={selectedId}
           onCreateHighlight={createHighlight}
-          onCreateComment={createComment}
+          onCreateNote={createNote}
           transcribe={transcription.request}
         />
         {listOpen && (

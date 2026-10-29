@@ -7,7 +7,12 @@ import {
   PDFNumber,
 } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
-import { createComment, createHighlight } from './annotations'
+import {
+  createComment,
+  createHighlight,
+  createSuggestion,
+  type TextAnchor,
+} from './annotations'
 import { exportAnnotatedPdf } from './exportPdf'
 
 async function twoPagePdf(): Promise<Uint8Array> {
@@ -141,6 +146,42 @@ describe('exportAnnotatedPdf', () => {
     expect(
       (annot.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
     ).toBe(body)
+  })
+
+  it('writes suggestions as StrikeOut with the replacement in Contents', async () => {
+    const original = await twoPagePdf()
+    const anchor: TextAnchor = {
+      type: 'text',
+      page: 1,
+      quote: 'teh',
+      rects: [{ x: 10, y: 500, width: 30, height: 12 }],
+    }
+    const typed = createSuggestion({ documentId: 'doc', anchor, body: 'the' })
+    const dictated = createSuggestion({
+      documentId: 'doc',
+      anchor,
+      body: '',
+      voice: {
+        mimeType: 'audio/webm',
+        durationMs: 500,
+        recordedAt: '2026-10-29T10:00:00.000Z',
+      },
+    })
+    const pdf = await PDFDocument.load(
+      await exportAnnotatedPdf(original, [typed, dictated]),
+    )
+    const [a, b] = annots(pdf.getPages()[0], pdf)
+    expect(a.lookup(PDFName.of('Subtype'))).toBe(PDFName.of('StrikeOut'))
+    expect(numbers(a, 'QuadPoints')).toEqual([
+      10, 512, 40, 512, 10, 500, 40, 500,
+    ])
+    expect(numbers(a, 'C')).toEqual([0.85, 0.15, 0.15])
+    expect(
+      (a.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
+    ).toBe('Replace with: the')
+    expect(
+      (b.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
+    ).toBe('Suggested change recorded by voice; not transcribed yet')
   })
 
   it('fails loudly when an annotation points past the last page', async () => {

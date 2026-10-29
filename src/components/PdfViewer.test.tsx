@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { RegionAnchor } from '../core/annotations'
 import type { PDFDocumentProxy } from '../core/pdf'
 import type { PageGeometry } from './geometry'
-import { PdfViewer, type NewCommentRequest } from './PdfViewer'
+import { PdfViewer, type NewNoteRequest } from './PdfViewer'
 
 // The real page renders a PDF into a canvas, which jsdom cannot do. This
 // stub registers a geometry and exposes a button that plays a region drag.
@@ -81,7 +81,7 @@ const pdf = { numPages: 1 } as unknown as PDFDocumentProxy
 
 function setup(tool: 'select' | 'region' = 'region') {
   const onCreateHighlight = vi.fn()
-  const onCreateComment = vi.fn<(r: NewCommentRequest) => Promise<void>>(
+  const onCreateNote = vi.fn<(r: NewNoteRequest) => Promise<void>>(
     async () => {},
   )
   const view = render(
@@ -91,7 +91,7 @@ function setup(tool: 'select' | 'region' = 'region') {
       annotations={[]}
       selectedId={null}
       onCreateHighlight={onCreateHighlight}
-      onCreateComment={onCreateComment}
+      onCreateNote={onCreateNote}
       transcribe={null}
     />,
   )
@@ -103,11 +103,11 @@ function setup(tool: 'select' | 'region' = 'region') {
         annotations={[]}
         selectedId={null}
         onCreateHighlight={onCreateHighlight}
-        onCreateComment={onCreateComment}
+        onCreateNote={onCreateNote}
         transcribe={null}
       />,
     )
-  return { onCreateHighlight, onCreateComment, rerenderWith }
+  return { onCreateHighlight, onCreateNote, rerenderWith }
 }
 
 describe('PdfViewer', () => {
@@ -116,6 +116,8 @@ describe('PdfViewer', () => {
     expect(screen.queryByRole('toolbar')).toBeNull()
     fireEvent.click(screen.getByText('drag region 1'))
     expect(screen.getByRole('toolbar')).toBeTruthy()
+    // Only text can be replaced: no Suggest for a region.
+    expect(screen.queryByRole('button', { name: 'Suggest' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Highlight' }))
     expect(onCreateHighlight).toHaveBeenCalledWith({
       type: 'region',
@@ -126,8 +128,8 @@ describe('PdfViewer', () => {
   })
 
   it('saves a typed comment on the region and keeps the composer open on failure', async () => {
-    const { onCreateComment } = setup()
-    onCreateComment.mockRejectedValueOnce(new Error('disk full'))
+    const { onCreateNote } = setup()
+    onCreateNote.mockRejectedValueOnce(new Error('disk full'))
     fireEvent.click(screen.getByText('drag region 1'))
     fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
     expect(screen.getByText('pending on page 1')).toBeTruthy()
@@ -139,7 +141,8 @@ describe('PdfViewer', () => {
       'textContent',
       'disk full',
     )
-    expect(onCreateComment).toHaveBeenCalledWith({
+    expect(onCreateNote).toHaveBeenCalledWith({
+      kind: 'comment',
       body: 'Axis labels are missing',
       anchor: {
         type: 'region',

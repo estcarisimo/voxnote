@@ -13,8 +13,10 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
 - Open a local PDF (file picker or drag-and-drop) and read it with a
   selectable text layer, rendered by pdf.js.
 - Select text, or drag a region over a figure with the **Region** tool, then
-  tap **Highlight**, **Comment** (typed) or **Voice** (recorded with the
-  microphone; stays on this device until you choose to transcribe it).
+  tap **Highlight**, **Comment** (typed), **Voice** (recorded with the
+  microphone; stays on this device until you choose to transcribe it) or
+  **Suggest** (text only: edit the passage as it should read, or dictate
+  the replacement). The PDF is never changed.
 - **Transcribe…** sends a recording to OpenAI with your own API key, after a
   consent dialog that says exactly what is sent and where. Add the key under
   **Providers**; it is encrypted at rest in your browser (any script running

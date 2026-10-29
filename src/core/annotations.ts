@@ -42,7 +42,7 @@ export interface RegionAnchor {
 
 export type Anchor = TextAnchor | RegionAnchor
 
-export type AnnotationKind = 'highlight' | 'comment'
+export type AnnotationKind = 'highlight' | 'comment' | 'suggestion'
 
 export type Visibility = 'private' | 'author-facing'
 
@@ -97,7 +97,25 @@ export interface Comment extends AnnotationBase {
   voice?: VoiceNote
 }
 
-export type Annotation = Highlight | Comment
+/**
+ * A proposed replacement for the anchored text, Google Docs style. The PDF
+ * is never changed: `original` records what the reviewer selected and
+ * `body` holds the replacement they typed or dictated.
+ */
+export interface Suggestion extends AnnotationBase {
+  kind: 'suggestion'
+  anchor: TextAnchor
+  /** The selected text at the time of the suggestion. */
+  original: string
+  /** The proposed replacement; empty until a dictation is transcribed. */
+  body: string
+  voice?: VoiceNote
+}
+
+/** The kinds that carry editable text and an optional recording. */
+export type Note = Comment | Suggestion
+
+export type Annotation = Highlight | Note
 
 export interface CreateHighlightInput {
   documentId: string
@@ -140,45 +158,112 @@ export function createComment(
   return comment
 }
 
-/** Returns a copy with the new body and a fresh updatedAt. */
-export function withBody(
-  comment: Comment,
-  body: string,
-  now: Date = new Date(),
-): Comment {
-  if (body.trim() === '' && !comment.voice) {
-    throw new Error('A comment needs a body or a voice note')
-  }
-  return { ...comment, body, updatedAt: now.toISOString() }
+export interface CreateSuggestionInput extends CreateHighlightInput {
+  anchor: TextAnchor
+  /** The replacement text; may be empty when a voice note is attached. */
+  body: string
+  voice?: VoiceNote
 }
 
 /**
- * Attaches a provider's transcript to a voice comment. The raw text is kept
+ * A suggestion must propose a change: the replacement differs from the
+ * selected text, or a recording is attached that will say what to change.
+ */
+export function createSuggestion(
+  input: CreateSuggestionInput,
+  now: Date = new Date(),
+): Suggestion {
+  if (input.anchor.type !== 'text' || input.anchor.quote.trim() === '') {
+    throw new Error('A suggestion needs selected text to replace')
+  }
+  if (input.voice && !isVoiceNote(input.voice)) {
+    throw new Error(`Invalid voice note: ${JSON.stringify(input.voice)}`)
+  }
+  const suggestion: Suggestion = {
+    ...base(input, now),
+    kind: 'suggestion',
+    anchor: input.anchor,
+    original: input.anchor.quote,
+    body: input.body,
+  }
+  if (input.voice) suggestion.voice = input.voice
+  assertSuggestionChanges(suggestion)
+  return suggestion
+}
+
+function assertSuggestionChanges(s: Suggestion): void {
+  if (s.body.trim() === '') {
+    if (!s.voice)
+      throw new Error('A suggestion needs replacement text or a voice note')
+    return
+  }
+  if (s.body.trim() === s.original.trim()) {
+    throw new Error('A suggestion must change the text; it equals the original')
+  }
+}
+
+/** Returns a copy with the new body and a fresh updatedAt. */
+export function withBody<N extends Note>(
+  note: N,
+  body: string,
+  now: Date = new Date(),
+): N {
+  const updated: N = { ...note, body, updatedAt: now.toISOString() }
+  if (updated.kind === 'suggestion') {
+    assertSuggestionChanges(updated)
+  } else if (body.trim() === '' && !updated.voice) {
+    throw new Error('A comment needs a body or a voice note')
+  }
+  return updated
+}
+
+/**
+ * Attaches a provider's transcript to a dictated note. The raw text is kept
  * verbatim in the voice note; the editable body only takes it when the user
  * had not typed anything, so a typed note is never overwritten.
  */
-export function withTranscript(
-  comment: Comment,
+export function withTranscript<N extends Note>(
+  note: N,
   transcript: Transcript,
   now: Date = new Date(),
-): Comment {
-  if (!comment.voice) {
-    throw new Error(`Comment ${comment.id} has no voice note to transcribe`)
-  }
-  if (comment.voice.transcript) {
+): N {
+  if (!note.voice) {
     throw new Error(
-      `Comment ${comment.id} already has a transcript; the raw text is never replaced`,
+      `${labelOf(note)} ${note.id} has no voice note to transcribe`,
+    )
+  }
+  if (note.voice.transcript) {
+    throw new Error(
+      `${labelOf(note)} ${note.id} already has a transcript; the raw text is never replaced`,
     )
   }
   if (!isTranscript(transcript)) {
     throw new Error(`Invalid transcript: ${JSON.stringify(transcript)}`)
   }
-  return {
-    ...comment,
-    body: comment.body.trim() === '' ? transcript.raw : comment.body,
-    voice: { ...comment.voice, transcript },
+  const updated: N = {
+    ...note,
+    body: note.body.trim() === '' ? transcript.raw : note.body,
+    voice: { ...note.voice, transcript },
     updatedAt: now.toISOString(),
   }
+  // A dictation that repeats the original is not a change; keep the body
+  // empty so the user sees it needs editing, with the raw text preserved.
+  if (
+    updated.kind === 'suggestion' &&
+    note.body.trim() === '' &&
+    updated.body.trim() === updated.original.trim()
+  ) {
+    updated.body = ''
+  }
+  return updated
+}
+
+function labelOf(note: Note): string {
+  return note.kind === 'suggestion' ? 'Suggestion' : 'Comment'
+}
+
+export function isNote(value: Annotation): value is Note {
+  return value.kind === 'comment' || value.kind === 'suggestion'
 }
 
 function base(input: CreateHighlightInput, now: Date): AnnotationBase {
@@ -355,6 +440,14 @@ export function isAnnotation(value: unknown): value is Annotation {
     if (typeof a.body !== 'string') return false
     if (a.voice !== undefined && !isVoiceNote(a.voice)) return false
     return a.body.trim() !== '' || a.voice !== undefined
+  }
+  if (a.kind === 'suggestion') {
+    if ((a.anchor as Anchor).type !== 'text') return false
+    if (typeof a.original !== 'string' || a.original.trim() === '') return false
+    if (typeof a.body !== 'string') return false
+    if (a.voice !== undefined && !isVoiceNote(a.voice)) return false
+    if (a.body.trim() === '') return a.voice !== undefined
+    return a.body.trim() !== a.original.trim()
   }
   return false
 }

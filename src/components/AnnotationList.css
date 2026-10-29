@@ -169,3 +169,14 @@
   color: #8a1c1c;
   font-size: 0.85rem;
 }
+
+.annotation-list-original {
+  color: var(--text);
+  font-size: 0.85rem;
+  text-decoration-color: rgba(210, 40, 40, 0.9);
+}
+
+.annotation-list-proposed {
+  text-decoration: none;
+  color: #1e7b34;
+}

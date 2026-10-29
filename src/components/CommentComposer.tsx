@@ -12,8 +12,12 @@ export interface CommentDraft {
   audio?: Blob
 }
 
+export type ComposerMode = 'comment' | 'suggestion'
+
 interface CommentComposerProps {
   placement: ToolbarPlacement
+  /** A comment says something about the passage; a suggestion replaces it. */
+  mode: ComposerMode
   /** The anchored passage, shown so the user sees what the note refers to. */
   quote: string | null
   /** When set, the composer shows recording controls. */
@@ -31,19 +35,24 @@ interface Transcribed {
 }
 
 /**
- * Writes a comment for a pending anchor: typed text, a voice recording, or
- * both. Saving a voice note keeps the audio on this device; transcription is
- * a separate step that needs a provider and explicit consent.
+ * Writes a comment or a suggestion for a pending anchor: typed text, a voice
+ * recording, or both. A suggestion starts from the selected text so it can
+ * be edited in place, Google Docs style; saving needs an actual change.
+ * Saving a voice note keeps the audio on this device; transcription is a
+ * separate step that needs a provider and explicit consent.
  */
 export function CommentComposer({
   placement,
+  mode,
   quote,
   recorder,
   transcribe,
   onSave,
   onCancel,
 }: CommentComposerProps) {
-  const [body, setBody] = useState('')
+  const original = mode === 'suggestion' ? (quote ?? '') : null
+  // A suggestion edits the original in place, Google Docs style.
+  const [body, setBody] = useState(original ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [transcribed, setTranscribed] = useState<Transcribed | null>(null)
@@ -69,8 +78,14 @@ export function CommentComposer({
       })
       if (!result) return
       setTranscribed({ url: current.url, transcript: result })
-      // The raw text becomes the body only when the user typed nothing.
-      setBody((prev) => (prev.trim() === '' ? result.raw : prev))
+      // The raw text becomes the body only when the user typed nothing: for
+      // a suggestion, "nothing" includes the untouched original.
+      setBody((prev) =>
+        prev.trim() === '' ||
+        (original !== null && prev.trim() === original.trim())
+          ? result.raw
+          : prev,
+      )
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -80,10 +95,12 @@ export function CommentComposer({
   const busy =
     recorder?.state.status === 'recording' ||
     recorder?.state.status === 'requesting'
+  const unchanged = original !== null && body.trim() === original.trim()
   const canSave =
     !saving &&
     !busy &&
     !transcribing &&
+    !unchanged &&
     (body.trim() !== '' || recording !== null)
 
   async function submit(event: FormEvent) {
@@ -112,12 +129,16 @@ export function CommentComposer({
   return (
     <form
       className="comment-composer"
-      aria-label="New comment"
+      aria-label={mode === 'suggestion' ? 'New suggestion' : 'New comment'}
       style={{ left: placement.left, top: placement.bottom }}
       onSubmit={submit}
     >
       {quote && (
-        <blockquote className="comment-composer-quote">{quote}</blockquote>
+        <blockquote
+          className={`comment-composer-quote${mode === 'suggestion' ? ' is-original' : ''}`}
+        >
+          {quote}
+        </blockquote>
       )}
       {recorder && (
         <RecorderControls
@@ -129,10 +150,8 @@ export function CommentComposer({
         />
       )}
       <textarea
-        aria-label="Comment"
-        placeholder={
-          recorder ? 'Add text (optional)' : 'What should the author know?'
-        }
+        aria-label={mode === 'suggestion' ? 'Replacement text' : 'Comment'}
+        placeholder={placeholderFor(mode, recorder !== null)}
         rows={3}
         value={body}
         autoFocus={!recorder}
@@ -145,6 +164,11 @@ export function CommentComposer({
           }
         }}
       />
+      {unchanged && body.trim() !== '' && (
+        <p className="comment-composer-note">
+          Edit the text above: a suggestion must change it.
+        </p>
+      )}
       {error && (
         <p role="alert" className="comment-composer-error">
           {error}
@@ -164,6 +188,15 @@ export function CommentComposer({
       </div>
     </form>
   )
+}
+
+function placeholderFor(mode: ComposerMode, hasRecorder: boolean): string {
+  if (mode === 'suggestion') {
+    return hasRecorder
+      ? 'Type or dictate the replacement'
+      : 'Edit the text as it should read'
+  }
+  return hasRecorder ? 'Add text (optional)' : 'What should the author know?'
 }
 
 function RecorderControls({

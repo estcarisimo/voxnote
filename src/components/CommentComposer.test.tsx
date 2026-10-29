@@ -21,6 +21,7 @@ describe('CommentComposer', () => {
     render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote="the quoted passage"
         recorder={null}
         transcribe={null}
@@ -52,6 +53,7 @@ describe('CommentComposer', () => {
     render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote={null}
         recorder={null}
         transcribe={null}
@@ -79,6 +81,7 @@ describe('CommentComposer', () => {
     const { rerender } = render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote={null}
         recorder={recording}
         transcribe={null}
@@ -97,6 +100,7 @@ describe('CommentComposer', () => {
     rerender(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote={null}
         recorder={recorderWith({
           status: 'recorded',
@@ -136,6 +140,7 @@ describe('CommentComposer', () => {
     render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote={null}
         recorder={recorder}
         transcribe={null}
@@ -156,6 +161,7 @@ describe('CommentComposer', () => {
     render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote={null}
         recorder={null}
         transcribe={null}
@@ -192,6 +198,7 @@ describe('CommentComposer', () => {
     render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote="the quote"
         recorder={recorderWith({ status: 'recorded', recording })}
         transcribe={transcribe}
@@ -257,6 +264,7 @@ describe('CommentComposer', () => {
     render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote={null}
         recorder={recorderWith({ status: 'recorded', recording })}
         transcribe={transcribe}
@@ -302,6 +310,7 @@ describe('CommentComposer', () => {
     render(
       <CommentComposer
         placement={placement}
+        mode="comment"
         quote={null}
         recorder={recorderWith({ status: 'recorded', recording })}
         transcribe={transcribe}
@@ -323,5 +332,79 @@ describe('CommentComposer', () => {
       'value',
       'typed first',
     )
+  })
+
+  it('a typed suggestion starts from the original and needs a change to save', () => {
+    const onSave = vi.fn(async () => {})
+    render(
+      <CommentComposer
+        placement={placement}
+        mode="suggestion"
+        quote="the the results"
+        recorder={null}
+        transcribe={null}
+        onSave={onSave}
+        onCancel={() => {}}
+      />,
+    )
+    expect(screen.getByRole('form', { name: 'New suggestion' })).toBeTruthy()
+    const field = screen.getByRole('textbox', { name: 'Replacement text' })
+    expect(field).toHaveProperty('value', 'the the results')
+    const save = screen.getByRole('button', { name: 'Save' })
+    expect(save).toHaveProperty('disabled', true)
+    expect(screen.getByText(/must change it/)).toBeTruthy()
+
+    fireEvent.change(field, { target: { value: 'the results' } })
+    expect(save).toHaveProperty('disabled', false)
+    fireEvent.click(save)
+    expect(onSave).toHaveBeenCalledWith({ body: 'the results' })
+  })
+
+  it('a dictated suggestion takes the transcript over an untouched original', async () => {
+    const recording = {
+      blob: new Blob(['opus']),
+      mimeType: 'audio/webm',
+      durationMs: 1500,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    const transcript = {
+      raw: 'the results',
+      provider: 'openai/gpt-transcribe',
+      transcribedAt: '2026-10-29T10:00:05.000Z',
+    }
+    const onSave = vi.fn(async () => {})
+    render(
+      <CommentComposer
+        placement={placement}
+        mode="suggestion"
+        quote="the the results"
+        recorder={recorderWith({ status: 'recorded', recording })}
+        transcribe={vi.fn(async () => transcript)}
+        onSave={onSave}
+        onCancel={() => {}}
+      />,
+    )
+    const field = screen.getByRole('textbox', { name: 'Replacement text' })
+    expect(field).toHaveProperty('value', 'the the results')
+    // Unchanged text with a recording: not yet a change to save.
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
+    await screen.findByText('the results', { selector: 'p' })
+    expect(field).toHaveProperty('value', 'the results')
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith({
+      body: 'the results',
+      voice: {
+        mimeType: 'audio/webm',
+        durationMs: 1500,
+        recordedAt: '2026-10-29T10:00:00.000Z',
+        transcript,
+      },
+      audio: recording.blob,
+    })
   })
 })
