@@ -63,6 +63,11 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
       and reloaded the shell offline with zero console errors; commands and
       output in the session log on the Notion page). `[x]` covers the
       deploy only.
+- [x] README and repository presentation to the maintainer's standard
+      (2026-10-29): README with badges, features and honest caveats, privacy,
+      configuration and architecture sections; CodeQL and Security (weekly
+      `npm audit`, zizmor) workflows; repository homepage and topics set with
+      `gh repo edit` (command and output in the PR).
 - [ ] Open and install the deployed PWA on a real iPad.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.
@@ -173,3 +178,6 @@ underlying document and never invents reviewer claims.
 - Native shell timing (see Decision 0).
 - Whether on-device STT (whisper.cpp via WebAssembly) is viable on iPad for
   fully offline review of confidential manuscripts.
+- Usage analytics: whether to add a privacy-preserving page-view counter (no
+  cookies, no PDF content) behind a build-time variable; GA-style tracking
+  conflicts with the local-first rule.
