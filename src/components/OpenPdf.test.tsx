@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { GTAG_SCRIPT_ATTRIBUTE } from './analytics'
 import { OpenPdf } from './OpenPdf'
 
 function pdfFile(name = 'paper.pdf') {
@@ -17,6 +18,13 @@ function stubDisplayMode(matches: boolean) {
 describe('OpenPdf', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+    for (const script of document.querySelectorAll(
+      `script[${GTAG_SCRIPT_ATTRIBUTE}]`,
+    )) {
+      script.remove()
+    }
+    delete window.dataLayer
   })
 
   it('passes a picked file to onFile', () => {
@@ -101,5 +109,38 @@ describe('OpenPdf', () => {
     stubDisplayMode(true)
     render(<OpenPdf onFile={vi.fn()} error={null} />)
     expect(screen.queryByText(/Add to Home Screen/)).toBeNull()
+  })
+
+  it('loads no analytics script without VITE_GA_MEASUREMENT_ID', () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', '')
+    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    expect(
+      document.querySelector(`script[${GTAG_SCRIPT_ATTRIBUTE}]`),
+    ).toBeNull()
+    expect(window.dataLayer).toBeUndefined()
+  })
+
+  it('loads gtag with storage denied when VITE_GA_MEASUREMENT_ID is set', () => {
+    vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-LANDING1')
+    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    const script = document.querySelector<HTMLScriptElement>(
+      `script[${GTAG_SCRIPT_ATTRIBUTE}]`,
+    )
+    expect(script?.src).toBe(
+      'https://www.googletagmanager.com/gtag/js?id=G-LANDING1',
+    )
+    const first = Array.from(window.dataLayer![0] as ArrayLike<unknown>)
+    expect(first).toEqual([
+      'consent',
+      'default',
+      { analytics_storage: 'denied', ad_storage: 'denied' },
+    ])
+  })
+
+  it('mentions visit counting in the privacy line', () => {
+    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    expect(
+      screen.getByText(/counted with Google Analytics/).textContent,
+    ).toContain('never leave this browser')
   })
 })

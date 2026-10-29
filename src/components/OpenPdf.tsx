@@ -1,4 +1,5 @@
-import { useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { loadAnalytics } from './analytics'
 import './OpenPdf.css'
 
 interface OpenPdfProps {
@@ -28,6 +29,12 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [standalone] = useState(isStandalone)
+
+  // Visit counting runs from the landing view only; a no-op unless the
+  // build set VITE_GA_MEASUREMENT_ID (see analytics.ts).
+  useEffect(() => {
+    loadAnalytics(import.meta.env.VITE_GA_MEASUREMENT_ID)
+  }, [])
 
   function accept(fileList: FileList | null) {
     const file = fileList?.[0]
@@ -111,9 +118,10 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
         </ul>
 
         <p className="open-pdf-privacy">
-          Your PDF, notes and recordings stay in this browser. Audio leaves only
-          when you confirm a transcription with your own provider key. Nothing
-          is published.
+          Your PDF, notes and recordings never leave this browser. Audio is sent
+          only when you confirm a transcription with your own provider key.
+          Nothing is published. Visits are counted with Google Analytics,
+          without cookies.
         </p>
 
         {!standalone && (
