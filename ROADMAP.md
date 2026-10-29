@@ -123,7 +123,11 @@ the success criterion on real iPad hardware.
       machine-readable JSON. Nothing is ever sent or published automatically.
       PDF since M1.1; Markdown and JSON added 2026-10-29 (unit-tested,
       `src/core/exportNotes.test.ts`).
-- [ ] PWA manifest + offline shell so it installs on the iPad home screen.
+- [~] PWA manifest + offline shell so it installs on the iPad home screen.
+  Manifest, icons and a Workbox service worker (update applied only on
+  tap) verified in headless Chromium on 2026-10-29: registers, reloads
+  offline, opens a PDF offline, at `/` and under a subpath. Not yet tried
+  on an iPad: install on a real iPad is pending.
 
 ### M1 exit criterion
 

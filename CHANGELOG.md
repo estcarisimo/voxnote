@@ -63,6 +63,10 @@ All notable changes to this project are documented here. The format follows
   (`<name>.voxnote.json`) holds the document name, SHA-256 id and page count
   and the annotations exactly as stored, without audio. Both are generated in
   the browser and only downloaded; nothing is uploaded.
+- Installable PWA: web app manifest, VoxNote icons (SVG plus PNG, maskable
+  and Apple touch) and an offline app shell precached by a service worker
+  (`vite-plugin-pwa`); a new version waits behind a dismissible "Update
+  available — Reload" bar. Not yet tried on an iPad.
 
 ### Changed
 
