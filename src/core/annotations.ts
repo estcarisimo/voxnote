@@ -105,7 +105,11 @@ export interface Comment extends AnnotationBase {
 export interface Suggestion extends AnnotationBase {
   kind: 'suggestion'
   anchor: TextAnchor
-  /** The selected text at the time of the suggestion. */
+  /**
+   * The selected text at the time of the suggestion. Authoritative for
+   * display and export even if quote extraction changes later; it is not
+   * required to equal `anchor.quote`.
+   */
   original: string
   /** The proposed replacement; empty until a dictation is transcribed. */
   body: string

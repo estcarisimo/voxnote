@@ -387,11 +387,13 @@ describe('CommentComposer', () => {
     )
     const field = screen.getByRole('textbox', { name: 'Replacement text' })
     expect(field).toHaveProperty('value', 'the the results')
-    // Unchanged text with a recording: not yet a change to save.
+    // Unchanged text with a recording can be saved: the replacement is
+    // empty until the dictation is transcribed.
     expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty(
       'disabled',
-      true,
+      false,
     )
+    expect(screen.getByText(/recording will be saved/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
     await screen.findByText('the results', { selector: 'p' })
     expect(field).toHaveProperty('value', 'the results')
@@ -406,5 +408,68 @@ describe('CommentComposer', () => {
       },
       audio: recording.blob,
     })
+  })
+
+  it('saves a dictated suggestion before transcription with an empty replacement', () => {
+    const recording = {
+      blob: new Blob(['opus']),
+      mimeType: 'audio/webm',
+      durationMs: 1500,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    const onSave = vi.fn(async () => {})
+    render(
+      <CommentComposer
+        placement={placement}
+        mode="suggestion"
+        quote="the the results"
+        recorder={recorderWith({ status: 'recorded', recording })}
+        transcribe={vi.fn()}
+        onSave={onSave}
+        onCancel={() => {}}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith({
+      body: '',
+      voice: {
+        mimeType: 'audio/webm',
+        durationMs: 1500,
+        recordedAt: '2026-10-29T10:00:00.000Z',
+      },
+      audio: recording.blob,
+    })
+  })
+
+  it('treats text reverted to the original as untouched when a transcript arrives', async () => {
+    const recording = {
+      blob: new Blob(['opus']),
+      mimeType: 'audio/webm',
+      durationMs: 1500,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    render(
+      <CommentComposer
+        placement={placement}
+        mode="suggestion"
+        quote="the the results"
+        recorder={recorderWith({ status: 'recorded', recording })}
+        transcribe={vi.fn(async () => ({
+          raw: 'the results',
+          provider: 'p/m',
+          transcribedAt: '2026-10-29T10:00:05.000Z',
+        }))}
+        onSave={async () => {}}
+        onCancel={() => {}}
+      />,
+    )
+    const field = screen.getByRole('textbox', { name: 'Replacement text' })
+    fireEvent.change(field, { target: { value: 'something else' } })
+    fireEvent.change(field, { target: { value: 'the the results' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
+    await screen.findByText('the results', { selector: 'p' })
+    expect(field).toHaveProperty('value', 'the results')
   })
 })

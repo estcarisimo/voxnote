@@ -108,14 +108,7 @@ function App() {
   }
 
   async function createNote(request: NewNoteRequest) {
-    if (request.kind === 'suggestion' && request.anchor.type !== 'text') {
-      throw new Error('A suggestion needs selected text')
-    }
-    const note = await store.addNote(
-      request.kind === 'suggestion'
-        ? { ...request, kind: 'suggestion', anchor: request.anchor as never }
-        : { ...request, kind: 'comment' },
-    )
+    const note = await store.addNote(request)
     setSelectedId(note.id)
   }
 

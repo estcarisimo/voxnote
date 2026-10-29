@@ -27,10 +27,11 @@ export interface PdfViewerHandle {
   scrollToPage(page: number): void
 }
 
-export interface NewNoteRequest extends CommentDraft {
-  kind: 'comment' | 'suggestion'
-  anchor: Anchor
-}
+export type NewNoteRequest = CommentDraft &
+  (
+    | { kind: 'comment'; anchor: Anchor }
+    | { kind: 'suggestion'; anchor: TextAnchor }
+  )
 
 interface PdfViewerProps {
   document: PDFDocumentProxy
@@ -182,11 +183,14 @@ export function PdfViewer({
 
   async function saveNote(draft: CommentDraft) {
     if (!shown) return
-    await onCreateNote({
-      ...draft,
-      kind: composer === 'suggest' ? 'suggestion' : 'comment',
-      anchor: shown.anchor,
-    })
+    if (composer === 'suggest') {
+      if (shown.anchor.type !== 'text') {
+        throw new Error('A suggestion needs selected text')
+      }
+      await onCreateNote({ ...draft, kind: 'suggestion', anchor: shown.anchor })
+    } else {
+      await onCreateNote({ ...draft, kind: 'comment', anchor: shown.anchor })
+    }
     clear()
   }
 

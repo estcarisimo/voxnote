@@ -96,19 +96,21 @@ export function CommentComposer({
     recorder?.state.status === 'recording' ||
     recorder?.state.status === 'requesting'
   const unchanged = original !== null && body.trim() === original.trim()
+  // A recording with the original still untouched is a dictated suggestion
+  // waiting for its transcript: saved with an empty replacement.
+  const voiceOnly = unchanged && recording !== null
   const canSave =
     !saving &&
     !busy &&
     !transcribing &&
-    !unchanged &&
-    (body.trim() !== '' || recording !== null)
+    (voiceOnly || (!unchanged && (body.trim() !== '' || recording !== null)))
 
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!canSave) return
     setSaving(true)
     setError(null)
-    const draft: CommentDraft = { body }
+    const draft: CommentDraft = { body: voiceOnly ? '' : body }
     if (recording) {
       draft.voice = {
         mimeType: recording.mimeType,
@@ -154,7 +156,7 @@ export function CommentComposer({
         placeholder={placeholderFor(mode, recorder !== null)}
         rows={3}
         value={body}
-        autoFocus={!recorder}
+        autoFocus={!recorder || mode === 'suggestion'}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
           // Not while an upload runs: the result would be lost after paying.
@@ -166,7 +168,9 @@ export function CommentComposer({
       />
       {unchanged && body.trim() !== '' && (
         <p className="comment-composer-note">
-          Edit the text above: a suggestion must change it.
+          {voiceOnly
+            ? 'The replacement is still the original: the recording will be saved to transcribe later.'
+            : 'Edit the text above: a suggestion must change it.'}
         </p>
       )}
       {error && (
