@@ -3,6 +3,39 @@
 Newest entry first. Every session closes with: what was done, what was
 verified, what is pending, branch/commit/PR, next concrete action.
 
+## 2026-10-29 — GitHub repository, CI, ruleset
+
+**Done.** Created the public repository `estcarisimo/voxnote` and pushed
+`main`. On branch `ci/initial-workflows` (PR #1): CI workflow (lint, format,
+typecheck-build, test, audit; `permissions: contents: read`; actions pinned
+to commit SHAs), Dependabot (grouped minor/patch, `increase-if-necessary`),
+`CODEOWNERS`, issue forms, PR template, changelog entry. Ticked the M0 items
+in `ROADMAP.md`.
+
+**Verified (2026-10-29, UTC).**
+
+- Private vulnerability reporting: enabled via
+  `gh api -X PUT repos/estcarisimo/voxnote/private-vulnerability-reporting`;
+  `gh api repos/estcarisimo/voxnote/private-vulnerability-reporting` returned
+  `enabled: true` at 01:52Z.
+- Ruleset `protect-main` (id 26090586) active at 01:53Z, created with
+  `gh api -X POST repos/estcarisimo/voxnote/rulesets`: PR required, five
+  required status checks with branch up to date, review-thread resolution
+  required, no force-push, no deletion, bypass limited to Repository admin.
+  `delete_branch_on_merge` on via `gh repo edit`.
+- CI on PR #1: all five checks green on the first run.
+- Review gate: round 1 by a fresh read-only Sonnet subagent, `VERDICT:
+APPROVE`, posted as a PR comment. Round 2 run on the final commit after
+  adding this log entry and the roadmap ticks (result recorded below).
+
+**Pending.** GitHub Pages deployment of the static build; name clearance;
+license confirmation (MIT assumed); real-iPad check of the viewer.
+
+**Branch / commit / PR.** `ci/initial-workflows`, PR #1.
+
+**Next concrete action.** Merge PR #1, then start M1.1 (annotation data model
+and highlights) on a feature branch.
+
 ## 2026-10-28 — project start
 
 **Done.** Read the VoxNote concept page and the Open source manifesto in

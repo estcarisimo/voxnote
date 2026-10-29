@@ -47,14 +47,15 @@ model and provider adapters are platform-agnostic and port to a native shell.
 
 Goal: a repository that follows the Open source manifesto and shows a PDF.
 
-- [~] Vite + React + TypeScript scaffold, strict TS, oxlint, Prettier, Vitest.
-- [~] Manifesto hygiene: `AGENTS.md` (+ `CLAUDE.md`), `CONTRIBUTING.md`,
-  `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CITATION.cff`, `CHANGELOG.md`,
-  `.github/REVIEW.md`, session log, LICENSE.
-- [~] Open a local PDF (file picker / drag-drop) and render pages with pdf.js,
-  including the selectable text layer.
-- [ ] GitHub repository, `protect-main` ruleset, CI (lint, typecheck, test,
-      build), Dependabot, private vulnerability reporting verified.
+- [x] Vite + React + TypeScript scaffold, strict TS, oxlint, Prettier, Vitest.
+- [x] Manifesto hygiene: `AGENTS.md` (+ `CLAUDE.md`), `CONTRIBUTING.md`,
+      `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CITATION.cff`, `CHANGELOG.md`,
+      `.github/REVIEW.md`, session log, LICENSE.
+- [x] Open a local PDF (file picker / drag-drop) and render pages with pdf.js,
+      including the selectable text layer.
+- [x] GitHub repository, `protect-main` ruleset, CI (lint, format, typecheck
+      and build, test, audit), Dependabot, private vulnerability reporting
+      verified (2026-10-29, see session log).
 - [ ] Deploy the static build (GitHub Pages) so it can be opened on a real iPad.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.

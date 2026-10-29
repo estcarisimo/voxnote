@@ -1,0 +1,20 @@
+name: Feature request
+description: Propose a change to the reviewer workflow
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is slow or frustrating today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+  - type: input
+    id: roadmap
+    attributes:
+      label: Related ROADMAP item
+      placeholder: M1.2

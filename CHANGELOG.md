@@ -15,3 +15,5 @@ All notable changes to this project are documented here. The format follows
 - Repository hygiene per the Open source manifesto: `AGENTS.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `CITATION.cff`,
   `.github/REVIEW.md`, `docs/SESSION_LOG.md`, `ROADMAP.md`.
+- CI (lint, format, typecheck and build, test, audit) with SHA-pinned
+  actions, Dependabot, CODEOWNERS, issue forms and a PR template.
