@@ -78,8 +78,11 @@ the success criterion on real iPad hardware.
       text offsets and bounding rects, kind, visibility (private /
       author-facing), timestamps. Versioned JSON schema.
 - [x] Text selection with Pencil, touch and pointer → **Highlight** with no
-      obligatory note. (Pointer verified headless; Pencil and touch pending a
-      real iPad.)
+      obligatory note. On 2026-10-29 a real iPad (Chrome, WebKit) showed that
+      Apple Pencil drags never selected text and finger selection needed a
+      long press, because selection was left to the browser. Pen-drag
+      selection is now app-driven and verified headless with emulated pen
+      events; real-iPad confirmation is still pending.
 - [x] Region (rectangle) selection for figures, charts and equations where
       there is no text.
 - [x] Persist locally in IndexedDB; reload restores annotations onto the PDF.

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { TextLayer, type PageViewport } from 'pdfjs-dist'
 import type { Anchor, Annotation, RegionAnchor } from '../core/annotations'
 import type { PDFDocumentProxy, PDFPageProxy } from '../core/pdf'
+import { caretLookup, hasStylusTouch, PenSelection } from '../core/penSelection'
 import { createPageGeometry, type PageGeometry } from './geometry'
 import './PdfPage.css'
 
@@ -19,9 +20,16 @@ interface PdfPageProps {
   pendingAnchor: Anchor | null
   onGeometry: (page: number, geometry: PageGeometry | null) => void
   onCreateRegion: (anchor: RegionAnchor) => void
+  /** Called with true when a pen drag starts selecting text, false at its end. */
+  onPenSelecting?: (active: boolean) => void
 }
 
 const MIN_REGION_PX = 6
+
+interface PenGesture {
+  pointerId: number
+  selection: PenSelection
+}
 
 interface Draft {
   pointerId: number
@@ -36,6 +44,11 @@ interface Draft {
  * transparent text layer on top so text can be selected with pointer, touch
  * or pen. In region mode a capture layer sits above everything and turns a
  * drag into a RegionAnchor.
+ *
+ * Pen selection is app-driven: iPadOS pans the page on a Pencil drag and
+ * selects natively only after a long press, so a pen drag on the text layer
+ * builds the selection itself (see `PenSelection`). Touch and mouse keep the
+ * browser's native selection.
  */
 export function PdfPage({
   document,
@@ -47,6 +60,7 @@ export function PdfPage({
   pendingAnchor,
   onGeometry,
   onCreateRegion,
+  onPenSelecting,
 }: PdfPageProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -55,6 +69,8 @@ export function PdfPage({
   const [geometry, setGeometry] = useState<PageGeometry | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
+  const penRef = useRef<PenGesture | null>(null)
+  const [penError, setPenError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -123,6 +139,76 @@ export function PdfPage({
     onGeometry(pageNumber, geometry)
     return () => onGeometry(pageNumber, null)
   }, [geometry, onGeometry, pageNumber])
+
+  // Panning is not a pointer-event default (Pointer Events 3, 4.1.3.1), and
+  // touch-action applies to touch and stylus alike (section 8), so no CSS
+  // value lets a finger scroll while a pen selects. The pen's pan is
+  // cancelled at the touch-event level instead: WebKit marks Pencil touches
+  // with touchType 'stylus', and any touch during a pen gesture is blocked.
+  // React registers touch listeners as passive, hence addEventListener.
+  useEffect(() => {
+    const layer = textLayerRef.current
+    if (!layer || tool !== 'select') return
+    const blockPenPan = (event: TouchEvent) => {
+      if (penRef.current || hasStylusTouch(event.changedTouches)) {
+        event.preventDefault()
+      }
+    }
+    layer.addEventListener('touchstart', blockPenPan, { passive: false })
+    layer.addEventListener('touchmove', blockPenPan, { passive: false })
+    return () => {
+      layer.removeEventListener('touchstart', blockPenPan)
+      layer.removeEventListener('touchmove', blockPenPan)
+    }
+  }, [tool])
+
+  function penDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.pointerType !== 'pen' || event.button !== 0) return
+    if (penRef.current) return
+    const layer = event.currentTarget
+    let lookup
+    try {
+      lookup = caretLookup(layer.ownerDocument)
+    } catch (err) {
+      setPenError(err instanceof Error ? err.message : String(err))
+      return
+    }
+    // Keeps WebKit from starting its own gesture and stops the compatibility
+    // mousedown, whose default would start a native selection.
+    event.preventDefault()
+    layer.setPointerCapture(event.pointerId)
+    window.getSelection()?.removeAllRanges()
+    penRef.current = {
+      pointerId: event.pointerId,
+      selection: new PenSelection(
+        layer,
+        { x: event.clientX, y: event.clientY },
+        lookup,
+      ),
+    }
+    onPenSelecting?.(true)
+  }
+
+  function penMove(event: PointerEvent<HTMLDivElement>) {
+    const pen = penRef.current
+    if (!pen || event.pointerId !== pen.pointerId) return
+    event.preventDefault()
+    const range = pen.selection.move({ x: event.clientX, y: event.clientY })
+    if (range) showSelection(range)
+  }
+
+  function penEnd(event: PointerEvent<HTMLDivElement>, cancelled: boolean) {
+    const pen = penRef.current
+    if (!pen || event.pointerId !== pen.pointerId) return
+    penRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    // A tap or a cancelled gesture leaves no selection behind.
+    const range = cancelled ? null : pen.selection.range()
+    showSelection(range)
+    onPenSelecting?.(false)
+  }
 
   function pointerDown(event: PointerEvent<HTMLDivElement>) {
     if (!geometry || draft || event.button !== 0) return
@@ -193,7 +279,16 @@ export function PdfPage({
           />
         )}
       </div>
-      <div ref={textLayerRef} className="textLayer" />
+      <div
+        ref={textLayerRef}
+        className="textLayer"
+        {...(tool === 'select' && {
+          onPointerDown: penDown,
+          onPointerMove: penMove,
+          onPointerUp: (e: PointerEvent<HTMLDivElement>) => penEnd(e, false),
+          onPointerCancel: (e: PointerEvent<HTMLDivElement>) => penEnd(e, true),
+        })}
+      />
       {tool === 'region' && (
         <div
           className="regionCapture"
@@ -212,8 +307,21 @@ export function PdfPage({
           Page {pageNumber} failed to render: {error}
         </div>
       )}
+      {penError && (
+        <div role="alert" className="pdf-page-error">
+          {penError}
+        </div>
+      )}
     </div>
   )
+}
+
+/** Shows `range` as the document selection, or clears it for null. */
+function showSelection(range: Range | null) {
+  const selection = window.getSelection()
+  if (!selection) throw new Error('window.getSelection() returned null')
+  selection.removeAllRanges()
+  if (range) selection.addRange(range)
 }
 
 function draftRect(d: Draft) {
