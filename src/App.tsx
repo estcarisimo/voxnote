@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnnotationList } from './components/AnnotationList'
+import { baseName, downloadFile } from './components/download'
+import { ExportMenu, type ExportFormat } from './components/ExportMenu'
 import { OpenPdf } from './components/OpenPdf'
 import {
   PdfViewer,
@@ -10,6 +12,7 @@ import type { Tool } from './components/PdfPage'
 import { ProviderSettings } from './components/ProviderSettings'
 import { TranscribeDialog } from './components/TranscribeDialog'
 import type { Anchor, Annotation, Note, Visibility } from './core/annotations'
+import { exportJson, exportMarkdown } from './core/exportNotes'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
   computeDocumentId,
@@ -132,11 +135,36 @@ function App() {
     viewerRef.current?.scrollToAnnotation(a)
   }
 
-  async function exportPdf() {
+  async function exportAs(format: ExportFormat) {
     if (!doc) return
+    const name = baseName(doc.name)
+    const info = { name: doc.name, id: doc.id, pageCount: doc.pdf.numPages }
     try {
-      const bytes = await exportAnnotatedPdf(doc.bytes, store.annotations)
-      downloadBytes(bytes, doc.name.replace(/\.pdf$/i, '') + '-voxnote.pdf')
+      switch (format) {
+        case 'pdf': {
+          const bytes = await exportAnnotatedPdf(doc.bytes, store.annotations)
+          downloadFile(
+            bytes as BlobPart,
+            `${name}-voxnote.pdf`,
+            'application/pdf',
+          )
+          return
+        }
+        case 'markdown':
+          downloadFile(
+            exportMarkdown(info, store.annotations),
+            `${name}.voxnote.md`,
+            'text/markdown;charset=utf-8',
+          )
+          return
+        case 'json':
+          downloadFile(
+            exportJson(info, store.annotations),
+            `${name}.voxnote.json`,
+            'application/json',
+          )
+          return
+      }
     } catch (err: unknown) {
       setError(`Export failed: ${messageOf(err)}`)
     }
@@ -189,13 +217,11 @@ function App() {
         >
           Annotations ({store.annotations.length})
         </button>
-        <button
-          type="button"
-          onClick={exportPdf}
-          disabled={!store.ready || store.annotations.length === 0}
-        >
-          Export PDF
-        </button>
+        <ExportMenu
+          disabled={!store.ready}
+          pdfDisabled={store.annotations.length === 0}
+          onExport={(format) => void exportAs(format)}
+        />
         <button
           type="button"
           aria-pressed={settingsOpen}
@@ -262,17 +288,6 @@ function App() {
 
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
-}
-
-function downloadBytes(bytes: Uint8Array, filename: string) {
-  const blob = new Blob([bytes as BlobPart], { type: 'application/pdf' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  // Give the browser a tick to start the download before revoking.
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export default App

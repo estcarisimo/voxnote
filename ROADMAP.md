@@ -122,9 +122,15 @@ the success criterion on real iPad hardware.
       visibility or page; filter by kind, visibility, untranscribed voice and
       text; a tap scrolls to the annotation's marks. Visibility is stored
       and shown, but no export filters on it yet.)
-- [ ] Export: annotated PDF, Markdown report with page and quote references,
+- [x] Export: annotated PDF, Markdown report with page and quote references,
       machine-readable JSON. Nothing is ever sent or published automatically.
-- [ ] PWA manifest + offline shell so it installs on the iPad home screen.
+      PDF since M1.1; Markdown and JSON added 2026-10-29 (unit-tested,
+      `src/core/exportNotes.test.ts`).
+- [~] PWA manifest + offline shell so it installs on the iPad home screen.
+  Manifest, icons and a Workbox service worker (update applied only on
+  tap) verified in headless Chromium on 2026-10-29: registers, reloads
+  offline, opens a PDF offline, at `/` and under a subpath. Not yet tried
+  on an iPad: install on a real iPad is pending.
 
 ### M1 exit criterion
 
