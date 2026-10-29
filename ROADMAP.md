@@ -56,9 +56,14 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
 - [x] GitHub repository, `protect-main` ruleset, CI (lint, format, typecheck
       and build, test, audit), Dependabot, private vulnerability reporting
       verified (2026-10-29, evidence in the session log on the Notion page).
-- [~] Deploy the static build (GitHub Pages) so it can be opened on a real iPad.
-  Deploy workflow merged; live URL verified: pending until the first run
-  on main.
+- [x] Deploy the static build (GitHub Pages) so it can be opened on a real
+      iPad. Live at <https://estcarisimo.github.io/voxnote/> (2026-10-29:
+      first `pages.yml` run on `main` succeeded; headless Chromium against
+      the live URL registered the service worker, rendered a 31-page PDF
+      and reloaded the shell offline with zero console errors). Opening it
+      on a real iPad is still pending.
+      Deploy workflow merged; live URL verified: pending until the first run
+      on main.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.
 
