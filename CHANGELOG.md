@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Landing view redesigned so a first visit explains the app: the app icon,
+  the tagline, one sentence on what VoxNote does, the **Open a PDF** button
+  with the drop hint, a three-item row (Highlight, Comment by voice, Suggest
+  a replacement), a plain-words privacy line, an install hint hidden when
+  the app already runs standalone, and a footer linking the repository, the
+  roadmap and the MIT license. The file picker and drag-and-drop are
+  unchanged.
 - Project scaffold: Vite, React 19, TypeScript strict, oxlint, Prettier,
   Vitest.
 - Open a local PDF (file picker or drag-and-drop) and render all pages with
