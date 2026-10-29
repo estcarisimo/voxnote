@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: 'If you use this software, please cite it as below.'
+type: software
+title: 'VoxNote'
+abstract: 'An open-source, AI-native PDF reviewer for highlighting, commenting and suggesting by voice, without editing the document.'
+authors:
+  - family-names: Carisimo
+    given-names: Esteban
+    email: estcarisimo@gmail.com
+repository-code: 'https://github.com/estcarisimo/voxnote'
+license: MIT
+version: 0.0.0
+date-released: '2026-10-28'
+keywords:
+  - pdf
+  - annotation
+  - peer-review
+  - speech-to-text
+  - ipad

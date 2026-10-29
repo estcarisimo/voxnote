@@ -1,0 +1,7 @@
+.pdf-viewer {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  background: #e9e9ee;
+  -webkit-overflow-scrolling: touch;
+}
