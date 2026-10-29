@@ -60,10 +60,10 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
       iPad. Live at <https://estcarisimo.github.io/voxnote/> (2026-10-29:
       first `pages.yml` run on `main` succeeded; headless Chromium against
       the live URL registered the service worker, rendered a 31-page PDF
-      and reloaded the shell offline with zero console errors). Opening it
-      on a real iPad is still pending.
-      Deploy workflow merged; live URL verified: pending until the first run
-      on main.
+      and reloaded the shell offline with zero console errors; commands and
+      output in the session log on the Notion page). `[x]` covers the
+      deploy only.
+- [ ] Open and install the deployed PWA on a real iPad.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.
 
