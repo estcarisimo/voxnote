@@ -9,6 +9,32 @@
   display: block;
 }
 
+/* Highlights sit between the raster and the text layer so text stays
+   selectable through them. Multiply blending keeps the glyphs legible. */
+.pdf-page .highlightLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.pdf-page .highlight {
+  position: absolute;
+  background: rgba(255, 220, 60, 0.55);
+  border-radius: 2px;
+}
+
+.pdf-page .highlight--region {
+  background: rgba(255, 220, 60, 0.18);
+  outline: 2px solid rgba(240, 170, 0, 0.9);
+  outline-offset: -1px;
+}
+
+.pdf-page .highlight--selected {
+  background: rgba(60, 140, 255, 0.4);
+  outline: 2px solid rgba(40, 100, 220, 0.95);
+}
+
 /* Text layer: transparent glyph boxes positioned by pdf.js over the canvas.
    The selection highlight is the only visible part. */
 .pdf-page .textLayer {
@@ -40,6 +66,12 @@
   background: rgba(0, 110, 255, 0.35);
 }
 
+/* Line breaks and marked-content wrappers carry no glyphs; without this a
+   stray selection box shows up at the page corner. */
+.pdf-page .textLayer :is(br, .markedContent)::selection {
+  background: transparent;
+}
+
 .pdf-page .textLayer .endOfContent {
   display: block;
   position: absolute;
@@ -51,6 +83,23 @@
 
 .pdf-page .textLayer.selecting .endOfContent {
   top: 0;
+}
+
+/* Region tool: captures the drag above the text layer. */
+.pdf-page .regionCapture {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.pdf-page .regionDraft {
+  position: absolute;
+  border: 2px dashed rgba(240, 170, 0, 0.95);
+  background: rgba(255, 220, 60, 0.18);
+  pointer-events: none;
 }
 
 .pdf-page-error {

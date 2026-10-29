@@ -7,7 +7,7 @@
 .app-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
@@ -15,16 +15,45 @@
 
 .app-bar button {
   font: inherit;
+  min-height: 40px;
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-h);
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.app-bar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.app-bar button[aria-pressed='true'],
+.app-bar button[aria-checked='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.app-tools {
+  display: flex;
+  gap: 0;
+}
+
+.app-tools button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.app-tools button:last-child {
+  border-radius: 0 8px 8px 0;
+  margin-left: -1px;
 }
 
 .app-title {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -32,8 +61,17 @@
   font-weight: 600;
 }
 
-.app-meta {
-  font-size: 0.9rem;
+.app-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.app-error {
+  margin: 0;
+  padding: 8px 12px;
+  background: #fde8e8;
+  color: #8a1c1c;
 }
 
 .app-status {
@@ -42,4 +80,10 @@
   left: 50%;
   transform: translateX(-50%);
   margin: 0;
+}
+
+@media (max-width: 700px) {
+  .app-title {
+    display: none;
+  }
 }

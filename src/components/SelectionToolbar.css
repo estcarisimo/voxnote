@@ -1,0 +1,28 @@
+.selection-toolbar {
+  position: absolute;
+  z-index: 5;
+  transform: translate(-50%, calc(-100% - 10px));
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--text-h);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.selection-toolbar button {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--bg);
+  cursor: pointer;
+  /* Comfortable target for a fingertip or a Pencil. */
+  min-height: 40px;
+}
+
+.selection-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
