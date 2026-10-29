@@ -75,6 +75,10 @@ All notable changes to this project are documented here. The format follows
   metadata for now, the exports do not filter on it yet. Tapping an
   annotation scrolls to its marks when its page has rendered, else to the
   page.
+- GitHub Pages deployment: `.github/workflows/pages.yml` builds on every push
+  to `main` (or on demand) and publishes the static build to
+  <https://estcarisimo.github.io/voxnote/>; production builds and
+  `npm run preview` use the `/voxnote/` base path.
 
 ### Changed
 

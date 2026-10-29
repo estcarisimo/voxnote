@@ -56,7 +56,9 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
 - [x] GitHub repository, `protect-main` ruleset, CI (lint, format, typecheck
       and build, test, audit), Dependabot, private vulnerability reporting
       verified (2026-10-29, evidence in the session log on the Notion page).
-- [ ] Deploy the static build (GitHub Pages) so it can be opened on a real iPad.
+- [~] Deploy the static build (GitHub Pages) so it can be opened on a real iPad.
+  Deploy workflow merged; live URL verified: pending until the first run
+  on main.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.
 
