@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { GTAG_SCRIPT_ATTRIBUTE } from './analytics'
+import { CONSENT_DEFAULT, GTAG_SCRIPT_ATTRIBUTE } from './analytics'
 import { OpenPdf } from './OpenPdf'
 
 function pdfFile(name = 'paper.pdf') {
@@ -69,14 +69,14 @@ describe('OpenPdf', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('has one h1 and links to the repository, roadmap and license in new tabs', () => {
+  it('has one h1 and links to the repository and license in new tabs', () => {
     render(<OpenPdf onFile={vi.fn()} error={null} />)
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     const repo = screen.getByRole('link', { name: 'Repository' })
     expect(repo.getAttribute('href')).toBe(
       'https://github.com/estcarisimo/voxnote',
     )
-    for (const name of ['Repository', 'Roadmap', 'License']) {
+    for (const name of ['Repository', 'License']) {
       const link = screen.getByRole('link', { name })
       expect(link.getAttribute('target')).toBe('_blank')
       expect(link.getAttribute('rel')).toBe('noreferrer')
@@ -130,17 +130,14 @@ describe('OpenPdf', () => {
       'https://www.googletagmanager.com/gtag/js?id=G-LANDING1',
     )
     const first = Array.from(window.dataLayer![0] as ArrayLike<unknown>)
-    expect(first).toEqual([
-      'consent',
-      'default',
-      { analytics_storage: 'denied', ad_storage: 'denied' },
-    ])
+    expect(first).toEqual(['consent', 'default', CONSENT_DEFAULT])
   })
 
   it('mentions visit counting in the privacy line', () => {
     render(<OpenPdf onFile={vi.fn()} error={null} />)
-    expect(
-      screen.getByText(/counted with Google Analytics/).textContent,
-    ).toContain('never leave this browser')
+    const line = screen.getByText(/Google Analytics/).textContent
+    expect(line).toContain('stay in this browser')
+    expect(line).toContain('key lives only in this browser, client side')
+    expect(line).toContain('for statistical purposes')
   })
 })

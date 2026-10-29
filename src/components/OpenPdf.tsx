@@ -8,7 +8,6 @@ interface OpenPdfProps {
 }
 
 const REPOSITORY_URL = 'https://github.com/estcarisimo/voxnote'
-const ROADMAP_URL = `${REPOSITORY_URL}/blob/main/ROADMAP.md`
 const LICENSE_URL = `${REPOSITORY_URL}/blob/main/LICENSE`
 
 // Served from public/, so it resolves under the production subpath too.
@@ -118,16 +117,16 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
         </ul>
 
         <p className="open-pdf-privacy">
-          Your PDF, notes and recordings never leave this browser. Audio is sent
-          only when you confirm a transcription with your own provider key.
-          Nothing is published. Visits are counted with Google Analytics,
-          without cookies.
+          Your PDF, notes and recordings stay in this browser; audio goes out
+          only when you confirm a transcription with your own provider key. That
+          key lives only in this browser, client side: there is no VoxNote
+          server. Nothing is published. Visits are counted with Google Analytics
+          for statistical purposes, without cookies.
         </p>
 
         {!standalone && (
           <p className="open-pdf-install">
-            Install it on iPad: open in Safari, tap Share, then Add to Home
-            Screen.
+            Install it from your browser: tap Share, then Add to Home Screen.
           </p>
         )}
       </main>
@@ -137,9 +136,6 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
         <nav aria-label="Project links">
           <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">
             Repository
-          </a>
-          <a href={ROADMAP_URL} target="_blank" rel="noreferrer">
-            Roadmap
           </a>
           <a href={LICENSE_URL} target="_blank" rel="noreferrer">
             License

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { GTAG_SCRIPT_ATTRIBUTE, loadAnalytics } from './analytics'
+import {
+  CONFIG,
+  CONSENT_DEFAULT,
+  GTAG_SCRIPT_ATTRIBUTE,
+  loadAnalytics,
+} from './analytics'
 
 function scripts() {
   return document.querySelectorAll(`script[${GTAG_SCRIPT_ATTRIBUTE}]`)
@@ -39,13 +44,20 @@ describe('loadAnalytics', () => {
     expect(script.async).toBe(true)
 
     const calls = queued()
-    expect(calls[0]).toEqual([
-      'consent',
-      'default',
-      { analytics_storage: 'denied', ad_storage: 'denied' },
-    ])
+    expect(calls[0]).toEqual(['consent', 'default', CONSENT_DEFAULT])
+    expect(CONSENT_DEFAULT).toEqual({
+      analytics_storage: 'denied',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    })
     expect(calls[1]?.[0]).toBe('js')
-    expect(calls[2]).toEqual(['config', 'G-TEST123', { send_page_view: true }])
+    expect(calls[2]).toEqual(['config', 'G-TEST123', CONFIG])
+    expect(CONFIG).toEqual({
+      send_page_view: true,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+    })
     expect(calls).toHaveLength(3)
   })
 
