@@ -123,3 +123,45 @@
   color: #8a1c1c;
   font-size: 0.9rem;
 }
+
+.dialog.is-wide {
+  width: min(720px, 100%);
+}
+
+.dialog h3 {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--text-h);
+}
+
+.dialog-compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.dialog-compare section {
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.dialog-compare p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.dialog-prompt {
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+
+.dialog-prompt pre {
+  margin: 0 0 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--accent-bg);
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+}

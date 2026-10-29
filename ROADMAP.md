@@ -106,7 +106,9 @@ the success criterion on real iPad hardware.
   endpoint only on 2026-10-29: no real transcription has been run yet. Keys
   are encrypted at rest in the browser (AES-GCM, non-extractable key in
   IndexedDB; any script on this origin can still use them). Deepgram pending.
-  Keys never in the repo or in a server.
+  Keys never in the repo or in a server. The M1.3 clean-up work added text
+  providers only (2026-10-29): the speech-to-text adapter list is unchanged,
+  still OpenAI alone.
 - [x] Editable comment body; the raw transcript is kept verbatim and shown
       read-only next to the editor once a provider fills it.
 - [x] Explicit disclosure before anything leaves the device: the consent
@@ -122,8 +124,17 @@ the success criterion on real iPad hardware.
       untouched. Voice or typed. Exported as `/StrikeOut` with the
       replacement in `/Contents`; verified with poppler on 2026-10-29, not
       yet in Preview/Acrobat/PDF Expert/Chrome.
-- [ ] Optional LLM clean-up (punctuation, technical terms) as a separate
-      opt-in action. Never silently reinterpret a critique.
+- [~] Optional LLM clean-up (punctuation, technical terms) as a separate
+  opt-in action. Never silently reinterpret a critique. Done on 2026-10-29
+  behind a `TextModelProvider` interface with OpenAI, Anthropic and xAI
+  adapters: consent dialog with host, model and the exact prompt; review
+  step with Accept / Discard; empty, unchanged or out-of-bounds answers
+  rejected; raw transcript untouched; cleaned bodies labeled in the panel
+  and exports. Verified with unit tests and a headless Chromium run with all
+  three endpoints intercepted; **no real provider call has been made**, so
+  the request shapes, the browser (CORS) access of api.x.ai and
+  api.openai.com's Responses endpoint, and the quality of the clean-ups are
+  unverified.
 
 ### M1.4 Review sidebar and export
 

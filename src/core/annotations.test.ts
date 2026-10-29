@@ -5,7 +5,9 @@ import {
   createHighlight,
   createSuggestion,
   isAnnotation,
+  isCleanUp,
   isVoiceNote,
+  migrateAnnotation,
   isAnchor,
   mergeLineRects,
   rectFromCorners,
@@ -152,7 +154,8 @@ describe('isAnchor / isAnnotation', () => {
       },
       new Date('2026-01-01T00:00:00Z'),
     )
-    expect(isAnnotation({ ...good, schemaVersion: 2 })).toBe(false)
+    expect(isAnnotation({ ...good, schemaVersion: 3 })).toBe(false)
+    expect(isAnnotation({ ...good, schemaVersion: 1 })).toBe(false)
     expect(
       isAnnotation({ ...good, createdAt: '2026-01-01T00:00:00+02:00' }),
     ).toBe(false)
@@ -392,5 +395,111 @@ describe('withVisibility', () => {
     expect(() => withVisibility(h, 'public' as unknown as 'private')).toThrow(
       /Unknown visibility/,
     )
+  })
+})
+
+describe('clean-up records and schema v2', () => {
+  const anchor: Anchor = {
+    type: 'text',
+    page: 1,
+    quote: 'passage',
+    rects: [rect(0, 0, 10, 10)],
+  }
+  const voice = {
+    mimeType: 'audio/webm',
+    durationMs: 1000,
+    recordedAt: '2026-10-29T10:00:00.000Z',
+    transcript: {
+      raw: 'um the claim is uh weak',
+      provider: 'openai/gpt-transcribe',
+      transcribedAt: '2026-10-29T10:00:01.000Z',
+    },
+  }
+  const cleanUp = {
+    provider: 'xai',
+    model: 'grok-4.7',
+    createdAt: '2026-10-29T10:00:02.000Z',
+    promptVersion: 1,
+  }
+
+  it('validates the record itself', () => {
+    expect(isCleanUp(cleanUp)).toBe(true)
+    expect(isCleanUp({ ...cleanUp, editedAfter: true })).toBe(true)
+    expect(isCleanUp({ ...cleanUp, provider: '' })).toBe(false)
+    expect(isCleanUp({ ...cleanUp, promptVersion: 0 })).toBe(false)
+    expect(isCleanUp({ ...cleanUp, promptVersion: 1.5 })).toBe(false)
+    expect(
+      isCleanUp({ ...cleanUp, createdAt: '2026-10-29T10:00:02+01:00' }),
+    ).toBe(false)
+    expect(isCleanUp({ ...cleanUp, editedAfter: 'yes' })).toBe(false)
+  })
+
+  it('creates a dictated comment with an accepted clean-up', () => {
+    const c = createComment({
+      documentId: 'doc',
+      anchor,
+      body: 'The claim is weak.',
+      voice,
+      cleanUp,
+    })
+    expect(c.cleanUp).toEqual(cleanUp)
+    expect(c.voice?.transcript?.raw).toBe('um the claim is uh weak')
+    expect(isAnnotation(c)).toBe(true)
+  })
+
+  it('refuses a clean-up record without a transcript or a body', () => {
+    expect(() =>
+      createComment({ documentId: 'doc', anchor, body: 'Typed.', cleanUp }),
+    ).toThrow(/no raw transcript/)
+    expect(() =>
+      createComment({ documentId: 'doc', anchor, body: ' ', voice, cleanUp }),
+    ).toThrow(/needs a body/)
+    expect(() =>
+      createSuggestion({
+        documentId: 'doc',
+        anchor: anchor as Extract<Anchor, { type: 'text' }>,
+        body: 'New text.',
+        cleanUp: { ...cleanUp, model: '' },
+        voice,
+      }),
+    ).toThrow(/Invalid clean-up record/)
+  })
+
+  it('isAnnotation rejects a clean-up on a highlight or beside no transcript', () => {
+    const h = createHighlight({ documentId: 'doc', anchor })
+    expect(isAnnotation({ ...h, cleanUp })).toBe(false)
+    const typed = createComment({ documentId: 'doc', anchor, body: 'Typed.' })
+    expect(isAnnotation({ ...typed, cleanUp })).toBe(false)
+    const dictated = createComment({
+      documentId: 'doc',
+      anchor,
+      body: 'The claim is weak.',
+      voice,
+    })
+    expect(isAnnotation({ ...dictated, cleanUp })).toBe(true)
+    expect(
+      isAnnotation({ ...dictated, cleanUp: { ...cleanUp, model: 3 } }),
+    ).toBe(false)
+  })
+
+  it('migrates a v1 record by its version number only', () => {
+    const v2 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
+    expect(ANNOTATION_SCHEMA_VERSION).toBe(2)
+    const v1 = { ...v2, schemaVersion: 1 }
+    expect(isAnnotation(v1)).toBe(false)
+    const migrated = migrateAnnotation(v1)
+    expect(migrated).toEqual(v2)
+    expect(isAnnotation(migrated)).toBe(true)
+  })
+
+  it('leaves anything else for isAnnotation to reject', () => {
+    const v2 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
+    expect(migrateAnnotation(v2)).toBe(v2)
+    const future = { ...v2, schemaVersion: 3 }
+    expect(migrateAnnotation(future)).toBe(future)
+    const odd = { ...v2, schemaVersion: 1, cleanUp }
+    expect(migrateAnnotation(odd)).toBe(odd)
+    expect(migrateAnnotation(null)).toBeNull()
+    expect(migrateAnnotation('x')).toBe('x')
   })
 })

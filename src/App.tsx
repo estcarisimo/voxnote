@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnnotationList } from './components/AnnotationList'
+import { CleanUpDialog } from './components/CleanUpDialog'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
 import { OpenPdf } from './components/OpenPdf'
@@ -22,6 +23,7 @@ import {
   type PDFDocumentProxy,
 } from './core/pdf'
 import { useAnnotations } from './hooks/useAnnotations'
+import { useCleanUp } from './hooks/useCleanUp'
 import { useProviders } from './hooks/useProviders'
 import { useTranscription } from './hooks/useTranscription'
 import './App.css'
@@ -45,6 +47,7 @@ function App() {
   const store = useAnnotations(doc?.id ?? null)
   const providers = useProviders()
   const transcription = useTranscription(providers)
+  const cleanUpFlow = useCleanUp(providers)
   // The open document's id as of the last render, for checks after an await.
   const docIdRef = useRef<string | null>(null)
   useEffect(() => {
@@ -67,6 +70,22 @@ function App() {
     if (transcript) await store.setTranscript(comment.id, transcript)
   }
 
+  async function cleanUpStored(note: Note) {
+    const transcript = note.voice?.transcript
+    if (!transcript) throw new Error('This note has no raw transcript')
+    const proposal = await cleanUpFlow.request({
+      transcript: transcript.raw,
+      kind: note.kind,
+      quote: note.anchor.type === 'text' ? note.anchor.quote : null,
+      currentBody: note.body,
+    })
+    if (!proposal) return
+    if (docIdRef.current !== note.documentId) {
+      throw new Error('The document changed; the clean-up was not applied')
+    }
+    await store.applyCleanUp(note.id, proposal)
+  }
+
   async function openFile(file: File) {
     if (loading) return
     setError(null)
@@ -84,6 +103,7 @@ function App() {
       if (doc) void destroyDocument(doc.pdf)
       // A consent dialog for the old document must not outlive it.
       transcription.finish(null)
+      cleanUpFlow.finish(null)
       setDoc({ id, name: file.name, bytes, pdf })
       setSelectedId(null)
     } catch (err: unknown) {
@@ -98,6 +118,7 @@ function App() {
   function closeDocument() {
     if (doc) void destroyDocument(doc.pdf)
     transcription.finish(null)
+    cleanUpFlow.finish(null)
     setDoc(null)
     setSelectedId(null)
     setTool('select')
@@ -247,6 +268,7 @@ function App() {
           onCreateHighlight={createHighlight}
           onCreateNote={createNote}
           transcribe={transcription.request}
+          cleanUp={cleanUpFlow.request}
         />
         {listOpen && (
           <AnnotationList
@@ -258,6 +280,7 @@ function App() {
             onUpdateVisibility={updateVisibility}
             onLoadAudio={(c) => store.getAudio(c.id)}
             onTranscribe={transcribeStored}
+            onCleanUp={cleanUpStored}
           />
         )}
       </div>
@@ -279,6 +302,22 @@ function App() {
           }
           onCancel={() =>
             transcription.finish(null, transcription.pending ?? undefined)
+          }
+        />
+      )}
+      {cleanUpFlow.pending && (
+        <CleanUpDialog
+          key={cleanUpFlow.pending.id}
+          input={cleanUpFlow.pending.input}
+          provider={cleanUpFlow.pending.provider}
+          model={cleanUpFlow.pending.model}
+          language={providers.settings.language}
+          onConfirm={cleanUpFlow.confirm}
+          onAccept={(p) =>
+            cleanUpFlow.finish(p, cleanUpFlow.pending ?? undefined)
+          }
+          onCancel={() =>
+            cleanUpFlow.finish(null, cleanUpFlow.pending ?? undefined)
           }
         />
       )}

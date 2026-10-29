@@ -204,6 +204,80 @@ describe('exportMarkdown', () => {
     const md = exportMarkdown({ ...DOC, name: '*draft*_v2#.pdf' }, [], NOW)
     expect(md.split('\n')[0]).toBe('# VoxNote review: \\*draft\\*\\_v2\\#.pdf')
   })
+
+  it('labels a cleaned-up body as such and keeps the raw transcript labeled raw', () => {
+    const cleanUp = {
+      provider: 'xai',
+      model: 'grok-4.7',
+      createdAt: '2026-10-01T09:02:00.000Z',
+      promptVersion: 1,
+    }
+    const comment = createComment(
+      {
+        documentId: DOC.id,
+        anchor: textAnchor(1, 'the claim'),
+        body: 'This claim needs a citation.',
+        voice: { ...voice, transcript },
+        cleanUp,
+      },
+      T0,
+    )
+    const suggestion = createSuggestion(
+      {
+        documentId: DOC.id,
+        anchor: textAnchor(1, 'the claim', 400),
+        body: 'This claim, with a citation.',
+        voice: { ...voice, transcript },
+        cleanUp: { ...cleanUp, editedAfter: true },
+      },
+      T1,
+    )
+    const md = exportMarkdown(DOC, [comment, suggestion], NOW)
+    expect(md).toContain(
+      [
+        '  - Comment (cleaned up with xai/grok-4.7, 2026-10-01T09:02:00.000Z UTC, prompt v1; the raw transcript is below):',
+        '    > This claim needs a citation.',
+      ].join('\n'),
+    )
+    expect(md).toContain(
+      '  - Replacement (cleaned up with xai/grok-4.7, 2026-10-01T09:02:00.000Z UTC, prompt v1, then edited by the reviewer; the raw transcript is below):',
+    )
+    expect(md).toContain(
+      [
+        '  - Raw transcript (unedited, openai/gpt-4o-transcribe, language en, 2026-10-01T09:01:00.000Z UTC):',
+        '    > um this claim needs a citation',
+      ].join('\n'),
+    )
+    // A body never cleaned up carries no such label.
+    const plain = createComment(
+      { documentId: DOC.id, anchor: textAnchor(2, 'x'), body: 'Typed.' },
+      T0,
+    )
+    expect(exportMarkdown(DOC, [plain], NOW)).not.toContain('cleaned up')
+  })
+
+  it('carries the clean-up record in the JSON export', () => {
+    const comment = createComment(
+      {
+        documentId: DOC.id,
+        anchor: textAnchor(1, 'the claim'),
+        body: 'This claim needs a citation.',
+        voice: { ...voice, transcript },
+        cleanUp: {
+          provider: 'openai',
+          model: 'gpt-6.1-terra',
+          createdAt: '2026-10-01T09:02:00.000Z',
+          promptVersion: 1,
+        },
+      },
+      T0,
+    )
+    const parsed = JSON.parse(exportJson(DOC, [comment], NOW)) as {
+      annotations: Annotation[]
+    }
+    expect(parsed.annotations[0]).toEqual(comment)
+    expect(isAnnotation(parsed.annotations[0])).toBe(true)
+  })
 })
 
 describe('ordering', () => {

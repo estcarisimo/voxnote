@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { VoiceRecorder } from '../hooks/useVoiceRecorder'
+import type { CleanUpFn } from './CleanUpDialog'
 import { CommentComposer } from './CommentComposer'
 
 const placement = { left: 10, top: 20, bottom: 40 }
@@ -471,5 +472,122 @@ describe('CommentComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
     await screen.findByText('the results', { selector: 'p' })
     expect(field).toHaveProperty('value', 'the results')
+  })
+
+  describe('clean-up', () => {
+    const blob = new Blob(['opus'], { type: 'audio/webm' })
+    const recording = {
+      blob,
+      mimeType: 'audio/webm',
+      durationMs: 2000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      url: 'blob:one',
+    }
+    const transcript = {
+      raw: 'um faltan los los ejes',
+      provider: 'openai/gpt-transcribe',
+      transcribedAt: '2026-10-29T10:00:05.000Z',
+    }
+    const proposal = {
+      text: 'Faltan los ejes.',
+      cleanUp: {
+        provider: 'xai',
+        model: 'grok-4.7',
+        createdAt: '2026-10-29T10:00:09.000Z',
+        promptVersion: 1,
+      },
+    }
+
+    async function transcribed(cleanUp: CleanUpFn) {
+      const onSave = vi.fn(async () => {})
+      render(
+        <CommentComposer
+          placement={placement}
+          mode="comment"
+          quote="the quote"
+          recorder={recorderWith({ status: 'recorded', recording })}
+          transcribe={vi.fn(async () => transcript)}
+          cleanUp={cleanUp}
+          onSave={onSave}
+          onCancel={() => {}}
+        />,
+      )
+      expect(screen.queryByRole('button', { name: 'Clean up…' })).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
+      await screen.findByRole('button', { name: 'Clean up…' })
+      return onSave
+    }
+
+    it('offers Clean up only with a transcript; Accept fills the body and saves the record', async () => {
+      const cleanUp = vi.fn(async () => proposal)
+      const onSave = await transcribed(cleanUp)
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }))
+      await vi.waitFor(() =>
+        expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+          'value',
+          'Faltan los ejes.',
+        ),
+      )
+      expect(cleanUp).toHaveBeenCalledWith({
+        transcript: transcript.raw,
+        kind: 'comment',
+        quote: 'the quote',
+        currentBody: transcript.raw,
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(onSave).toHaveBeenCalledWith({
+        body: 'Faltan los ejes.',
+        voice: {
+          mimeType: 'audio/webm',
+          durationMs: 2000,
+          recordedAt: '2026-10-29T10:00:00.000Z',
+          transcript,
+        },
+        audio: blob,
+        cleanUp: proposal.cleanUp,
+      })
+    })
+
+    it('flags the record when the text is edited after accepting', async () => {
+      const onSave = await transcribed(vi.fn(async () => proposal))
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }))
+      await vi.waitFor(() =>
+        expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+          'value',
+          'Faltan los ejes.',
+        ),
+      )
+      fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+        target: { value: 'Faltan los ejes de la figura.' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cleanUp: { ...proposal.cleanUp, editedAfter: true },
+        }),
+      )
+    })
+
+    it('Discard leaves the body and saves no record; errors show in place', async () => {
+      const cleanUp = vi
+        .fn<CleanUpFn>()
+        .mockResolvedValueOnce(null)
+        .mockRejectedValueOnce(new Error('Anthropic responded 529: overloaded'))
+      const onSave = await transcribed(cleanUp)
+      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }))
+      await vi.waitFor(() => expect(cleanUp).toHaveBeenCalledTimes(1))
+      expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+        'value',
+        transcript.raw,
+      )
+      fireEvent.click(await screen.findByRole('button', { name: 'Clean up…' }))
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Anthropic responded 529: overloaded',
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(onSave).toHaveBeenCalledWith(
+        expect.not.objectContaining({ cleanUp: expect.anything() }),
+      )
+    })
   })
 })

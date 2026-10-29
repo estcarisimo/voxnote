@@ -10,8 +10,9 @@ availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
 
 **Try it:** <https://estcarisimo.github.io/voxnote/> — a static build with no
 backend, published from `main`. The site uploads nothing: PDFs, annotations
-and recordings stay in your browser, and audio leaves the device only when you
-confirm a transcription with your own provider key.
+and recordings stay in your browser, and audio or transcript text leaves the
+device only when you confirm a transcription or a clean-up with your own
+provider key.
 
 ## What works today
 
@@ -27,6 +28,13 @@ confirm a transcription with your own provider key.
   **Providers**; it is encrypted at rest in your browser (any script running
   on this origin could still use it) and is sent only to the provider, only
   when you confirm. The raw transcript is kept verbatim.
+- **Clean up…** (optional) asks a text model to fix punctuation, casing,
+  fillers and technical terms in a raw transcript: OpenAI, Anthropic (Claude)
+  or xAI (Grok), each with your own key. The consent dialog names the host and
+  model and shows the exact prompt; you see the raw text and the proposal side
+  by side and only **Accept** changes the note. The raw transcript is never
+  touched, and a cleaned body is labeled as such in the panel and the exports.
+  Tested against mocked endpoints only so far.
 - Annotations are stored locally in your browser (IndexedDB), recordings
   included, and come back when you reopen the same file. The **Annotations**
   panel groups them by kind, visibility or page, filters by kind, visibility,

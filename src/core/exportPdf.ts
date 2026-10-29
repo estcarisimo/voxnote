@@ -5,8 +5,9 @@
  * Text anchors become /Highlight annotations with one quadrilateral per line;
  * regions become /Square annotations; suggestions become /StrikeOut over the
  * original text with the replacement in /Contents. A comment's body goes
- * into /Contents, which viewers show as the annotation's note. Voice
- * recordings are not embedded: only the text is exported.
+ * into /Contents, which viewers show as the annotation's note; a body
+ * cleaned up by a text model is marked as such and followed by the raw
+ * transcript. Voice recordings are not embedded: only the text is exported.
  */
 import {
   PDFArray,
@@ -17,7 +18,13 @@ import {
   type PDFObject,
   type PDFPage,
 } from 'pdf-lib'
-import { unionRects, type Annotation, type PdfRect } from './annotations'
+import {
+  unionRects,
+  type Annotation,
+  type Note,
+  type PdfRect,
+} from './annotations'
+import { cleanUpLabel } from './cleanUp'
 
 const HIGHLIGHT_COLOR = [1, 0.85, 0.2] as const
 const COMMENT_COLOR = [0.3, 0.55, 1] as const
@@ -111,12 +118,26 @@ function contentsOf(annotation: Annotation): string {
     case 'highlight':
       return ''
     case 'comment':
-      return annotation.body
+      return annotation.body + cleanUpNote(annotation)
     case 'suggestion':
       return annotation.body.trim() === ''
         ? 'Suggested change recorded by voice; not transcribed yet'
-        : `Replace with: ${annotation.body}`
+        : `Replace with: ${annotation.body}${cleanUpNote(annotation)}`
   }
+}
+
+/**
+ * A cleaned-up body says so in the note, followed by the raw transcript
+ * labeled as raw, so the reviewer's verbatim words travel with the PDF.
+ */
+function cleanUpNote(note: Note): string {
+  const transcript = note.voice?.transcript
+  if (!note.cleanUp || !transcript) return ''
+  const edited = note.cleanUp.editedAfter ? ', then edited' : ''
+  return (
+    `\n\n[Text cleaned up with ${cleanUpLabel(note.cleanUp)}${edited}.]` +
+    `\nRaw transcript: ${transcript.raw}`
+  )
 }
 
 function rectArray(pdf: PDFDocument, r: PdfRect): PDFArray {

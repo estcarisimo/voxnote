@@ -80,6 +80,34 @@ All notable changes to this project are documented here. The format follows
   metadata for now, the exports do not filter on it yet. Tapping an
   annotation scrolls to its marks when its page has rendered, else to the
   page.
+- Optional LLM clean-up of a dictated note, a separate opt-in action:
+  **Clean up…** appears next to a raw transcript in the composer and in the
+  **Annotations** panel. It sends the raw transcript (never the edited body),
+  optionally the quoted passage as a spelling hint, and the language hint to
+  the chosen text provider, after a consent dialog that names the host and the
+  model and shows the exact prompt (`CLEAN_UP_INSTRUCTIONS`, version 1, in
+  `src/providers/llm.ts`). Nothing is sent until **Send**; **Cancel** aborts
+  the request. A review step shows the raw transcript and the proposal side by
+  side; only **Accept** changes the note, **Discard** changes nothing. An
+  empty, unchanged, or wildly longer or shorter answer is rejected with an
+  error instead of being proposed (`CLEAN_UP_LENGTH_LIMITS`: within 20
+  characters, or 50–150% of the raw length). The raw transcript is never
+  modified.
+- Text-model providers behind one `TextModelProvider` interface: OpenAI
+  (Responses API; `gpt-6.1-terra` default, `gpt-6-luna`, `gpt-6.1-sol`,
+  `gpt-6-astra`), Anthropic (Messages API; `claude-opus-5-5` default,
+  `claude-sonnet-5-5`, `claude-haiku-5-5`, `claude-fable-5-1`) and xAI
+  (Responses API; `grok-4.7` default, `grok-4.6`,
+  `grok-4.20-0309-non-reasoning`). Model ids as listed in each vendor's
+  documentation on 2026-10-29. Verified against mocked endpoints only: no
+  real provider call has been made.
+- **Providers** lists speech-to-text and clean-up separately, each with its
+  own provider and model; keys are kept one per provider (OpenAI's key serves
+  both), each encrypted at rest as before.
+- A cleaned-up body is marked as such: in the panel ("Cleaned up with
+  provider/model", "then edited" once changed by hand), in the Markdown
+  export's label, and in the PDF note, which then also carries the raw
+  transcript labeled as raw.
 - GitHub Pages deployment: `.github/workflows/pages.yml` builds on every push
   to `main` (or on demand) and publishes the static build to
   <https://estcarisimo.github.io/voxnote/>; production builds and
@@ -91,6 +119,10 @@ All notable changes to this project are documented here. The format follows
   their quote, body and voice badge.
 - IndexedDB schema version 2 adds an `audio` object store; version 1
   databases upgrade in place.
+- Annotation schema version 2 adds the optional `cleanUp` record
+  (`provider`, `model`, `createdAt` in UTC, `promptVersion`, `editedAfter`)
+  on comments and suggestions. Version 1 records are read as version 2
+  without changes to their content and rewritten on the next save.
 - The session log moved from `docs/SESSION_LOG.md` to the project's Notion
   page; the repository only links to it.
 

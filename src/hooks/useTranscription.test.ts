@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS } from '../providers/registry'
+import { DEFAULT_SETTINGS, DEFAULT_TEXT_SETTINGS } from '../providers/registry'
 import type { SpeechToTextProvider } from '../providers/stt'
 import type { Providers } from './useProviders'
 import { useTranscription } from './useTranscription'
@@ -12,6 +12,8 @@ function providersWith(overrides: Partial<Providers> = {}): Providers {
     error: null,
     settings: DEFAULT_SETTINGS,
     saveSettings: vi.fn(),
+    textSettings: DEFAULT_TEXT_SETTINGS,
+    saveTextSettings: vi.fn(),
     hasKey: () => true,
     setKey: vi.fn(async () => {}),
     removeKey: vi.fn(async () => {}),

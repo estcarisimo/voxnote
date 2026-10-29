@@ -6,6 +6,7 @@ import {
   type Note,
   type Visibility,
 } from '../core/annotations'
+import { cleanUpLabel } from '../core/cleanUp'
 import { formatDuration } from '../core/recording'
 import {
   EMPTY_FILTER,
@@ -35,6 +36,8 @@ interface AnnotationListProps {
   onLoadAudio: (note: Note) => Promise<Blob | null>
   /** Consent-gated transcription of a stored voice note; rejects on failure. */
   onTranscribe: (note: Note) => Promise<void>
+  /** Consent-gated clean-up of a note's raw transcript; absent if unavailable. */
+  onCleanUp?: (note: Note) => Promise<void>
 }
 
 const KIND_CHIPS: readonly AnnotationKind[] = [
@@ -56,6 +59,7 @@ export function AnnotationList({
   onUpdateVisibility,
   onLoadAudio,
   onTranscribe,
+  onCleanUp,
 }: AnnotationListProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('kind')
   const [filter, setFilter] = useState<ReviewFilter>(EMPTY_FILTER)
@@ -111,6 +115,7 @@ export function AnnotationList({
             onUpdateVisibility={onUpdateVisibility}
             onLoadAudio={onLoadAudio}
             onTranscribe={onTranscribe}
+            onCleanUp={onCleanUp}
           />
         ))
       )}
@@ -252,6 +257,7 @@ function ReviewGroupSection({
   onUpdateVisibility,
   onLoadAudio,
   onTranscribe,
+  onCleanUp,
 }: {
   label: string
   headed: boolean
@@ -263,6 +269,7 @@ function ReviewGroupSection({
   onUpdateVisibility: (a: Annotation, visibility: Visibility) => Promise<void>
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
+  onCleanUp?: (note: Note) => Promise<void>
 }) {
   const headingId = useId()
   return (
@@ -294,6 +301,7 @@ function ReviewGroupSection({
                 onUpdateVisibility={onUpdateVisibility}
                 onLoadAudio={onLoadAudio}
                 onTranscribe={onTranscribe}
+                onCleanUp={onCleanUp}
               />
             ) : (
               <HighlightItem
@@ -419,6 +427,7 @@ function NoteItem({
   onUpdateVisibility,
   onLoadAudio,
   onTranscribe,
+  onCleanUp,
 }: {
   note: Note
   onSelect: (a: Annotation) => void
@@ -427,8 +436,24 @@ function NoteItem({
   onUpdateVisibility: (a: Annotation, visibility: Visibility) => Promise<void>
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
+  onCleanUp?: (note: Note) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
+  const [cleaningUp, setCleaningUp] = useState(false)
+  const [cleanUpError, setCleanUpError] = useState<string | null>(null)
+
+  async function cleanUp() {
+    if (!onCleanUp) return
+    setCleaningUp(true)
+    setCleanUpError(null)
+    try {
+      await onCleanUp(c)
+    } catch (err: unknown) {
+      setCleanUpError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCleaningUp(false)
+    }
+  }
   const [transcribing, setTranscribing] = useState(false)
   const [transcribeError, setTranscribeError] = useState<string | null>(null)
 
@@ -470,6 +495,12 @@ function NoteItem({
             )}
           </span>
         )}
+        {c.cleanUp && (
+          <span className="annotation-list-cleaned">
+            ✨ Cleaned up with {cleanUpLabel(c.cleanUp)}
+            {c.cleanUp.editedAfter && ', then edited'}
+          </span>
+        )}
       </button>
       {editing ? (
         <BodyEditor
@@ -487,6 +518,11 @@ function NoteItem({
               {transcribeError}
             </p>
           )}
+          {cleanUpError && (
+            <p role="alert" className="annotation-list-error">
+              {cleanUpError}
+            </p>
+          )}
           {c.voice && <AudioPlayer comment={c} onLoadAudio={onLoadAudio} />}
           {c.voice && !c.voice.transcript && (
             <button
@@ -495,6 +531,15 @@ function NoteItem({
               disabled={transcribing}
             >
               {transcribing ? 'Transcribing…' : 'Transcribe…'}
+            </button>
+          )}
+          {onCleanUp && c.voice?.transcript && (
+            <button
+              type="button"
+              onClick={() => void cleanUp()}
+              disabled={cleaningUp}
+            >
+              {cleaningUp ? 'Cleaning up…' : 'Clean up…'}
             </button>
           )}
           <VisibilityToggle
@@ -568,6 +613,12 @@ function BodyEditor({
             Raw transcript ({comment.voice.transcript.provider})
           </summary>
           <p>{comment.voice.transcript.raw}</p>
+          {comment.cleanUp && (
+            <p>
+              The text was cleaned up with {cleanUpLabel(comment.cleanUp)} on{' '}
+              {comment.cleanUp.createdAt} (UTC).
+            </p>
+          )}
         </details>
       )}
       {error && (

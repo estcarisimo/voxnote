@@ -4,7 +4,10 @@
  * migration in the store whenever this shape changes.
  */
 
-export const ANNOTATION_SCHEMA_VERSION = 1
+export const ANNOTATION_SCHEMA_VERSION = 2
+// Schema history. v1: highlights, comments, suggestions, voice notes. v2:
+// the optional `cleanUp` record on notes. A v1 record is a valid v2 record
+// without `cleanUp`, so migrateAnnotation only rewrites the version number.
 
 /**
  * A rectangle in PDF user space: points, origin at the bottom-left of the
@@ -89,12 +92,30 @@ export interface VoiceNote {
   transcript?: Transcript
 }
 
+/**
+ * Marks a body that came from an LLM clean-up of the raw transcript, which
+ * the user reviewed and accepted. The raw transcript itself is never touched.
+ */
+export interface CleanUp {
+  /** Text provider id, e.g. "anthropic". */
+  provider: string
+  /** Model id as sent, e.g. "claude-opus-5-5". */
+  model: string
+  /** UTC, when the clean-up was produced. */
+  createdAt: string
+  /** CLEAN_UP_PROMPT_VERSION of the instruction that produced it. */
+  promptVersion: number
+  /** True once the user changed the body after accepting the clean-up. */
+  editedAfter?: boolean
+}
+
 /** A note attached to an anchor, typed or dictated. */
 export interface Comment extends AnnotationBase {
   kind: 'comment'
   /** The editable text. Starts as the raw transcript when dictated. */
   body: string
   voice?: VoiceNote
+  cleanUp?: CleanUp
 }
 
 /**
@@ -114,6 +135,7 @@ export interface Suggestion extends AnnotationBase {
   /** The proposed replacement; empty until a dictation is transcribed. */
   body: string
   voice?: VoiceNote
+  cleanUp?: CleanUp
 }
 
 /** The kinds that carry editable text and an optional recording. */
@@ -137,6 +159,8 @@ export function createHighlight(
 export interface CreateCommentInput extends CreateHighlightInput {
   body: string
   voice?: VoiceNote
+  /** Set when the body is an accepted clean-up of the voice transcript. */
+  cleanUp?: CleanUp
 }
 
 /**
@@ -159,6 +183,10 @@ export function createComment(
     body: input.body,
   }
   if (input.voice) comment.voice = input.voice
+  if (input.cleanUp) {
+    assertCleanUpAllowed(comment, input.cleanUp)
+    comment.cleanUp = input.cleanUp
+  }
   return comment
 }
 
@@ -167,6 +195,8 @@ export interface CreateSuggestionInput extends CreateHighlightInput {
   /** The replacement text; may be empty when a voice note is attached. */
   body: string
   voice?: VoiceNote
+  /** Set when the body is an accepted clean-up of the voice transcript. */
+  cleanUp?: CleanUp
 }
 
 /**
@@ -191,6 +221,10 @@ export function createSuggestion(
     body: input.body,
   }
   if (input.voice) suggestion.voice = input.voice
+  if (input.cleanUp) {
+    assertCleanUpAllowed(suggestion, input.cleanUp)
+    suggestion.cleanUp = input.cleanUp
+  }
   assertSuggestionChanges(suggestion)
   return suggestion
 }
@@ -206,13 +240,41 @@ function assertSuggestionChanges(s: Suggestion): void {
   }
 }
 
-/** Returns a copy with the new body and a fresh updatedAt. */
+/**
+ * A clean-up record needs a raw transcript it was made from, and a body.
+ * Throws otherwise: a "cleaned up" label on text with no source would lie.
+ */
+function assertCleanUpAllowed(note: Note, cleanUp: CleanUp): void {
+  if (!isCleanUp(cleanUp)) {
+    throw new Error(`Invalid clean-up record: ${JSON.stringify(cleanUp)}`)
+  }
+  if (!note.voice?.transcript) {
+    throw new Error(
+      `${labelOf(note)} ${note.id} has no raw transcript to clean up`,
+    )
+  }
+  if (note.body.trim() === '') {
+    throw new Error('A cleaned-up note needs a body')
+  }
+}
+
+/**
+ * Returns a copy with the new body and a fresh updatedAt. A body that came
+ * from a clean-up keeps its record, flagged as edited once the text changes,
+ * and loses it when cleared.
+ */
 export function withBody<N extends Note>(
   note: N,
   body: string,
   now: Date = new Date(),
 ): N {
   const updated: N = { ...note, body, updatedAt: now.toISOString() }
+  if (note.cleanUp && body.trim() === '') {
+    // Nothing cleaned up is left to label.
+    delete updated.cleanUp
+  } else if (note.cleanUp && body !== note.body) {
+    updated.cleanUp = { ...note.cleanUp, editedAfter: true }
+  }
   if (updated.kind === 'suggestion') {
     assertSuggestionChanges(updated)
   } else if (body.trim() === '' && !updated.voice) {
@@ -435,6 +497,49 @@ export function isVoiceNote(value: unknown): value is VoiceNote {
   )
 }
 
+export function isCleanUp(value: unknown): value is CleanUp {
+  if (typeof value !== 'object' || value === null) return false
+  const c = value as Record<string, unknown>
+  return (
+    typeof c.provider === 'string' &&
+    c.provider.length > 0 &&
+    typeof c.model === 'string' &&
+    c.model.length > 0 &&
+    isUtcTimestamp(c.createdAt) &&
+    Number.isInteger(c.promptVersion) &&
+    (c.promptVersion as number) >= 1 &&
+    (c.editedAfter === undefined || typeof c.editedAfter === 'boolean')
+  )
+}
+
+/** A clean-up record is only valid beside the transcript it came from. */
+function cleanUpOk(a: Record<string, unknown>): boolean {
+  if (a.cleanUp === undefined) return true
+  if (!isCleanUp(a.cleanUp)) return false
+  const voice = a.voice as VoiceNote | undefined
+  return (
+    voice?.transcript !== undefined &&
+    typeof a.body === 'string' &&
+    a.body.trim() !== ''
+  )
+}
+
+/**
+ * Brings a stored record of any supported schema version to the current
+ * one. Returns the value unchanged when it is not a record of a known
+ * version, so isAnnotation rejects it loudly instead of it being dropped.
+ */
+export function migrateAnnotation(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null) return value
+  const a = value as Record<string, unknown>
+  if (a.schemaVersion === 1) {
+    // v1 had no clean-up record; anything named so is not a v1 record.
+    if ('cleanUp' in a) return value
+    return { ...a, schemaVersion: ANNOTATION_SCHEMA_VERSION }
+  }
+  return value
+}
+
 /** Structural validation for records read from storage or import files. */
 export function isAnnotation(value: unknown): value is Annotation {
   if (typeof value !== 'object' || value === null) return false
@@ -451,10 +556,11 @@ export function isAnnotation(value: unknown): value is Annotation {
     isUtcTimestamp(a.createdAt) &&
     isUtcTimestamp(a.updatedAt)
   if (!baseOk) return false
-  if (a.kind === 'highlight') return true
+  if (a.kind === 'highlight') return a.cleanUp === undefined
   if (a.kind === 'comment') {
     if (typeof a.body !== 'string') return false
     if (a.voice !== undefined && !isVoiceNote(a.voice)) return false
+    if (!cleanUpOk(a)) return false
     return a.body.trim() !== '' || a.voice !== undefined
   }
   if (a.kind === 'suggestion') {
@@ -462,6 +568,7 @@ export function isAnnotation(value: unknown): value is Annotation {
     if (typeof a.original !== 'string' || a.original.trim() === '') return false
     if (typeof a.body !== 'string') return false
     if (a.voice !== undefined && !isVoiceNote(a.voice)) return false
+    if (!cleanUpOk(a)) return false
     if (a.body.trim() === '') return a.voice !== undefined
     return a.body.trim() !== a.original.trim()
   }
