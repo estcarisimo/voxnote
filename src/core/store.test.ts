@@ -3,7 +3,12 @@
 // which turns a jsdom Blob into an empty object. Browsers have one realm.
 import { IDBFactory } from 'fake-indexeddb'
 import { describe, expect, it } from 'vitest'
-import { createComment, createHighlight, withBody } from './annotations'
+import {
+  createComment,
+  createHighlight,
+  createSuggestion,
+  withBody,
+} from './annotations'
 import {
   createAnnotationStore,
   openAnnotationStore,
@@ -135,6 +140,25 @@ describe('IndexedDB audio records', () => {
     await store.delete(c.id)
     expect(await store.list('doc')).toEqual([])
     expect(await store.getAudio(c.id)).toBeNull()
+    store.close()
+  })
+
+  it('stores a dictated suggestion with its recording', async () => {
+    const store = await openAnnotationStore('test', new IDBFactory())
+    const s = createSuggestion({
+      documentId: 'doc',
+      anchor: {
+        type: 'text',
+        page: 1,
+        quote: 'teh',
+        rects: [{ x: 0, y: 0, width: 10, height: 10 }],
+      },
+      body: '',
+      voice,
+    })
+    await store.put(s, { id: s.id, blob: new Blob(['opus']) })
+    expect(await store.list('doc')).toEqual([s])
+    expect((await store.getAudio(s.id))?.id).toBe(s.id)
     store.close()
   })
 

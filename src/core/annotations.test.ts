@@ -3,6 +3,7 @@ import {
   ANNOTATION_SCHEMA_VERSION,
   createComment,
   createHighlight,
+  createSuggestion,
   isAnnotation,
   isVoiceNote,
   isAnchor,
@@ -11,6 +12,7 @@ import {
   unionRects,
   withBody,
   withTranscript,
+  type Anchor,
   type Annotation,
   type PdfRect,
 } from './annotations'
@@ -274,5 +276,90 @@ describe('createComment / withBody', () => {
     expect(isAnnotation({ ...c, voice: { mimeType: 'audio/webm' } })).toBe(
       false,
     )
+  })
+})
+
+describe('createSuggestion', () => {
+  const text = {
+    type: 'text',
+    page: 2,
+    quote: 'the the results',
+    rects: [rect(0, 0, 10, 10)],
+  } as const satisfies Anchor
+  const voice = {
+    mimeType: 'audio/webm',
+    durationMs: 900,
+    recordedAt: '2026-10-29T12:00:00.000Z',
+  }
+
+  it('records the original and the replacement', () => {
+    const s = createSuggestion({
+      documentId: 'doc',
+      anchor: text,
+      body: 'the results',
+    })
+    expect(s.kind).toBe('suggestion')
+    expect(s.original).toBe('the the results')
+    expect(s.body).toBe('the results')
+    expect(isAnnotation(s)).toBe(true)
+  })
+
+  it('refuses a suggestion that changes nothing, or has nothing yet', () => {
+    expect(() =>
+      createSuggestion({
+        documentId: 'doc',
+        anchor: text,
+        body: ' the the results ',
+      }),
+    ).toThrow(/must change the text/)
+    expect(() =>
+      createSuggestion({ documentId: 'doc', anchor: text, body: '' }),
+    ).toThrow(/needs replacement text or a voice note/)
+    expect(() =>
+      createSuggestion({
+        documentId: 'doc',
+        anchor: { type: 'region', page: 1, rect: rect(0, 0, 1, 1) } as never,
+        body: 'x',
+      }),
+    ).toThrow(/needs selected text/)
+  })
+
+  it('accepts an empty replacement with a voice note, and withBody keeps the rule', () => {
+    const s = createSuggestion({
+      documentId: 'doc',
+      anchor: text,
+      body: '',
+      voice,
+    })
+    expect(isAnnotation(s)).toBe(true)
+    expect(withBody(s, 'the results').body).toBe('the results')
+    expect(() => withBody(s, 'the the results')).toThrow(/must change/)
+    expect(isAnnotation({ ...s, body: 'the the results' })).toBe(false)
+    expect(isAnnotation({ ...s, original: '' })).toBe(false)
+  })
+
+  it('withTranscript fills the replacement, unless the dictation repeats the original', () => {
+    const s = createSuggestion({
+      documentId: 'doc',
+      anchor: text,
+      body: '',
+      voice,
+    })
+    const dictated = withTranscript(s, {
+      raw: 'the results',
+      provider: 'p/m',
+      transcribedAt: '2026-10-29T12:01:00.000Z',
+    })
+    expect(dictated.body).toBe('the results')
+    expect(dictated.voice?.transcript?.raw).toBe('the results')
+
+    const same = withTranscript(s, {
+      raw: 'the the results',
+      provider: 'p/m',
+      transcribedAt: '2026-10-29T12:01:00.000Z',
+    })
+    expect(same.body).toBe('')
+    expect(same.voice?.transcript?.raw).toBe('the the results')
+    expect(isAnnotation(same)).toBe(true)
   })
 })

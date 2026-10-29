@@ -27,9 +27,11 @@ export interface PdfViewerHandle {
   scrollToPage(page: number): void
 }
 
-export interface NewCommentRequest extends CommentDraft {
-  anchor: Anchor
-}
+export type NewNoteRequest = CommentDraft &
+  (
+    | { kind: 'comment'; anchor: Anchor }
+    | { kind: 'suggestion'; anchor: TextAnchor }
+  )
 
 interface PdfViewerProps {
   document: PDFDocumentProxy
@@ -38,7 +40,7 @@ interface PdfViewerProps {
   selectedId: string | null
   onCreateHighlight: (anchor: Anchor) => void
   /** Rejecting keeps the composer open with the error shown. */
-  onCreateComment: (request: NewCommentRequest) => Promise<void>
+  onCreateNote: (request: NewNoteRequest) => Promise<void>
   /** Consent-gated transcription for a fresh recording; null if unavailable. */
   transcribe: TranscribeFn | null
   ref?: Ref<PdfViewerHandle>
@@ -55,7 +57,11 @@ interface PendingAnchor {
   placement: ToolbarPlacement
 }
 
-type Composer = 'typed' | 'voice' | null
+/**
+ * typed: a comment without recorder; voice: a comment, recording at once;
+ * suggest: a replacement for the selected text, with the recorder on hand.
+ */
+type Composer = 'typed' | 'voice' | 'suggest' | null
 
 /**
  * Scrolls all pages of a document vertically, fitting them to the width, and
@@ -68,7 +74,7 @@ export function PdfViewer({
   annotations,
   selectedId,
   onCreateHighlight,
-  onCreateComment,
+  onCreateNote,
   transcribe,
   ref,
 }: PdfViewerProps) {
@@ -98,7 +104,7 @@ export function PdfViewer({
   // Whatever closed the composer, the microphone and replay URL go with it.
   const { discard } = recorder
   useEffect(() => {
-    if (composer !== 'voice') discard()
+    if (composer === null) discard()
   }, [composer, discard])
 
   useImperativeHandle(ref, () => ({
@@ -168,16 +174,23 @@ export function PdfViewer({
     clear()
   }
 
-  function openComposer(mode: 'typed' | 'voice') {
+  function openComposer(mode: Exclude<Composer, null>) {
     if (!shown) return
     setComposer(mode)
     // Start right away: the tap on the mic is the request to record.
     if (mode === 'voice') void recorder.start()
   }
 
-  async function saveComment(draft: CommentDraft) {
+  async function saveNote(draft: CommentDraft) {
     if (!shown) return
-    await onCreateComment({ ...draft, anchor: shown.anchor })
+    if (composer === 'suggest') {
+      if (shown.anchor.type !== 'text') {
+        throw new Error('A suggestion needs selected text')
+      }
+      await onCreateNote({ ...draft, kind: 'suggestion', anchor: shown.anchor })
+    } else {
+      await onCreateNote({ ...draft, kind: 'comment', anchor: shown.anchor })
+    }
     clear()
   }
 
@@ -239,16 +252,20 @@ export function PdfViewer({
           onHighlight={highlight}
           onComment={() => openComposer('typed')}
           onVoice={() => openComposer('voice')}
+          onSuggest={
+            shown.anchor.type === 'text' ? () => openComposer('suggest') : null
+          }
         />
       )}
       {shown && composer && (
         <CommentComposer
           key={composer}
           placement={shown.placement}
+          mode={composer === 'suggest' ? 'suggestion' : 'comment'}
           quote={shown.anchor.type === 'text' ? shown.anchor.quote : null}
-          recorder={composer === 'voice' ? recorder : null}
-          transcribe={composer === 'voice' ? transcribe : null}
-          onSave={saveComment}
+          recorder={composer === 'typed' ? null : recorder}
+          transcribe={composer === 'typed' ? null : transcribe}
+          onSave={saveNote}
           onCancel={clear}
         />
       )}

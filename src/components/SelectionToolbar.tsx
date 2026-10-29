@@ -14,6 +14,8 @@ interface SelectionToolbarProps {
   onHighlight: () => void
   onComment: () => void
   onVoice: () => void
+  /** Only text can be replaced: null hides the action for regions. */
+  onSuggest: (() => void) | null
 }
 
 /** Floating actions for the current selection or region. */
@@ -22,6 +24,7 @@ export function SelectionToolbar({
   onHighlight,
   onComment,
   onVoice,
+  onSuggest,
 }: SelectionToolbarProps) {
   return (
     <div
@@ -41,6 +44,11 @@ export function SelectionToolbar({
       <button type="button" onClick={onVoice} aria-label="Voice comment">
         🎤 Voice
       </button>
+      {onSuggest && (
+        <button type="button" onClick={onSuggest}>
+          Suggest
+        </button>
+      )}
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Annotation, Comment } from '../core/annotations'
+import { isNote, type Annotation, type Note } from '../core/annotations'
 import { formatDuration } from '../core/recording'
 import './AnnotationList.css'
 
@@ -9,10 +9,10 @@ interface AnnotationListProps {
   onSelect: (annotation: Annotation) => void
   onDelete: (annotation: Annotation) => void
   /** Rejecting keeps the editor open with the error shown. */
-  onUpdateBody: (comment: Comment, body: string) => Promise<void>
-  onLoadAudio: (comment: Comment) => Promise<Blob | null>
+  onUpdateBody: (note: Note, body: string) => Promise<void>
+  onLoadAudio: (note: Note) => Promise<Blob | null>
   /** Consent-gated transcription of a stored voice note; rejects on failure. */
-  onTranscribe: (comment: Comment) => Promise<void>
+  onTranscribe: (note: Note) => Promise<void>
 }
 
 /** The document's annotations: jump to one, edit a comment, or delete it. */
@@ -30,7 +30,7 @@ export function AnnotationList({
       <aside className="annotation-list" aria-label="Annotations">
         <p className="annotation-list-empty">
           No annotations yet. Select text, or switch to the region tool and drag
-          over a figure, then choose Highlight, Comment or Voice.
+          over a figure, then choose Highlight, Comment, Voice or Suggest.
         </p>
       </aside>
     )
@@ -43,9 +43,9 @@ export function AnnotationList({
             key={a.id}
             className={a.id === selectedId ? 'is-selected' : undefined}
           >
-            {a.kind === 'comment' ? (
-              <CommentItem
-                comment={a}
+            {isNote(a) ? (
+              <NoteItem
+                note={a}
                 onSelect={onSelect}
                 onDelete={onDelete}
                 onUpdateBody={onUpdateBody}
@@ -103,20 +103,20 @@ function HighlightItem({
   )
 }
 
-function CommentItem({
-  comment: c,
+function NoteItem({
+  note: c,
   onSelect,
   onDelete,
   onUpdateBody,
   onLoadAudio,
   onTranscribe,
 }: {
-  comment: Comment
+  note: Note
   onSelect: (a: Annotation) => void
   onDelete: (a: Annotation) => void
-  onUpdateBody: (comment: Comment, body: string) => Promise<void>
-  onLoadAudio: (comment: Comment) => Promise<Blob | null>
-  onTranscribe: (comment: Comment) => Promise<void>
+  onUpdateBody: (note: Note, body: string) => Promise<void>
+  onLoadAudio: (note: Note) => Promise<Blob | null>
+  onTranscribe: (note: Note) => Promise<void>
 }) {
   const [editing, setEditing] = useState(false)
   const [transcribing, setTranscribing] = useState(false)
@@ -141,14 +141,20 @@ function CommentItem({
         onClick={() => onSelect(c)}
       >
         <span className="annotation-list-page">
-          p. {c.anchor.page} · comment
+          p. {c.anchor.page} · {c.kind}
           {c.voice && ` · 🎤 ${formatDuration(c.voice.durationMs)}`}
         </span>
-        <span className="annotation-list-quote">{anchorLabel(c)}</span>
+        {c.kind === 'suggestion' ? (
+          <del className="annotation-list-original">{c.original}</del>
+        ) : (
+          <span className="annotation-list-quote">{anchorLabel(c)}</span>
+        )}
         {!editing && (
           <span className="annotation-list-text">
             {c.body.trim() === '' ? (
               <em>Voice note, not transcribed yet</em>
+            ) : c.kind === 'suggestion' ? (
+              <ins className="annotation-list-proposed">{c.body}</ins>
             ) : (
               c.body
             )}
@@ -187,7 +193,7 @@ function CommentItem({
           <button
             type="button"
             className="annotation-list-delete"
-            aria-label={`Delete comment on page ${c.anchor.page}`}
+            aria-label={`Delete ${c.kind} on page ${c.anchor.page}`}
             onClick={() => onDelete(c)}
           >
             ×
@@ -203,14 +209,17 @@ function BodyEditor({
   onSave,
   onCancel,
 }: {
-  comment: Comment
+  comment: Note
   onSave: (body: string) => Promise<void>
   onCancel: () => void
 }) {
   const [body, setBody] = useState(comment.body)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const canSave = !saving && (body.trim() !== '' || comment.voice !== undefined)
+  const unchanged =
+    comment.kind === 'suggestion' && body.trim() === comment.original.trim()
+  const canSave =
+    !saving && !unchanged && (body.trim() !== '' || comment.voice !== undefined)
 
   async function save() {
     if (!canSave) return
@@ -227,7 +236,9 @@ function BodyEditor({
   return (
     <div className="annotation-list-editor">
       <textarea
-        aria-label="Edit comment"
+        aria-label={
+          comment.kind === 'suggestion' ? 'Edit replacement' : 'Edit comment'
+        }
         rows={3}
         value={body}
         autoFocus
@@ -272,8 +283,8 @@ function AudioPlayer({
   comment,
   onLoadAudio,
 }: {
-  comment: Comment
-  onLoadAudio: (comment: Comment) => Promise<Blob | null>
+  comment: Note
+  onLoadAudio: (note: Note) => Promise<Blob | null>
 }) {
   const [url, setUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

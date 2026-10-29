@@ -25,6 +25,12 @@
   overflow: hidden;
 }
 
+.comment-composer-quote.is-original {
+  border-left-color: rgba(210, 40, 40, 0.9);
+  text-decoration: line-through;
+  text-decoration-color: rgba(210, 40, 40, 0.9);
+}
+
 .comment-composer textarea {
   font: inherit;
   font-size: 1rem;

@@ -3,9 +3,10 @@
  * (PDF 32000-1:2008, section 12.5.6). The original bytes are never modified.
  *
  * Text anchors become /Highlight annotations with one quadrilateral per line;
- * regions become /Square annotations. A comment's body goes into /Contents,
- * which viewers show as the annotation's note. Voice recordings are not
- * embedded: only the text is exported.
+ * regions become /Square annotations; suggestions become /StrikeOut over the
+ * original text with the replacement in /Contents. A comment's body goes
+ * into /Contents, which viewers show as the annotation's note. Voice
+ * recordings are not embedded: only the text is exported.
  */
 import {
   PDFArray,
@@ -20,6 +21,7 @@ import { unionRects, type Annotation, type PdfRect } from './annotations'
 
 const HIGHLIGHT_COLOR = [1, 0.85, 0.2] as const
 const COMMENT_COLOR = [0.3, 0.55, 1] as const
+const SUGGESTION_COLOR = [0.85, 0.15, 0.15] as const
 const AUTHOR = 'VoxNote'
 
 export async function exportAnnotatedPdf(
@@ -58,16 +60,20 @@ function annotationDict(
     M: PDFString.fromDate(new Date(annotation.updatedAt)),
     CreationDate: PDFString.fromDate(new Date(annotation.createdAt)),
     F: 4, // Print
-    C: pdf.context.obj([
-      ...(annotation.kind === 'comment' ? COMMENT_COLOR : HIGHLIGHT_COLOR),
-    ]),
+    C: pdf.context.obj([...colorOf(annotation)]),
     P: page.ref,
     // PDFHexString handles any Unicode; PDFString.of would mangle non-Latin-1.
-    Contents: PDFHexString.fromText(
-      annotation.kind === 'comment' ? annotation.body : '',
-    ),
+    Contents: PDFHexString.fromText(contentsOf(annotation)),
   }
 
+  if (annotation.kind === 'suggestion') {
+    return {
+      ...common,
+      Subtype: 'StrikeOut',
+      Rect: rectArray(pdf, unionRects(annotation.anchor.rects)),
+      QuadPoints: quadPoints(pdf, annotation.anchor.rects),
+    }
+  }
   if (anchor.type === 'text') {
     return {
       ...common,
@@ -81,6 +87,35 @@ function annotationDict(
     Subtype: 'Square',
     Rect: rectArray(pdf, anchor.rect),
     BS: pdf.context.obj({ W: 1.5, S: 'S' }),
+  }
+}
+
+function colorOf(annotation: Annotation): readonly [number, number, number] {
+  switch (annotation.kind) {
+    case 'highlight':
+      return HIGHLIGHT_COLOR
+    case 'comment':
+      return COMMENT_COLOR
+    case 'suggestion':
+      return SUGGESTION_COLOR
+  }
+}
+
+/**
+ * The note a PDF viewer shows for the annotation. A suggestion spells out
+ * the replacement so it reads the same in any viewer; a dictated one that
+ * was never transcribed says so instead of pretending to be empty.
+ */
+function contentsOf(annotation: Annotation): string {
+  switch (annotation.kind) {
+    case 'highlight':
+      return ''
+    case 'comment':
+      return annotation.body
+    case 'suggestion':
+      return annotation.body.trim() === ''
+        ? 'Suggested change recorded by voice; not transcribed yet'
+        : `Replace with: ${annotation.body}`
   }
 }
 

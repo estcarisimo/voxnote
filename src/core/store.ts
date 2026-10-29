@@ -8,7 +8,7 @@
  * `audio` (one Blob per voice note, keyed by the annotation id). A comment and
  * its recording are written in one transaction so neither can exist alone.
  */
-import { isAnnotation, type Annotation } from './annotations'
+import { isAnnotation, isNote, type Annotation } from './annotations'
 
 /** The recording behind a comment's voice note. */
 export interface AudioRecord {
@@ -125,7 +125,7 @@ class IndexedDbAnnotationStore implements AnnotationStore {
       )
     }
     if (audio) {
-      if (candidate.kind !== 'comment' || !candidate.voice) {
+      if (!isNote(candidate) || !candidate.voice) {
         return Promise.reject(
           new Error(
             `Annotation ${candidate.id} has no voice note for its audio`,

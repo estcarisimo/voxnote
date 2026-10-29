@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createComment,
   createHighlight,
-  type Comment,
+  createSuggestion,
+  type Note,
   type TextAnchor,
 } from '../core/annotations'
 import { AnnotationList } from './AnnotationList'
@@ -41,7 +42,7 @@ describe('AnnotationList', () => {
   it('edits a comment body and surfaces a failed save', async () => {
     const c = createComment({ documentId: 'd', anchor, body: 'old' })
     const onUpdateBody = vi
-      .fn<(c: Comment, body: string) => Promise<void>>()
+      .fn<(c: Note, body: string) => Promise<void>>()
       .mockRejectedValueOnce(new Error('store closed'))
       .mockResolvedValueOnce(undefined)
     render(
@@ -137,6 +138,38 @@ describe('AnnotationList', () => {
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'Add your OpenAI API key under Providers first',
+    )
+  })
+
+  it('shows a suggestion as original struck through and replacement inserted, and edits need a change', async () => {
+    const s = createSuggestion({ documentId: 'd', anchor, body: 'quoted word' })
+    const onUpdateBody = vi.fn(async () => {})
+    render(
+      <AnnotationList
+        annotations={[s]}
+        selectedId={null}
+        {...noop}
+        onUpdateBody={onUpdateBody}
+      />,
+    )
+    expect(screen.getByText('quoted words').tagName).toBe('DEL')
+    expect(screen.getByText('quoted word').tagName).toBe('INS')
+    expect(
+      screen.getByRole('button', { name: 'Delete suggestion on page 3' }),
+    ).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Transcribe…' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    const editor = screen.getByLabelText('Edit replacement')
+    fireEvent.change(editor, { target: { value: 'quoted words' } })
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    fireEvent.change(editor, { target: { value: 'quoted phrases' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await vi.waitFor(() =>
+      expect(onUpdateBody).toHaveBeenCalledWith(s, 'quoted phrases'),
     )
   })
 })

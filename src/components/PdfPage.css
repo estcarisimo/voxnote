@@ -39,6 +39,16 @@
   outline-color: rgba(60, 120, 230, 0.9);
 }
 
+.pdf-page .highlight--suggestion {
+  background: linear-gradient(
+    rgba(230, 70, 70, 0.14) 0%,
+    rgba(230, 70, 70, 0.14) 44%,
+    rgba(210, 40, 40, 0.95) 44%,
+    rgba(210, 40, 40, 0.95) 56%,
+    rgba(230, 70, 70, 0.14) 56%
+  );
+}
+
 .pdf-page .highlight--selected {
   background: rgba(60, 140, 255, 0.4);
   outline: 2px solid rgba(40, 100, 220, 0.95);

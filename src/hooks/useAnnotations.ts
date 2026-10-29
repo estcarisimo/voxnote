@@ -2,23 +2,36 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   createComment,
   createHighlight,
+  createSuggestion,
+  isNote,
   withBody,
   withTranscript,
   type Anchor,
   type Annotation,
-  type Comment,
+  type Note,
+  type TextAnchor,
   type Transcript,
   type VoiceNote,
 } from '../core/annotations'
 import { openAnnotationStore, type AnnotationStore } from '../core/store'
 
-export interface NewComment {
-  anchor: Anchor
-  body: string
-  voice?: VoiceNote
-  /** Required when `voice` is set: the recording itself. */
-  audio?: Blob
-}
+export type NewNote =
+  | {
+      kind: 'comment'
+      anchor: Anchor
+      body: string
+      voice?: VoiceNote
+      /** Required when `voice` is set: the recording itself. */
+      audio?: Blob
+    }
+  | {
+      kind: 'suggestion'
+      anchor: TextAnchor
+      /** The replacement text; may be empty with a voice note. */
+      body: string
+      voice?: VoiceNote
+      audio?: Blob
+    }
 
 interface AnnotationsState {
   annotations: Annotation[]
@@ -26,10 +39,10 @@ interface AnnotationsState {
   ready: boolean
   error: string | null
   addHighlight: (anchor: Anchor) => Promise<Annotation>
-  addComment: (input: NewComment) => Promise<Comment>
-  updateBody: (id: string, body: string) => Promise<Comment>
-  /** Attaches a transcript to a voice comment; fills an empty body. */
-  setTranscript: (id: string, transcript: Transcript) => Promise<Comment>
+  addNote: (input: NewNote) => Promise<Note>
+  updateBody: (id: string, body: string) => Promise<Note>
+  /** Attaches a transcript to a dictated note; fills an empty body. */
+  setTranscript: (id: string, transcript: Transcript) => Promise<Note>
   /** The recording behind a voice comment, or null when it has none. */
   getAudio: (id: string) => Promise<Blob | null>
   remove: (id: string) => Promise<void>
@@ -117,24 +130,32 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     [current, apply],
   )
 
-  const addComment = useCallback(
-    async (input: NewComment) => {
+  const addNote = useCallback(
+    async (input: NewNote) => {
       if (!current) throw new Error('Annotation store is not ready')
       if (input.voice && !input.audio) {
         throw new Error('A voice note needs its recording')
       }
-      const comment = createComment({
-        documentId: current.documentId,
-        anchor: input.anchor,
-        body: input.body,
-        voice: input.voice,
-      })
+      const note: Note =
+        input.kind === 'suggestion'
+          ? createSuggestion({
+              documentId: current.documentId,
+              anchor: input.anchor,
+              body: input.body,
+              voice: input.voice,
+            })
+          : createComment({
+              documentId: current.documentId,
+              anchor: input.anchor,
+              body: input.body,
+              voice: input.voice,
+            })
       await current.store.put(
-        comment,
-        input.audio ? { id: comment.id, blob: input.audio } : undefined,
+        note,
+        input.audio ? { id: note.id, blob: input.audio } : undefined,
       )
-      apply(current.documentId, (list) => [...list, comment])
-      return comment
+      apply(current.documentId, (list) => [...list, note])
+      return note
     },
     [current, apply],
   )
@@ -143,8 +164,8 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     async (id: string, body: string) => {
       if (!current) throw new Error('Annotation store is not ready')
       const existing = current.annotations.find((a) => a.id === id)
-      if (!existing || existing.kind !== 'comment') {
-        throw new Error(`No comment with id ${id}`)
+      if (!existing || !isNote(existing)) {
+        throw new Error(`No comment or suggestion with id ${id}`)
       }
       const updated = withBody(existing, body)
       await current.store.put(updated)
@@ -160,8 +181,8 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     async (id: string, transcript: Transcript) => {
       if (!current) throw new Error('Annotation store is not ready')
       const existing = current.annotations.find((a) => a.id === id)
-      if (!existing || existing.kind !== 'comment') {
-        throw new Error(`No comment with id ${id}`)
+      if (!existing || !isNote(existing)) {
+        throw new Error(`No comment or suggestion with id ${id}`)
       }
       const updated = withTranscript(existing, transcript)
       await current.store.put(updated)
@@ -196,7 +217,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     ready: current !== null,
     error: failed && failed.documentId === documentId ? failed.message : null,
     addHighlight,
-    addComment,
+    addNote,
     updateBody,
     setTranscript,
     getAudio,
