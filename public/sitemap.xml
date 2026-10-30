@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-maintained. The site is a single-page app, so the landing is the
+     only page. No lastmod: the file is not regenerated on every deploy, and a
+     stale date would be a false claim. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://estcarisimo.github.io/voxnote/</loc>
+  </url>
+</urlset>

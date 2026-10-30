@@ -1,0 +1,91 @@
+# VoxNote
+
+> Your voice, in the margins. An open-source, AI-native PDF reviewer for iPad and the browser: highlight, comment, record a voice note or suggest a rewording on a PDF without ever editing it.
+
+This file is the full-text companion to https://estcarisimo.github.io/voxnote/llms.txt. It is hand-maintained in the repository (public/llms-full.txt) and describes the project as of 2026-10-30 (UTC). Where it and the README disagree, the README on the main branch wins: https://raw.githubusercontent.com/estcarisimo/voxnote/main/README.md
+
+Live app: https://estcarisimo.github.io/voxnote/
+Source: https://github.com/estcarisimo/voxnote (MIT license)
+Maintainer: Esteban Carisimo
+Status: early (milestones M0 and M1). The name is a working name pending availability and trademark checks.
+
+## What VoxNote is
+
+VoxNote is a static single-page web app, built with Vite, React 19 and TypeScript (strict), published to GitHub Pages and installable as a progressive web app. pdf.js renders the pages and the selectable text layer; pdf-lib writes the annotated copy on export; Workbox precaches the app shell so the app opens offline once loaded. There is no backend and there are no accounts.
+
+The user opens a local PDF, selects a passage with the Apple Pencil, a finger or the mouse (pen drags build the selection in the app, because Apple Pencil on iPad does not select natively; a Region tool drags a box over figures), then acts from a floating toolbar:
+
+- Highlight: marks the passage, no note needed.
+- Comment: a typed note.
+- Voice: records with the microphone; Stop, replay or re-record, then Save. The audio stays on the device until the user chooses Transcribe and confirms.
+- Suggest (text selections only): edit the passage as it should read, Google Docs style, typed or dictated. Saving needs an actual change.
+
+An Annotations sidebar groups by kind, visibility or page; filters by kind, visibility, untranscribed voice notes or free text; edits bodies; marks each annotation Private or For author (a label for the reviewer's own triage; no export filters on it yet); and jumps to the passage on tap.
+
+## Exports
+
+Exports are downloads the user starts. Nothing is uploaded or published.
+
+- Export PDF: a copy of the document with native PDF annotations (/Highlight, /Square, /StrikeOut, with comment text in the note). The original file is never modified.
+- Markdown: <name>.voxnote.md, a page-by-page review report with quotes, comments, suggestions (original and replacement) and voice notes with their raw transcripts. A polished body is labeled with its provider and model. The export time is labeled UTC.
+- JSON: <name>.voxnote.json, the document name, SHA-256 id, page count and the annotations as stored, without audio.
+
+## Storage
+
+PDFs, annotations and recordings are stored in the browser's IndexedDB on the site's origin, keyed by the document's SHA-256, and come back when the same file is opened again. Documents never leave the browser.
+
+## Transcription and polish (opt-in, the user's own keys)
+
+Speech-to-text providers: OpenAI (default model gpt-transcribe), Deepgram (nova-3) and Groq (hosted Whisper, whisper-large-v3-turbo). Text-model providers for Polish: OpenAI (gpt-6.1-terra), Anthropic (claude-opus-5-5) and xAI (grok-4.7). Each adapter includes the disclosure text its consent dialog shows.
+
+- Keys are added under AI keys (the key icon in the header), stored AES-GCM encrypted at rest with a non-extractable key kept in IndexedDB, and never shown again. They are never in the repository or on a server.
+- Transcribe sends a recording to the chosen provider only after a consent dialog that states what is sent (the recording, optionally the quoted passage as a vocabulary hint, the language hint) and to which host, and only when the user taps Send. Ticking "Also do this automatically for this document" makes Stop send each later recording of that document under that standing consent; the composer shows the state and it can be turned off.
+- The raw transcript is always preserved. It fills the comment only when nothing was typed, and stays visible read-only next to the editor.
+- Polish asks a text model to fix punctuation, casing, fillers and technical terms in a raw transcript. The consent dialog names the host and model and shows the exact prompt; the raw text and the proposal sit side by side; only Accept changes the note body, which is then labeled as polished in the sidebar and the exports. A polish never silently reinterprets a critique.
+- No real transcription or polish call has been measured. The adapters are verified against mocked endpoints only. There are no accuracy, latency, quality or cost figures, and there will be none without the dataset, parameters, provider version and date behind them. Whether Deepgram and Groq accept calls straight from a browser (CORS) is unverified.
+
+VoxNote is not affiliated with OpenAI, Anthropic, xAI, Deepgram, Groq or any other company it can call. Users pay those vendors directly under their own accounts, and audio goes from the user's device to the provider they chose. The README's configuration section lists each provider's key page, role, default model and the pricing page its figures were read from, with the read date.
+
+## Visit counting
+
+The live site counts visits with Google Analytics 4, without cookies: consent mode denies analytics and ad storage by default, the tag loads from the landing view only, and it records page views only. Never a file name, document id, annotation or transcript. A build without the VITE_GA_MEASUREMENT_ID variable (a fork, a local checkout) ships no analytics at all.
+
+## Running from source
+
+Requires Node.js (CI uses Node 24) and npm.
+
+    git clone https://github.com/estcarisimo/voxnote.git
+    cd voxnote
+    npm ci
+    npm run dev
+
+npm run build targets the GitHub Pages path /voxnote/, so npm run preview serves the build at http://localhost:4173/voxnote/. The dev server and the tests stay at the root path. Checks: npm test (Vitest and Testing Library), npm run lint (oxlint), npm run format:check (Prettier), npm run build (tsc and Vite).
+
+## Repository layout
+
+- src/components: React UI (viewer, selection toolbar, composer, sidebar, dialogs)
+- src/core: pure, framework-free domain logic, fully unit-tested (annotation model, selection, IndexedDB store, secrets, PDF, Markdown and JSON export, recording)
+- src/hooks: React glue (annotations, providers, recorder, transcription, polish)
+- src/providers: speech-to-text and text-model adapters; src/providers/stt.ts and src/providers/llm.ts define the adapter interfaces, and llm.ts holds the polish prompt
+- public: PWA manifest, icons, llms.txt, llms-full.txt, robots.txt and sitemap.xml, copied as-is into the build
+- docs/design: design notes (live transcription while recording: proposal, not implemented)
+- context7.json: what Context7 indexes from the repository
+
+## Rules the code must respect
+
+- The PDF is never modified in place; annotations live beside it and are exported into a copy.
+- The raw transcript is always preserved; polish is separate and opt-in.
+- Before audio or document excerpts leave the device, the UI states what is sent and to which provider. Local-first is the default.
+- Nothing is sent or published automatically.
+- No unmeasured claims: accuracy and latency figures appear only with the dataset, parameters, provider version and date.
+- Fail loudly: no silent fallbacks, no swallowed exceptions. Timestamps are UTC-aware and labeled as UTC.
+- Every change enters through a feature branch, a pull request and a review; nothing is pushed to main directly.
+
+## Further reading
+
+- README: https://raw.githubusercontent.com/estcarisimo/voxnote/main/README.md
+- Roadmap: https://raw.githubusercontent.com/estcarisimo/voxnote/main/ROADMAP.md
+- Changelog: https://raw.githubusercontent.com/estcarisimo/voxnote/main/CHANGELOG.md
+- Contributing: https://raw.githubusercontent.com/estcarisimo/voxnote/main/CONTRIBUTING.md
+- Security policy: https://raw.githubusercontent.com/estcarisimo/voxnote/main/SECURITY.md
+- Citation: https://raw.githubusercontent.com/estcarisimo/voxnote/main/CITATION.cff

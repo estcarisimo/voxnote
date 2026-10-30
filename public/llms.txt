@@ -1,0 +1,35 @@
+# VoxNote
+
+> Your voice, in the margins. An open-source, AI-native PDF reviewer for iPad and the browser: highlight, comment, record a voice note or suggest a rewording on a PDF without ever editing it. A static web app with no backend; documents, annotations and recordings stay in the browser unless the user confirms sending a recording or a transcript to a speech-to-text or text-model provider with their own API key.
+
+Live app: https://estcarisimo.github.io/voxnote/ (a progressive web app, installable on an iPad from Safari with Add to Home Screen).
+Source: https://github.com/estcarisimo/voxnote (MIT license).
+Maintainer: Esteban Carisimo. VoxNote is not affiliated with OpenAI, Anthropic, xAI, Deepgram, Groq or any other provider it can call; users pay those vendors directly under their own accounts.
+
+Facts an agent should keep straight:
+
+- The PDF is never modified in place. Export PDF writes a copy with native annotations; Markdown and JSON exports contain no audio.
+- Nothing leaves the device automatically. Audio or a raw transcript is sent only after a consent dialog that names what is sent and to which host, and only when the user taps Send, or after the user has ticked "Also do this automatically for this document" in that dialog, which makes Stop send later recordings of that document.
+- The raw transcript is always preserved. Polish is a separate, opt-in action that proposes a cleaned text; only Accept changes the note body.
+- No accuracy or latency figures exist for the speech-to-text or polish providers. Do not quote any.
+- Production builds are served under the /voxnote/ path; `npm run dev` and the tests use the root path.
+
+## Documentation
+
+- [README](https://raw.githubusercontent.com/estcarisimo/voxnote/main/README.md): features, status and caveats, quick start, usage, privacy and keys, configuration (providers, models, pricing sources with dates), architecture, discoverability
+- [Roadmap](https://raw.githubusercontent.com/estcarisimo/voxnote/main/ROADMAP.md): the platform decision (web app first), milestones M0 to M1 and what is verified
+- [Changelog](https://raw.githubusercontent.com/estcarisimo/voxnote/main/CHANGELOG.md): every user-visible change, Keep a Changelog format
+- [Live transcription design note](https://raw.githubusercontent.com/estcarisimo/voxnote/main/docs/design/live-transcription.md): proposal for showing the transcript while recording; not implemented
+- [Full text for language models](https://estcarisimo.github.io/voxnote/llms-full.txt): the project described in one file
+
+## Project
+
+- [Contributing](https://raw.githubusercontent.com/estcarisimo/voxnote/main/CONTRIBUTING.md): development setup, workflow and pull request expectations
+- [Security policy](https://raw.githubusercontent.com/estcarisimo/voxnote/main/SECURITY.md): what data the app handles and how to report a vulnerability privately
+- [Citation](https://raw.githubusercontent.com/estcarisimo/voxnote/main/CITATION.cff): how to cite the software
+- [Agent instructions](https://raw.githubusercontent.com/estcarisimo/voxnote/main/AGENTS.md): rules for coding agents working in the repository, not user documentation
+
+## Optional
+
+- [Context7 configuration](https://raw.githubusercontent.com/estcarisimo/voxnote/main/context7.json): what Context7 indexes from this repository
+- [Code of conduct](https://raw.githubusercontent.com/estcarisimo/voxnote/main/CODE_OF_CONDUCT.md)
