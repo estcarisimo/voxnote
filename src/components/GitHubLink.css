@@ -1,0 +1,23 @@
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 10px;
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.github-link:hover {
+  background: var(--accent-bg);
+}
+
+.github-link:focus-visible {
+  outline: 3px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+.github-link-mark {
+  display: block;
+}

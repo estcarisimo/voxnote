@@ -28,6 +28,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The GitHub mark links to the repository from the top-right corner of the
+  landing view and from the far right of the app bar while reviewing, so the
+  code is one tap away. The mark is the official monochrome form, inline SVG
+  in the text color, no extra request. The app-bar mark hides below 900 px
+  wide (iPad portrait), where the bar has no room. The footer's "Repository"
+  text link is gone; "Open source, MIT" and the license link stay.
 - Two more speech-to-text providers, so transcription is no longer
   OpenAI-only: **Deepgram** (`nova-3` default, `nova-2`; pre-recorded
   `POST api.deepgram.com/v1/listen` with the raw recording as the body,

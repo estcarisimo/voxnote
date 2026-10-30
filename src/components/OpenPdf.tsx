@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
 import { loadAnalytics } from './analytics'
+import { GitHubLink, REPOSITORY_URL } from './GitHubLink'
 import './OpenPdf.css'
 
 interface OpenPdfProps {
@@ -7,7 +8,6 @@ interface OpenPdfProps {
   error: string | null
 }
 
-const REPOSITORY_URL = 'https://github.com/estcarisimo/voxnote'
 const LICENSE_URL = `${REPOSITORY_URL}/blob/main/LICENSE`
 
 // Served from public/, so it resolves under the production subpath too.
@@ -57,6 +57,9 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
     >
+      <div className="open-pdf-corner">
+        <GitHubLink />
+      </div>
       <main className="open-pdf-main">
         <img
           className="open-pdf-icon"
@@ -134,9 +137,6 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
       <footer className="open-pdf-footer">
         <span>Open source, MIT</span>
         <nav aria-label="Project links">
-          <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">
-            Repository
-          </a>
           <a href={LICENSE_URL} target="_blank" rel="noreferrer">
             License
           </a>
