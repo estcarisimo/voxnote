@@ -63,4 +63,42 @@ describe('useAnnotations', () => {
       transcript,
     )
   })
+
+  it('runs writes one at a time, so an edit and a late transcript both survive', async () => {
+    const { result } = renderHook(() => useAnnotations('doc-a'))
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    let noteId = ''
+    await act(async () => {
+      const note = await result.current.addNote({
+        kind: 'comment',
+        anchor,
+        body: '',
+        voice: {
+          mimeType: 'audio/webm',
+          durationMs: 1000,
+          recordedAt: '2026-10-30T10:00:00.000Z',
+        },
+        audio: new Blob(['opus'], { type: 'audio/webm' }),
+      })
+      noteId = note.id
+    })
+    const transcript = {
+      raw: 'texto crudo',
+      provider: 'openai/gpt-transcribe',
+      transcribedAt: '2026-10-30T10:00:04.000Z',
+    }
+    const same = result.current
+    await act(async () => {
+      // Both start from the same render, as an edit racing a delivery would.
+      await Promise.all([
+        same.setTranscript(noteId, transcript),
+        same.updateBody(noteId, 'my own words'),
+      ])
+    })
+    const [saved] = result.current.annotations
+    expect(saved.kind === 'comment' && saved.body).toBe('my own words')
+    expect(saved.kind === 'comment' && saved.voice?.transcript).toEqual(
+      transcript,
+    )
+  })
 })
