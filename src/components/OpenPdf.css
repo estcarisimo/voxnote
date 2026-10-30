@@ -13,6 +13,16 @@
     background-color 120ms;
 }
 
+/* Repository mark in the top-right corner; zero height so it pushes nothing. */
+.open-pdf-corner {
+  position: sticky;
+  top: 0;
+  align-self: flex-end;
+  height: 0;
+  overflow: visible;
+  z-index: 1;
+}
+
 .open-pdf--dragging {
   border-color: var(--accent);
   background: var(--accent-bg);

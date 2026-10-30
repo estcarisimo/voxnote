@@ -7,6 +7,7 @@ import { CleanUpDialog } from './components/CleanUpDialog'
 import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
+import { GitHubLink } from './components/GitHubLink'
 import { OpenPdf } from './components/OpenPdf'
 import {
   PdfViewer,
@@ -292,6 +293,7 @@ function App() {
           pressed={settingsOpen}
           onClick={() => setSettingsOpen(true)}
         />
+        <GitHubLink className="app-bar-github" />
       </header>
       {(error || store.error || autoConsents.error) && (
         <p role="alert" className="app-error">

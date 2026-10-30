@@ -72,11 +72,13 @@ describe('OpenPdf', () => {
   it('has one h1 and links to the repository and license in new tabs', () => {
     render(<OpenPdf onFile={vi.fn()} error={null} />)
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    const repo = screen.getByRole('link', { name: 'Repository' })
+    const repo = screen.getByRole('link', { name: 'VoxNote on GitHub' })
     expect(repo.getAttribute('href')).toBe(
       'https://github.com/estcarisimo/voxnote',
     )
-    for (const name of ['Repository', 'License']) {
+    expect(repo.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByRole('link', { name: 'Repository' })).toBeNull()
+    for (const name of ['VoxNote on GitHub', 'License']) {
       const link = screen.getByRole('link', { name })
       expect(link.getAttribute('target')).toBe('_blank')
       expect(link.getAttribute('rel')).toBe('noreferrer')
