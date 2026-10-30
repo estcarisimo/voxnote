@@ -8,6 +8,21 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Landing view redesigned so a first visit explains the app: the app icon,
+  the tagline, one sentence on what VoxNote does, the **Open a PDF** button
+  with the drop hint, a three-item row (Highlight, Comment by voice, Suggest
+  a replacement), a plain-words privacy line, an install hint hidden when
+  the app already runs standalone, and a footer linking the repository and the MIT
+  license. The file picker and drag-and-drop are
+  unchanged.
+- Visit counting with Google Analytics 4, decided 2026-10-29 with strict
+  limits: the measurement id comes from the build-time variable
+  `VITE_GA_MEASUREMENT_ID` (on GitHub Pages, a repository variable of the
+  same name); unset means no script is loaded and no request leaves the
+  browser. When set, gtag.js loads from the landing view only, sends a
+  single `page_view`, no custom events, never a file name, document id,
+  annotation or transcript; consent defaults deny analytics and ad storage
+  and every ad signal, so no cookies are set. The landing privacy line says so.
 - Project scaffold: Vite, React 19, TypeScript strict, oxlint, Prettier,
   Vitest.
 - Open a local PDF (file picker or drag-and-drop) and render all pages with
