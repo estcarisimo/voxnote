@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Transcript } from '../core/annotations'
+import { standingConsentSentence } from '../core/autoTranscribe'
 import { formatDuration } from '../core/recording'
 import { useDialogFocus } from '../hooks/useDialogFocus'
 import type {
@@ -17,20 +18,39 @@ export interface TranscriptionInput {
   quote: string | null
 }
 
+export interface TranscribeOptions {
+  /**
+   * Sent on Stop under the document's standing consent, with no dialog.
+   * Rejects when no valid standing consent exists.
+   */
+  automatic?: boolean
+  /** Aborting cancels the request, like the dialog's Cancel. */
+  signal?: AbortSignal
+}
+
 /**
  * Asks the user for consent and runs the upload. Resolves with null when the
  * user cancels, so callers can tell "no" from a failure.
  */
 export type TranscribeFn = (
   input: TranscriptionInput,
+  options?: TranscribeOptions,
 ) => Promise<Transcript | null>
 
 interface TranscribeDialogProps {
   input: TranscriptionInput
   provider: SpeechToTextProvider
   language: string
-  /** Runs the upload; resolves with the transcript or rejects. */
-  onConfirm: (request: TranscriptionRequest) => Promise<Transcript>
+  /** Offer "Also do this automatically for this document". */
+  offerStanding?: boolean
+  /**
+   * Runs the upload; resolves with the transcript or rejects. `standing`
+   * grants the standing consent before sending.
+   */
+  onConfirm: (
+    request: TranscriptionRequest,
+    options: { standing: boolean },
+  ) => Promise<Transcript>
   onDone: (transcript: Transcript) => void
   /** Also called while sending: the caller aborts the upload. */
   onCancel: () => void
@@ -44,11 +64,13 @@ export function TranscribeDialog({
   input,
   provider,
   language,
+  offerStanding = false,
   onConfirm,
   onDone,
   onCancel,
 }: TranscribeDialogProps) {
   const [includeQuote, setIncludeQuote] = useState(false)
+  const [standing, setStanding] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -65,7 +87,7 @@ export function TranscribeDialog({
     setSending(true)
     setError(null)
     try {
-      onDone(await onConfirm(request))
+      onDone(await onConfirm(request, { standing: offerStanding && standing }))
     } catch (err: unknown) {
       // An abort came from Cancel: the dialog is already closing.
       if (err instanceof Error && err.name === 'AbortError') return
@@ -101,6 +123,20 @@ export function TranscribeDialog({
             <span>
               Also send the quoted passage as a vocabulary hint:{' '}
               <q>{input.quote}</q>
+            </span>
+          </label>
+        )}
+        {offerStanding && (
+          <label className="dialog-check">
+            <input
+              type="checkbox"
+              checked={standing}
+              disabled={sending}
+              onChange={(e) => setStanding(e.target.checked)}
+            />
+            <span>
+              Also do this automatically for this document.{' '}
+              {standingConsentSentence(provider.name, provider.endpointHost)}
             </span>
           </label>
         )}

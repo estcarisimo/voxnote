@@ -15,6 +15,7 @@ import type {
 } from '../core/annotations'
 import type { PDFDocumentProxy } from '../core/pdf'
 import { textAnchorFromRange } from '../core/selection'
+import type { AutoTranscribeState } from '../hooks/useTranscription'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import type { CleanUpFn } from './CleanUpDialog'
 import { CommentComposer, type CommentDraft } from './CommentComposer'
@@ -48,6 +49,8 @@ interface PdfViewerProps {
   transcribe: TranscribeFn | null
   /** Consent-gated clean-up of a fresh transcript; null if unavailable. */
   cleanUp?: CleanUpFn | null
+  /** The document's standing consent to transcribe on Stop. */
+  autoTranscribe?: AutoTranscribeState | null
   ref?: Ref<PdfViewerHandle>
 }
 
@@ -82,6 +85,7 @@ export function PdfViewer({
   onCreateNote,
   transcribe,
   cleanUp = null,
+  autoTranscribe = null,
   ref,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -296,6 +300,7 @@ export function PdfViewer({
           recorder={composer === 'typed' ? null : recorder}
           transcribe={composer === 'typed' ? null : transcribe}
           cleanUp={composer === 'typed' ? null : cleanUp}
+          autoTranscribe={composer === 'typed' ? null : autoTranscribe}
           onSave={saveNote}
           onCancel={clear}
         />

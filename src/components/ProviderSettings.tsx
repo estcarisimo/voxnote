@@ -15,6 +15,8 @@ import './Dialog.css'
 
 interface ProviderSettingsProps {
   providers: Providers
+  /** Standing consents to transcribe on Stop, so they can be turned off here. */
+  autoTranscribe?: { documents: number; revokeAll: () => void }
   onClose: () => void
 }
 
@@ -26,6 +28,7 @@ interface ProviderSettingsProps {
  */
 export function ProviderSettings({
   providers,
+  autoTranscribe,
   onClose,
 }: ProviderSettingsProps) {
   const { settings, textSettings } = providers
@@ -189,6 +192,23 @@ export function ProviderSettings({
             ].filter((u): u is string => u !== null)}
           />
         ))}
+
+        {autoTranscribe && autoTranscribe.documents > 0 && (
+          <>
+            <h3>Auto-transcribe</h3>
+            <p className="dialog-note">
+              Recordings are sent on Stop, with no dialog, in{' '}
+              {autoTranscribe.documents === 1
+                ? 'one document'
+                : `${autoTranscribe.documents} documents`}
+              . Changing the speech-to-text provider, model or language, or
+              removing its key, turns it off too.
+            </p>
+            <button type="button" onClick={autoTranscribe.revokeAll}>
+              Turn off auto-transcribe everywhere
+            </button>
+          </>
+        )}
 
         {providers.error && (
           <p role="alert" className="dialog-error">

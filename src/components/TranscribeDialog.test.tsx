@@ -50,12 +50,15 @@ describe('TranscribeDialog', () => {
     ).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Send to Fake STT' }))
-    expect(onConfirm).toHaveBeenCalledWith({
-      audio: input.audio,
-      mimeType: 'audio/webm',
-      language: 'es',
-      prompt: 'the quoted passage',
-    })
+    expect(onConfirm).toHaveBeenCalledWith(
+      {
+        audio: input.audio,
+        mimeType: 'audio/webm',
+        language: 'es',
+        prompt: 'the quoted passage',
+      },
+      { standing: false },
+    )
     await vi.waitFor(() => expect(onDone).toHaveBeenCalledWith(transcript))
   })
 
@@ -87,6 +90,7 @@ describe('TranscribeDialog', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1)
     expect(onConfirm.mock.calls[0]).toEqual([
       { audio: input.audio, mimeType: 'audio/webm' },
+      { standing: false },
     ])
   })
 
@@ -134,5 +138,49 @@ describe('TranscribeDialog', () => {
     )
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onCancel).toHaveBeenCalled()
+  })
+
+  it('offers a standing consent, off by default, with the extra sentence', async () => {
+    const onConfirm = vi.fn(async () => transcript)
+    render(
+      <TranscribeDialog
+        input={{ ...input, quote: null }}
+        provider={provider}
+        language=""
+        offerStanding
+        onConfirm={onConfirm}
+        onDone={() => {}}
+        onCancel={() => {}}
+      />,
+    )
+    const box = screen.getByRole('checkbox', {
+      name: /Also do this automatically for this document/,
+    })
+    expect(box).toHaveProperty('checked', false)
+    expect(
+      screen.getByText(
+        /From now on, each recording in this document is sent to Fake STT at stt\.example as soon as you tap Stop\. You can turn this off in the composer or under the key settings\./,
+      ),
+    ).toBeTruthy()
+    fireEvent.click(box)
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Fake STT' }))
+    expect(onConfirm).toHaveBeenCalledWith(
+      { audio: input.audio, mimeType: 'audio/webm' },
+      { standing: true },
+    )
+  })
+
+  it('does not offer a standing consent unless asked to', () => {
+    render(
+      <TranscribeDialog
+        input={{ ...input, quote: null }}
+        provider={provider}
+        language=""
+        onConfirm={vi.fn()}
+        onDone={() => {}}
+        onCancel={() => {}}
+      />,
+    )
+    expect(screen.queryByText(/Also do this automatically/)).toBeNull()
   })
 })
