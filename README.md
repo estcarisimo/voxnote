@@ -129,7 +129,11 @@ The review flow is select, act, export:
 4. **Review** in the **Annotations** panel: group, filter, edit bodies, set
    visibility, transcribe or clean up stored voice notes, delete, or tap an
    entry to scroll to its marks.
-5. **Export** from the header:
+5. **Keys** for transcription and clean-up go under **AI keys** (the key
+   icon in the header): tap **Add key**, pick the provider, paste the key,
+   **Save**. The row then shows what the key is used for; the trash button
+   removes it after a confirmation.
+6. **Export** from the header:
    - **Export PDF** → a copy of the document with native annotations. The
      original file is never modified.
    - **Markdown** → `<name>.voxnote.md`, a page-by-page report with quotes,
@@ -152,9 +156,10 @@ The review flow is select, act, export:
   annotation or transcript. A build without the variable (your own checkout,
   a fork) ships no analytics at all. Counting starts once the maintainer sets
   the variable in the repository settings and `main` is deployed again.
-- **Keys are yours.** Provider API keys are entered in **Providers** and
-  stored AES-GCM encrypted at rest, with a non-extractable key kept in
-  IndexedDB. Any script running on this origin could still use them; they
+- **Keys are yours.** API keys are added under **AI keys** (the key icon in
+  the header) and stored AES-GCM encrypted at rest, with a non-extractable
+  key kept in IndexedDB. A saved key is never shown again, not even
+  partially. Any script running on this origin could still use them; they
   are never in this repository or on a server.
 - **Consent before anything leaves.** Audio is sent only after the consent
   dialog, which states what is sent (the recording, optionally the quoted
@@ -172,8 +177,15 @@ Security problems go to the private channel in [SECURITY.md](SECURITY.md).
 
 ## 🔧 Configuration
 
-All settings live in the **Providers** dialog, in your browser. Speech to
-text:
+All settings live in the **AI keys** dialog (the key icon in the header), in
+your browser. It lists the keys stored in this browser, one row per provider,
+with what each is used for (speech-to-text, clean-up or both), the model to
+use, and a trash button that asks for confirmation before deleting the key.
+**Add key** opens an inline row with a provider select, limited to providers
+without a key and labeled by what they do, and a key field. When more than
+one stored key can serve a role, a **Use for clean-up** (or **Use for
+speech-to-text**) select picks which; with a single candidate it is implicit.
+Speech to text:
 
 | Setting       | Values                                                                                                                                                                                                                  |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -193,7 +205,9 @@ Clean-up (optional):
 
 API keys: one per provider (OpenAI, Anthropic, xAI, Deepgram, Groq), your own, encrypted at
 rest in the browser and sent only in the request you confirm, straight to
-that provider.
+that provider. Adding a key for a provider that can serve a role nobody else
+covers (the first Anthropic key, say, for clean-up) picks it for that role;
+removing the key in use moves the role to the next stored key, if any.
 
 Build-time: `npm run build` targets the GitHub Pages path `/voxnote/`, so
 `npm run preview` serves the build at `http://localhost:4173/voxnote/`; the

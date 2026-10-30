@@ -48,7 +48,7 @@ describe('useTranscription', () => {
       useTranscription(providersWith({ hasKey: () => false })),
     )
     await expect(noKey.result.current.request(input)).rejects.toThrow(
-      /Add your OpenAI API key under Providers first/,
+      /Add your OpenAI key in AI keys first/,
     )
     expect(noKey.result.current.pending).toBeNull()
 

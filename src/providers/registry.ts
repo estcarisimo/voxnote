@@ -41,6 +41,13 @@ export type ProviderId = 'openai' | 'anthropic' | 'xai' | 'deepgram' | 'groq'
 export type SttProviderId = 'openai' | 'deepgram' | 'groq'
 export type TextProviderId = 'openai' | 'anthropic' | 'xai'
 
+export const PROVIDER_IDS: readonly ProviderId[] = [
+  'openai',
+  'anthropic',
+  'xai',
+  'deepgram',
+  'groq',
+]
 export const STT_PROVIDER_IDS: readonly SttProviderId[] = [
   'openai',
   'deepgram',
