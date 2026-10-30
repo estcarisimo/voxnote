@@ -119,7 +119,11 @@ The review flow is select, act, export:
    - **Comment** — type a note.
    - **Voice** — starts recording right away; **Stop**, replay or re-record,
      then **Save**. The audio stays on the device until you choose
-     **Transcribe…**. Once there is a raw transcript, **Clean up…** offers
+     **Transcribe…** and confirm. Ticking **Also do this automatically for
+     this document** in that dialog makes **Stop** send each later
+     recording of this document straight away (the composer shows
+     **Auto-transcribe: on**; tap it to turn it off), and you can **Save**
+     before the transcript comes back. Once there is a raw transcript, **Clean up…** offers
      an optional tidied version: review it next to the raw text, then
      **Accept** or **Discard**.
    - **Suggest** (text selections only) — edit the passage in place; saving
