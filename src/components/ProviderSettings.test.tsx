@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Providers } from '../hooks/useProviders'
 import {
@@ -121,7 +121,19 @@ describe('ProviderSettings (AI keys)', () => {
   })
 
   it('survives the render between storing the last key and collapsing the row', async () => {
-    const providers = statefulProviders(['openai', 'anthropic'])
+    // The hook lists the new key as soon as the store has it, while the add
+    // row is still awaiting its promise: a render with nothing left to add.
+    const stored = new Set<ProviderId>(['openai', 'anthropic'])
+    let finishSave: () => void = () => {}
+    const providers = providersWith({
+      hasKey: (id) => stored.has(id),
+      setKey: vi.fn((id: ProviderId) => {
+        stored.add(id)
+        return new Promise<void>((resolve) => {
+          finishSave = resolve
+        })
+      }),
+    })
     const { rerender } = render(
       <ProviderSettings providers={providers} onClose={() => {}} />,
     )
@@ -130,17 +142,17 @@ describe('ProviderSettings (AI keys)', () => {
       target: { value: 'xai-test' },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
-    await vi.waitFor(() =>
-      expect(providers.setKey).toHaveBeenCalledWith('xai', 'xai-test'),
-    )
-    // The hook lists the new key (a render with no provider left to add)
-    // before the add row has collapsed itself.
+    expect(providers.setKey).toHaveBeenCalledWith('xai', 'xai-test')
     rerender(
       <ProviderSettings providers={{ ...providers }} onClose={() => {}} />,
     )
-    expect(screen.queryByRole('form', { name: 'Add key' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Add key' })).toBeNull()
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.queryByRole('form', { name: 'Add key' })).toBeNull()
+    await act(async () => {
+      finishSave()
+    })
+    expect(screen.queryByRole('button', { name: 'Add key' })).toBeNull()
+    expect(document.body.textContent).not.toContain('xai-test')
   })
 
   it('points clean-up at the first key that can serve it', async () => {
