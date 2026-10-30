@@ -206,7 +206,7 @@ export function ProviderSettings({
           </label>
         )}
 
-        {adding ? (
+        {adding && missing.length > 0 ? (
           <AddKeyRow
             candidates={missing}
             providers={providers}
@@ -419,6 +419,7 @@ function AddKeyRow({
   onSaved: (id: ProviderId) => void
   onCancel: () => void
 }) {
+  // Rendered only while some provider has no key; the guard is for types.
   const first = candidates[0]
   if (first === undefined) {
     throw new Error('Every provider already has a key')

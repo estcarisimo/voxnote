@@ -120,6 +120,29 @@ describe('ProviderSettings (AI keys)', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
   })
 
+  it('survives the render between storing the last key and collapsing the row', async () => {
+    const providers = statefulProviders(['openai', 'anthropic'])
+    const { rerender } = render(
+      <ProviderSettings providers={providers} onClose={() => {}} />,
+    )
+    const form = openAddRow()
+    fireEvent.change(within(form).getByLabelText('xAI (Grok) API key'), {
+      target: { value: 'xai-test' },
+    })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
+    await vi.waitFor(() =>
+      expect(providers.setKey).toHaveBeenCalledWith('xai', 'xai-test'),
+    )
+    // The hook lists the new key (a render with no provider left to add)
+    // before the add row has collapsed itself.
+    rerender(
+      <ProviderSettings providers={{ ...providers }} onClose={() => {}} />,
+    )
+    expect(screen.queryByRole('form', { name: 'Add key' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add key' })).toBeNull()
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
+
   it('points clean-up at the first key that can serve it', async () => {
     const providers = statefulProviders()
     render(<ProviderSettings providers={providers} onClose={() => {}} />)
