@@ -60,7 +60,7 @@ describe('CleanUpDialog', () => {
     const props = renderDialog()
     expect(
       screen.getByRole('heading', {
-        name: 'Clean up this transcript with Fake LLM?',
+        name: 'Polish this transcript with Fake LLM?',
       }),
     ).toBeTruthy()
     expect(
@@ -90,7 +90,7 @@ describe('CleanUpDialog', () => {
       language: 'es',
       quote: 'the quoted passage',
     })
-    await screen.findByRole('heading', { name: 'Review the clean-up' })
+    await screen.findByRole('heading', { name: 'Review the polished text' })
     expect(props.onAccept).not.toHaveBeenCalled()
   })
 
@@ -136,7 +136,7 @@ describe('CleanUpDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send to Fake LLM' }))
     expect((await screen.findByRole('alert')).textContent).toMatch(/unchanged/)
     fireEvent.click(screen.getByRole('button', { name: 'Send to Fake LLM' }))
-    await screen.findByRole('heading', { name: 'Review the clean-up' })
+    await screen.findByRole('heading', { name: 'Review the polished text' })
     expect(onConfirm).toHaveBeenCalledTimes(2)
     expect(props.onAccept).not.toHaveBeenCalled()
   })
@@ -153,7 +153,7 @@ describe('CleanUpDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send to Fake LLM' }))
     const dialog = screen.getByRole('dialog')
     expect(
-      within(dialog).getByRole('button', { name: 'Cleaning up…' }),
+      within(dialog).getByRole('button', { name: 'Polishing…' }),
     ).toHaveProperty('disabled', true)
     fireEvent.click(
       within(dialog).getByRole('button', { name: 'Cancel request' }),

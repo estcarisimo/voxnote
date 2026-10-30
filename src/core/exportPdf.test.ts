@@ -228,12 +228,12 @@ describe('exportAnnotatedPdf', () => {
       (a.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
     )
     expect(c).toBe(
-      'The claim is weak.\n\n[Text cleaned up with anthropic/claude-opus-5-5.]' +
+      'The claim is weak.\n\n[Text polished with anthropic/claude-opus-5-5.]' +
         '\nRaw transcript: um the the claim is uh weak',
     )
     expect(s).toBe(
       'Replace with: The claim is weak.\n\n' +
-        '[Text cleaned up with anthropic/claude-opus-5-5, then edited.]' +
+        '[Text polished with anthropic/claude-opus-5-5, then edited.]' +
         '\nRaw transcript: um the the claim is uh weak',
     )
   })

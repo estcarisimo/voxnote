@@ -157,16 +157,18 @@ the success criterion on real iPad hardware.
       untouched. Voice or typed. Exported as `/StrikeOut` with the
       replacement in `/Contents`; verified with poppler on 2026-10-29, not
       yet in Preview/Acrobat/PDF Expert/Chrome.
-- [~] Optional LLM clean-up (punctuation, technical terms) as a separate
-  opt-in action. Never silently reinterpret a critique. Done on 2026-10-29
+- [~] Optional LLM polish (punctuation, technical terms) as a separate
+  opt-in action, shown to the user as **Polish…** (renamed from "Clean
+  up…" on 2026-10-30; the stored `cleanUp` record and the code identifiers
+  keep their names). Never silently reinterpret a critique. Done on 2026-10-29
   behind a `TextModelProvider` interface with OpenAI, Anthropic and xAI
   adapters: consent dialog with host, model and the exact prompt; review
   step with Accept / Discard; empty, unchanged or out-of-bounds answers
-  rejected; raw transcript untouched; cleaned bodies labeled in the panel
+  rejected; raw transcript untouched; polished bodies labeled in the panel
   and exports. Verified with unit tests and a headless Chromium run with all
   three endpoints intercepted; **no real provider call has been made**, so
   the request shapes, the browser (CORS) access of api.x.ai and
-  api.openai.com's Responses endpoint, and the quality of the clean-ups are
+  api.openai.com's Responses endpoint, and the quality of the polished text are
   unverified.
 
 ### M1.4 Review sidebar and export

@@ -38,15 +38,15 @@ function normalize(text: string): string {
  */
 export function assertCleanUpAcceptable(raw: string, proposed: string): void {
   if (normalize(raw) === '') {
-    throw new Error('There is no raw transcript to clean up')
+    throw new Error('There is no raw transcript to polish')
   }
   const p = normalize(proposed)
   if (p === '') {
-    throw new Error('The model returned an empty clean-up; nothing changed')
+    throw new Error('The model returned an empty answer; nothing changed')
   }
   if (p === normalize(raw)) {
     throw new Error(
-      'The model returned the transcript unchanged; nothing to clean up',
+      'The model returned the transcript unchanged; nothing to polish',
     )
   }
   const r = normalize(raw).length
@@ -57,8 +57,8 @@ export function assertCleanUpAcceptable(raw: string, proposed: string): void {
     (ratio < minRatio || ratio > maxRatio)
   ) {
     throw new Error(
-      `The clean-up is ${p.length} characters for a ${r}-character transcript ` +
-        `(${Math.round(ratio * 100)}%); a clean-up stays within ` +
+      `The polished text is ${p.length} characters for a ${r}-character transcript ` +
+        `(${Math.round(ratio * 100)}%); a polished text stays within ` +
         `${minRatio * 100}–${maxRatio * 100}% of the length, so it was rejected`,
     )
   }
@@ -71,7 +71,7 @@ export function checkProposal(
 ): CleanUpProposal {
   if (!isCleanUp(proposal.cleanUp)) {
     throw new Error(
-      `Invalid clean-up record: ${JSON.stringify(proposal.cleanUp)}`,
+      `Invalid polish record: ${JSON.stringify(proposal.cleanUp)}`,
     )
   }
   assertCleanUpAcceptable(raw, proposal.text)
@@ -90,7 +90,7 @@ export function withCleanUp<N extends Note>(
 ): N {
   const transcript = note.voice?.transcript
   if (!transcript) {
-    throw new Error(`Note ${note.id} has no raw transcript to clean up`)
+    throw new Error(`Note ${note.id} has no raw transcript to polish`)
   }
   checkProposal(transcript.raw, proposal)
   // withBody runs the suggestion and comment invariants on the new text;

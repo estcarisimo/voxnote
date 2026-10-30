@@ -510,7 +510,7 @@ function NoteItem({
         )}
         {c.cleanUp && (
           <span className="annotation-list-cleaned">
-            ✨ Cleaned up with {cleanUpLabel(c.cleanUp)}
+            ✨ Polished with {cleanUpLabel(c.cleanUp)}
             {c.cleanUp.editedAfter && ', then edited'}
           </span>
         )}
@@ -559,7 +559,7 @@ function NoteItem({
               onClick={() => void cleanUp()}
               disabled={cleaningUp}
             >
-              {cleaningUp ? 'Cleaning up…' : 'Clean up…'}
+              {cleaningUp ? 'Polishing…' : 'Polish…'}
             </button>
           )}
           <VisibilityToggle
@@ -635,7 +635,7 @@ function BodyEditor({
           <p>{comment.voice.transcript.raw}</p>
           {comment.cleanUp && (
             <p>
-              The text was cleaned up with {cleanUpLabel(comment.cleanUp)} on{' '}
+              The text was polished with {cleanUpLabel(comment.cleanUp)} on{' '}
               {comment.cleanUp.createdAt} (UTC).
             </p>
           )}

@@ -152,6 +152,49 @@
   font-size: 0.95rem;
 }
 
+.open-pdf-start {
+  width: 100%;
+  max-width: 44em;
+  margin: 20px 0 0;
+  padding: 0 16px;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.open-pdf-start h2 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  color: var(--text-h);
+}
+
+.open-pdf-start ol {
+  margin: 0;
+  padding-left: 1.4em;
+}
+
+.open-pdf-start li {
+  margin: 2px 0;
+}
+
+.open-pdf-start li + li {
+  margin-top: 4px;
+}
+
+.open-pdf-start strong {
+  color: var(--text-h);
+}
+
+.open-pdf-start a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.open-pdf-start p {
+  margin: 10px 0 0;
+  font-size: 0.9rem;
+}
+
 .open-pdf-install {
   margin: 8px 0 0;
   font-size: 0.9rem;
@@ -218,5 +261,26 @@
 
   .open-pdf-features li {
     padding: 10px 14px;
+  }
+
+  .open-pdf-features {
+    margin-top: 16px;
+  }
+
+  .open-pdf-privacy {
+    margin-top: 12px;
+    padding: 10px 16px;
+  }
+
+  .open-pdf-start {
+    margin-top: 12px;
+  }
+
+  .open-pdf-start p {
+    margin-top: 6px;
+  }
+
+  .open-pdf-main {
+    padding-bottom: 12px;
   }
 }

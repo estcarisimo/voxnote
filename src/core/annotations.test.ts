@@ -462,7 +462,7 @@ describe('clean-up records and schema v2', () => {
         cleanUp: { ...cleanUp, model: '' },
         voice,
       }),
-    ).toThrow(/Invalid clean-up record/)
+    ).toThrow(/Invalid polish record/)
   })
 
   it('isAnnotation rejects a clean-up on a highlight or beside no transcript', () => {

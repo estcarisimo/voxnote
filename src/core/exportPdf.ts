@@ -135,7 +135,7 @@ function cleanUpNote(note: Note): string {
   if (!note.cleanUp || !transcript) return ''
   const edited = note.cleanUp.editedAfter ? ', then edited' : ''
   return (
-    `\n\n[Text cleaned up with ${cleanUpLabel(note.cleanUp)}${edited}.]` +
+    `\n\n[Text polished with ${cleanUpLabel(note.cleanUp)}${edited}.]` +
     `\nRaw transcript: ${transcript.raw}`
   )
 }

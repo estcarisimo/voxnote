@@ -171,7 +171,7 @@ describe.each(responsesProviders)(
           { ...request, transcript: 'x'.repeat(MAX_TRANSCRIPT_CHARS + 1) },
           { apiKey: 'k', model },
         ),
-      ).rejects.toThrow(/clean-up accepts up to/)
+      ).rejects.toThrow(/polishing accepts up to/)
       expect(fetch).not.toHaveBeenCalled()
     })
 

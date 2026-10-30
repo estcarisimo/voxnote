@@ -95,7 +95,7 @@ export function CleanUpDialog({
           aria-modal="true"
           aria-labelledby="clean-up-title"
         >
-          <h2 id="clean-up-title">Review the clean-up</h2>
+          <h2 id="clean-up-title">Review the polished text</h2>
           <div className="dialog-compare">
             <section aria-label="Raw transcript">
               <h3>Raw transcript (kept as is)</h3>
@@ -109,7 +109,7 @@ export function CleanUpDialog({
           <p className="dialog-note">
             Accept puts the proposed text in the{' '}
             {input.kind === 'suggestion' ? 'replacement' : 'comment'} and marks
-            it as cleaned up; the raw transcript stays as it is. Discard changes
+            it as polished; the raw transcript stays as it is. Discard changes
             nothing.
           </p>
           {replacesEdits && (
@@ -144,7 +144,7 @@ export function CleanUpDialog({
         aria-labelledby="clean-up-title"
       >
         <h2 id="clean-up-title">
-          Clean up this transcript with {provider.name}?
+          Polish this transcript with {provider.name}?
         </h2>
         <p className="dialog-disclosure">
           {provider.describeUpload(request, model)}
@@ -190,7 +190,7 @@ export function CleanUpDialog({
             onClick={() => void send()}
             disabled={sending}
           >
-            {sending ? 'Cleaning up…' : `Send to ${provider.name}`}
+            {sending ? 'Polishing…' : `Send to ${provider.name}`}
           </button>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CONSENT_DEFAULT, GTAG_SCRIPT_ATTRIBUTE } from './analytics'
 import { OpenPdf } from './OpenPdf'
@@ -133,6 +133,70 @@ describe('OpenPdf', () => {
     )
     const first = Array.from(window.dataLayer![0] as ArrayLike<unknown>)
     expect(first).toEqual(['consent', 'default', CONSENT_DEFAULT])
+  })
+
+  it('lists the three Get started steps with key links in new tabs', () => {
+    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    const section = screen.getByRole('region', { name: 'Get started' })
+    const steps = within(section).getAllByRole('listitem')
+    expect(steps).toHaveLength(3)
+    expect(steps[0].textContent).toMatch(
+      /^Get an API key from a speech-to-text provider: Deepgram, Groq or OpenAI\.$/,
+    )
+    expect(steps[1].textContent).toMatch(
+      /^Optional, to polish notes: Anthropic, OpenAI or xAI\.$/,
+    )
+    expect(steps[2].textContent).toContain('Paste it in AI keys')
+    expect(steps[2].textContent).toContain('encrypted in your browser')
+    // The vendors' key pages, checked to resolve on 2026-10-30 (see the PR).
+    const expected: Record<string, string> = {
+      Deepgram: 'https://console.deepgram.com/',
+      Groq: 'https://console.groq.com/keys',
+      OpenAI: 'https://platform.openai.com/api-keys',
+      Anthropic: 'https://platform.claude.com/settings/keys',
+      xAI: 'https://console.x.ai/team/default/api-keys',
+    }
+    const links = within(section).getAllByRole('link')
+    expect(links).toHaveLength(6)
+    for (const link of links) {
+      expect(link.getAttribute('href')).toBe(expected[link.textContent!])
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+      expect(link.getAttribute('href')).toMatch(/^https:\/\//)
+    }
+  })
+
+  it('states non-affiliation and names no price on the landing', () => {
+    const { container } = render(<OpenPdf onFile={vi.fn()} error={null} />)
+    const section = screen.getByRole('region', { name: 'Get started' })
+    expect(section.textContent).toContain(
+      'VoxNote is not affiliated with any of these companies. You pay them directly under your own account, and audio goes from your device to the provider you chose.',
+    )
+    // Prices go stale and the landing carries no date: none may appear.
+    expect(container.textContent).not.toMatch(/[$€£]\s?\d|\d\s?(USD|EUR)/)
+    expect(container.textContent).not.toMatch(/\d+\s*%/)
+    // Nothing on the landing loads anything from a provider host.
+    expect(
+      container.querySelectorAll('img, script, iframe, link'),
+    ).toHaveLength(1)
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      `${import.meta.env.BASE_URL}icon.svg`,
+    )
+  })
+
+  it('places Get started after the feature cards and before the footer', () => {
+    const { container } = render(<OpenPdf onFile={vi.fn()} error={null} />)
+    const order = Array.from(
+      container.querySelectorAll(
+        '.open-pdf-features, .open-pdf-privacy, .open-pdf-start, .open-pdf-footer',
+      ),
+    ).map((el) => el.className)
+    expect(order).toEqual([
+      'open-pdf-features',
+      'open-pdf-privacy',
+      'open-pdf-start',
+      'open-pdf-footer',
+    ])
   })
 
   it('mentions visit counting in the privacy line', () => {

@@ -10,6 +10,26 @@ interface OpenPdfProps {
 
 const LICENSE_URL = `${REPOSITORY_URL}/blob/main/LICENSE`
 
+/**
+ * Where each provider hands out API keys. Static text links only: nothing
+ * here is fetched, so the landing makes no request to any of these hosts.
+ */
+const PROVIDER_KEY_PAGES = {
+  deepgram: 'https://console.deepgram.com/',
+  groq: 'https://console.groq.com/keys',
+  openai: 'https://platform.openai.com/api-keys',
+  anthropic: 'https://platform.claude.com/settings/keys',
+  xai: 'https://console.x.ai/team/default/api-keys',
+} as const
+
+function KeyLink({ href, children }: { href: string; children: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  )
+}
+
 // Served from public/, so it resolves under the production subpath too.
 const ICON_URL = `${import.meta.env.BASE_URL}icon.svg`
 
@@ -126,6 +146,34 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
           server. Nothing is published. Visits are counted with Google Analytics
           for statistical purposes, without cookies.
         </p>
+
+        <section className="open-pdf-start" aria-labelledby="get-started">
+          <h2 id="get-started">Get started</h2>
+          <ol>
+            <li>
+              Get an API key from a speech-to-text provider:{' '}
+              <KeyLink href={PROVIDER_KEY_PAGES.deepgram}>Deepgram</KeyLink>,{' '}
+              <KeyLink href={PROVIDER_KEY_PAGES.groq}>Groq</KeyLink> or{' '}
+              <KeyLink href={PROVIDER_KEY_PAGES.openai}>OpenAI</KeyLink>.
+            </li>
+            <li>
+              Optional, to polish notes:{' '}
+              <KeyLink href={PROVIDER_KEY_PAGES.anthropic}>Anthropic</KeyLink>,{' '}
+              <KeyLink href={PROVIDER_KEY_PAGES.openai}>OpenAI</KeyLink> or{' '}
+              <KeyLink href={PROVIDER_KEY_PAGES.xai}>xAI</KeyLink>.
+            </li>
+            <li>
+              Paste it in <strong>AI keys</strong>. It stays encrypted in your
+              browser.
+            </li>
+          </ol>
+          <p>
+            VoxNote is not affiliated with any of these companies. You pay them
+            directly under your own account, and audio goes from your device to
+            the provider you chose. Several providers offer free credit to
+            start; check their current pricing.
+          </p>
+        </section>
 
         {!standalone && (
           <p className="open-pdf-install">
