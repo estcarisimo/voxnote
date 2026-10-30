@@ -73,11 +73,17 @@ describe('useVoiceRecorder', () => {
     expect(result.current.state.status).toBe('recording')
     expect(getUserMedia).toHaveBeenCalledWith({ audio: true })
 
-    act(() => result.current.stop())
+    let stopped!: ReturnType<typeof result.current.stop>
+    act(() => {
+      stopped = result.current.stop()
+    })
     await flush()
     const { state } = result.current
     expect(state.status).toBe('recorded')
     if (state.status !== 'recorded') return
+    // Stop hands the finished recording to its caller, for transcribe on Stop.
+    await expect(stopped).resolves.toBe(state.recording)
+    await expect(result.current.stop()).resolves.toBeNull()
     expect(state.recording.mimeType).toBe('audio/webm;codecs=opus')
     expect(state.recording.blob.size).toBe(4)
     expect(state.recording.url).toBe('blob:fake')
@@ -166,12 +172,16 @@ describe('useVoiceRecorder', () => {
     FakeMediaRecorder.chunkSize = 0
     getUserMedia.mockResolvedValueOnce(fakeStream().stream)
     await act(() => result.current.start())
-    act(() => result.current.stop())
+    let stopped!: ReturnType<typeof result.current.stop>
+    act(() => {
+      stopped = result.current.stop()
+    })
     await flush()
     expect(result.current.state).toEqual({
       status: 'error',
       message: 'The recording is empty. Is the microphone muted?',
     })
+    await expect(stopped).resolves.toBeNull()
   })
 
   it('fails loudly when the browser cannot record', async () => {

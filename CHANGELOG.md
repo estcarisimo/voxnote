@@ -28,6 +28,26 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Transcribe on Stop, under a standing consent per document. The
+  transcription dialog offers **Also do this automatically for this
+  document** (off by default) with the sentence "From now on, each recording
+  in this document is sent to <provider> at <host> as soon as you tap Stop."
+  Once granted, Stop uploads at once through the same request path (one
+  request at a time, Cancel aborts it, closing or switching the document
+  settles it); the composer shows **Transcribing…** with **Cancel
+  transcription**, and **Save** works before the transcript returns: the
+  saved comment gets it on arrival, or the panel shows the error. The
+  composer shows **Auto-transcribe: on**, and one tap turns it off; the
+  AI keys dialog turns it off everywhere. A provider, model or language
+  change, or removing the key, revokes it. Stored in localStorage
+  (`voxnote.stt.autoTranscribe`) with the provider, model, host, language
+  hint, quote choice, the exact disclosure shown and a UTC grant time, never
+  in an annotation. Another document starts without it.
+- Design note for live transcription while recording
+  (`docs/design/live-transcription.md`): provider streaming endpoints,
+  capture, consent, fallback, raw-transcript rules and phasing. Not
+  implemented.
+
 - The GitHub mark links to the repository from the top-right corner of the
   landing view and from the far right of the app bar while reviewing, so the
   code is one tap away. The mark is the official monochrome form, inline SVG

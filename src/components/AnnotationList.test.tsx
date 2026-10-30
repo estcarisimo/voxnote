@@ -145,6 +145,41 @@ describe('AnnotationList', () => {
     )
   })
 
+  it('shows a transcript still on its way, and its failure, on a saved note', () => {
+    const voice = {
+      mimeType: 'audio/webm',
+      durationMs: 1000,
+      recordedAt: '2026-10-30T10:00:00.000Z',
+    }
+    const waiting = createComment({ documentId: 'd', anchor, body: '', voice })
+    const failed = createComment({ documentId: 'd', anchor, body: '', voice })
+    render(
+      <AnnotationList
+        annotations={[waiting, failed]}
+        selectedId={null}
+        {...noop}
+        arrivals={{
+          [waiting.id]: { status: 'pending' },
+          [failed.id]: {
+            status: 'error',
+            message: 'Transcription failed: OpenAI responded 500',
+          },
+        }}
+      />,
+    )
+    expect(
+      screen.getByRole('button', { name: 'Transcribing…' }),
+    ).toHaveProperty('disabled', true)
+    expect(screen.getByRole('alert')).toHaveProperty(
+      'textContent',
+      'Transcription failed: OpenAI responded 500',
+    )
+    expect(screen.getByRole('button', { name: 'Transcribe…' })).toHaveProperty(
+      'disabled',
+      false,
+    )
+  })
+
   it('offers Clean up… only beside a raw transcript, and marks a cleaned body', async () => {
     const voice = {
       mimeType: 'audio/webm',

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { AnnotationList } from './components/AnnotationList'
+import {
+  AnnotationList,
+  type TranscriptArrival,
+} from './components/AnnotationList'
 import { CleanUpDialog } from './components/CleanUpDialog'
+import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
 import { GitHubLink } from './components/GitHubLink'
@@ -13,7 +17,13 @@ import {
 import type { Tool } from './components/PdfPage'
 import { ProviderSettings } from './components/ProviderSettings'
 import { TranscribeDialog } from './components/TranscribeDialog'
-import type { Anchor, Annotation, Note, Visibility } from './core/annotations'
+import type {
+  Anchor,
+  Annotation,
+  Note,
+  Transcript,
+  Visibility,
+} from './core/annotations'
 import { exportJson, exportMarkdown } from './core/exportNotes'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
@@ -24,6 +34,7 @@ import {
   type PDFDocumentProxy,
 } from './core/pdf'
 import { useAnnotations } from './hooks/useAnnotations'
+import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
 import { useProviders } from './hooks/useProviders'
 import { AiKeysButton } from './components/AiKeysButton'
@@ -48,13 +59,24 @@ function App() {
   const viewerRef = useRef<PdfViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
   const providers = useProviders()
-  const transcription = useTranscription(providers)
+  const autoConsents = useAutoTranscribeConsent(providers)
+  const transcription = useTranscription(providers, {
+    documentId: doc?.id ?? null,
+    store: autoConsents,
+  })
   const cleanUpFlow = useCleanUp(providers)
+  // Transcripts still on their way to comments saved before they arrived.
+  const [arrivals, setArrivals] = useState<
+    Readonly<Record<string, TranscriptArrival>>
+  >({})
   // The open document's id as of the last render, for checks after an await.
   const docIdRef = useRef<string | null>(null)
+  // The latest store: a transcript arriving later must see the saved note.
+  const storeRef = useRef(store)
   useEffect(() => {
     docIdRef.current = doc?.id ?? null
-  }, [doc])
+    storeRef.current = store
+  })
 
   async function transcribeStored(comment: Note) {
     if (!comment.voice) throw new Error('This comment has no recording')
@@ -106,6 +128,7 @@ function App() {
       // A consent dialog for the old document must not outlive it.
       transcription.finish(null)
       cleanUpFlow.finish(null)
+      setArrivals({})
       setDoc({ id, name: file.name, bytes, pdf })
       setSelectedId(null)
     } catch (err: unknown) {
@@ -121,6 +144,7 @@ function App() {
     if (doc) void destroyDocument(doc.pdf)
     transcription.finish(null)
     cleanUpFlow.finish(null)
+    setArrivals({})
     setDoc(null)
     setSelectedId(null)
     setTool('select')
@@ -133,9 +157,29 @@ function App() {
     )
   }
 
-  async function createNote(request: NewNoteRequest) {
+  async function createNote({ pendingTranscript, ...request }: NewNoteRequest) {
     const note = await store.addNote(request)
     setSelectedId(note.id)
+    if (pendingTranscript) receiveTranscript(note, pendingTranscript)
+  }
+
+  /** The transcript reaches the saved note, or its error shows in the panel. */
+  function receiveTranscript(
+    note: Note,
+    pendingTranscript: Promise<Transcript | null>,
+  ) {
+    void deliverTranscript(note, pendingTranscript, {
+      currentDocumentId: () => docIdRef.current,
+      setTranscript: (id, transcript) =>
+        storeRef.current.setTranscript(id, transcript),
+      onArrival: (id, arrival) =>
+        setArrivals((current) => {
+          const next = { ...current }
+          if (arrival) next[id] = arrival
+          else delete next[id]
+          return next
+        }),
+    })
   }
 
   async function updateBody(note: Note, body: string) {
@@ -251,9 +295,9 @@ function App() {
         />
         <GitHubLink className="app-bar-github" />
       </header>
-      {(error || store.error) && (
+      {(error || store.error || autoConsents.error) && (
         <p role="alert" className="app-error">
-          {error ?? store.error}
+          {error ?? store.error ?? autoConsents.error}
         </p>
       )}
       <div className="app-body">
@@ -269,6 +313,7 @@ function App() {
           onCreateNote={createNote}
           transcribe={transcription.request}
           cleanUp={cleanUpFlow.request}
+          autoTranscribe={transcription.auto}
         />
         {listOpen && (
           <AnnotationList
@@ -281,21 +326,27 @@ function App() {
             onLoadAudio={(c) => store.getAudio(c.id)}
             onTranscribe={transcribeStored}
             onCleanUp={cleanUpStored}
+            arrivals={arrivals}
           />
         )}
       </div>
       {settingsOpen && (
         <ProviderSettings
           providers={providers}
+          autoTranscribe={{
+            documents: Object.keys(autoConsents.consents).length,
+            revokeAll: () => autoConsents.revoke(null),
+          }}
           onClose={() => setSettingsOpen(false)}
         />
       )}
-      {transcription.pending && (
+      {transcription.pending && !transcription.pending.automatic && (
         <TranscribeDialog
           key={transcription.pending.id}
           input={transcription.pending.input}
           provider={transcription.pending.provider}
           language={providers.settings.language}
+          offerStanding={transcription.pending.offerStanding}
           onConfirm={transcription.confirm}
           onDone={(t) =>
             transcription.finish(t, transcription.pending ?? undefined)

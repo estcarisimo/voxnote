@@ -116,6 +116,19 @@ the success criterion on real iPad hardware.
   Safari's MP4 path and the real permission prompt are untested. Taps from selection to saved comment, counted in the headless
   run on 2026-10-29: typed = Comment, type, Save (2 taps + typing); voice =
   Voice (starts recording), Stop, Save (3 taps). Not yet counted on iPad.
+  Transcribe on Stop (2026-10-30 UTC): a standing consent per document,
+  granted only by ticking **Also do this automatically for this document**
+  in the transcription dialog, shown in the composer as **Auto-transcribe:
+  on** (one tap revokes it), revoked by a provider, model or language change
+  or by removing the key. With it, Stop uploads at once and Save need not
+  wait. UI-step counts from selection to a saved, transcribed voice comment,
+  in headless Chromium 155 with a fake microphone and the OpenAI endpoint
+  intercepted: without the consent = Voice, Stop, Transcribe…, Send, Save
+  (5 taps); the recording that grants it = 6 taps (the checkbox); with it =
+  Voice, Stop, Save (3 taps), whether Save is tapped before or after the
+  transcript arrives. Not counted on iPad; no real provider call. Live
+  transcription while recording is a proposal only:
+  [`docs/design/live-transcription.md`](docs/design/live-transcription.md).
 - [~] STT adapter interface (`src/providers/stt.ts`) and the OpenAI provider
   (`gpt-transcribe`, plus the deprecated `gpt-4o-transcribe`,
   `gpt-4o-mini-transcribe`, `whisper-1`) done, verified against a mocked

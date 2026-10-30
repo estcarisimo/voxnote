@@ -210,12 +210,15 @@ describe('CommentComposer', () => {
     // Cancelled in the consent dialog: nothing changes, no error.
     fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
     await vi.waitFor(() => expect(transcribe).toHaveBeenCalledTimes(1))
-    expect(transcribe).toHaveBeenCalledWith({
-      audio: blob,
-      mimeType: 'audio/webm;codecs=opus',
-      durationMs: 2000,
-      quote: 'the quote',
-    })
+    expect(transcribe).toHaveBeenCalledWith(
+      {
+        audio: blob,
+        mimeType: 'audio/webm;codecs=opus',
+        durationMs: 2000,
+        quote: 'the quote',
+      },
+      { automatic: false, signal: expect.any(AbortSignal) },
+    )
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
       'value',
@@ -588,6 +591,222 @@ describe('CommentComposer', () => {
       expect(onSave).toHaveBeenCalledWith(
         expect.not.objectContaining({ cleanUp: expect.anything() }),
       )
+    })
+  })
+
+  describe('transcribe on Stop', () => {
+    const blob = new Blob(['opus'], { type: 'audio/webm' })
+    const recording = {
+      blob,
+      mimeType: 'audio/webm;codecs=opus',
+      durationMs: 2000,
+      recordedAt: '2026-10-30T10:00:00.000Z',
+      url: 'blob:auto',
+    }
+    const transcript = {
+      raw: 'falta la referencia',
+      provider: 'openai/gpt-transcribe',
+      transcribedAt: '2026-10-30T10:00:03.000Z',
+    }
+    const consent = {
+      documentId: 'doc-a',
+      provider: 'openai',
+      model: 'gpt-transcribe',
+      host: 'api.openai.com',
+      language: '',
+      includeQuote: false,
+      disclosure:
+        'Sends the recording to OpenAI at api.openai.com. From now on, …',
+      grantedAt: '2026-10-30T09:00:00.000Z',
+    }
+    type Options = { automatic?: boolean; signal?: AbortSignal }
+
+    /** A transcribe that hangs until settled, or until its signal aborts. */
+    function deferredTranscribe() {
+      let settle!: (t: typeof transcript | null) => void
+      let fail!: (err: Error) => void
+      let signal: AbortSignal | undefined
+      const fn = vi.fn(
+        (_input: unknown, options?: Options) =>
+          new Promise<typeof transcript | null>((resolve, reject) => {
+            signal = options?.signal
+            settle = resolve
+            fail = reject
+            signal?.addEventListener('abort', () => resolve(null))
+          }),
+      )
+      return {
+        fn,
+        settle: (t: typeof transcript | null) => settle(t),
+        fail: (err: Error) => fail(err),
+        signal: () => signal,
+      }
+    }
+
+    function composer(props: {
+      recorder: VoiceRecorder
+      transcribe: ReturnType<typeof deferredTranscribe>['fn']
+      active: boolean
+      revoke?: () => void
+      onSave?: (draft: unknown) => Promise<void>
+    }) {
+      return (
+        <CommentComposer
+          placement={placement}
+          mode="comment"
+          quote="the quote"
+          recorder={props.recorder}
+          transcribe={props.transcribe}
+          autoTranscribe={{
+            active: props.active,
+            consent: props.active ? consent : null,
+            revoke: props.revoke ?? (() => {}),
+          }}
+          onSave={props.onSave ?? (async () => {})}
+          onCancel={() => {}}
+        />
+      )
+    }
+
+    /**
+     * Renders a composer that is recording, taps Stop (which resolves with
+     * the recording, like the real recorder) and shows the recorded state.
+     */
+    async function recordAndStop(
+      props: Omit<Parameters<typeof composer>[0], 'recorder'>,
+    ) {
+      const recordingState = recorderWith({ status: 'recording', startedAt: 0 })
+      recordingState.stop = vi.fn(async () => recording)
+      const view = render(composer({ ...props, recorder: recordingState }))
+      fireEvent.click(screen.getByRole('button', { name: '■ Stop' }))
+      await vi.waitFor(() => expect(recordingState.stop).toHaveBeenCalled())
+      const recorded = recorderWith({ status: 'recorded', recording })
+      view.rerender(composer({ ...props, recorder: recorded }))
+      return { view, recorded }
+    }
+
+    it('sends the recording when Stop is tapped, once, and fills the body', async () => {
+      const t = deferredTranscribe()
+      const { view, recorded } = await recordAndStop({
+        transcribe: t.fn,
+        active: true,
+      })
+      await vi.waitFor(() => expect(t.fn).toHaveBeenCalledTimes(1))
+      expect(t.fn).toHaveBeenCalledWith(
+        {
+          audio: blob,
+          mimeType: 'audio/webm;codecs=opus',
+          durationMs: 2000,
+          quote: 'the quote',
+        },
+        { automatic: true, signal: expect.any(AbortSignal) },
+      )
+      expect(await screen.findByText('Transcribing…')).toBeTruthy()
+      expect(
+        screen.getByRole('button', { name: 'Cancel transcription' }),
+      ).toBeTruthy()
+      view.rerender(
+        composer({ recorder: recorded, transcribe: t.fn, active: true }),
+      )
+      expect(t.fn).toHaveBeenCalledTimes(1)
+
+      t.settle(transcript)
+      await screen.findByText('falta la referencia', { selector: 'p' })
+      expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+        'value',
+        'falta la referencia',
+      )
+    })
+
+    it('does nothing on Stop without a standing consent', async () => {
+      const t = deferredTranscribe()
+      await recordAndStop({ transcribe: t.fn, active: false })
+      expect(t.fn).not.toHaveBeenCalled()
+      expect(
+        screen.queryByRole('button', { name: /Auto-transcribe/ }),
+      ).toBeNull()
+      expect(screen.getByRole('button', { name: 'Transcribe…' })).toBeTruthy()
+    })
+
+    it('shows the consent as on and revokes it in one tap', () => {
+      const revoke = vi.fn()
+      render(
+        composer({
+          recorder: recorderWith({ status: 'recording', startedAt: 0 }),
+          transcribe: deferredTranscribe().fn,
+          active: true,
+          revoke,
+        }),
+      )
+      const toggle = screen.getByRole('button', { name: 'Auto-transcribe: on' })
+      expect(toggle.getAttribute('aria-pressed')).toBe('true')
+      expect(
+        screen.getByText(/Stop sends each recording to api\.openai\.com/),
+      ).toBeTruthy()
+      fireEvent.click(toggle)
+      expect(revoke).toHaveBeenCalledTimes(1)
+    })
+
+    it('cancels an automatic upload from the composer', async () => {
+      const t = deferredTranscribe()
+      await recordAndStop({ transcribe: t.fn, active: true })
+      await vi.waitFor(() => expect(t.fn).toHaveBeenCalledTimes(1))
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Cancel transcription' }),
+      )
+      expect(t.signal()?.aborted).toBe(true)
+      expect(
+        await screen.findByRole('button', { name: 'Transcribe…' }),
+      ).toBeTruthy()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('saves before the transcript returns and hands the request over', async () => {
+      const t = deferredTranscribe()
+      const onSave = vi.fn(async (_draft: unknown) => {})
+      const { view } = await recordAndStop({
+        transcribe: t.fn,
+        active: true,
+        onSave,
+      })
+      await vi.waitFor(() => expect(t.fn).toHaveBeenCalledTimes(1))
+      const save = screen.getByRole('button', { name: 'Save' })
+      expect(save).toHaveProperty('disabled', false)
+      fireEvent.click(save)
+      await vi.waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+      const draft = onSave.mock.calls[0][0] as {
+        body: string
+        voice: { transcript?: unknown }
+        pendingTranscript: Promise<unknown>
+      }
+      expect(draft.body).toBe('')
+      expect(draft.voice.transcript).toBeUndefined()
+      expect(draft.pendingTranscript).toBe(t.fn.mock.results[0].value)
+      // Closing the composer after saving must not cancel the handed-over request.
+      view.unmount()
+      expect(t.signal()?.aborted).toBe(false)
+      t.settle(transcript)
+      await expect(draft.pendingTranscript).resolves.toBe(transcript)
+    })
+
+    it('cancels a request it still owns when it closes', async () => {
+      const t = deferredTranscribe()
+      const { view } = await recordAndStop({ transcribe: t.fn, active: true })
+      await vi.waitFor(() => expect(t.fn).toHaveBeenCalledTimes(1))
+      view.unmount()
+      expect(t.signal()?.aborted).toBe(true)
+    })
+
+    it('shows a failed automatic upload and offers the dialog path again', async () => {
+      const t = deferredTranscribe()
+      await recordAndStop({ transcribe: t.fn, active: true })
+      await vi.waitFor(() => expect(t.fn).toHaveBeenCalledTimes(1))
+      t.fail(new Error('OpenAI responded 401: invalid key'))
+      expect(await screen.findByRole('alert')).toHaveProperty(
+        'textContent',
+        'OpenAI responded 401: invalid key',
+      )
+      expect(screen.getByRole('button', { name: 'Transcribe…' })).toBeTruthy()
     })
   })
 })

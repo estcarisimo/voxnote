@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createComment,
   createHighlight,
@@ -79,6 +79,11 @@ const NONE: Annotation[] = []
 export function useAnnotations(documentId: string | null): AnnotationsState {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState<Failed | null>(null)
+  // The list as of the last write, ahead of the render that shows it: a
+  // transcript arriving right after a save must find the saved note even
+  // when the caller still holds the callbacks of the previous render.
+  // Every write reads it, through `serialize`.
+  const latest = useRef<Loaded | null>(null)
 
   useEffect(() => {
     if (!documentId) return
@@ -96,7 +101,8 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
         opened = store
         const annotations = await store.list(documentId)
         if (cancelled) return
-        setLoaded({ documentId, store, annotations })
+        latest.current = { documentId, store, annotations }
+        setLoaded(latest.current)
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -117,11 +123,29 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
   /** Applies a change to this document's list, if it is still the current one. */
   const apply = useCallback(
     (documentId: string, change: (list: Annotation[]) => Annotation[]) => {
-      setLoaded((state) =>
-        state && state.documentId === documentId
-          ? { ...state, annotations: change(state.annotations) }
-          : state,
-      )
+      const state = latest.current
+      if (!state || state.documentId !== documentId) return
+      latest.current = { ...state, annotations: change(state.annotations) }
+      setLoaded(latest.current)
+    },
+    [],
+  )
+
+  // Writes run one at a time, each on the latest list: a transcript that
+  // lands while the body is being edited cannot be overwritten by an edit
+  // that read the note before the transcript was written, or the reverse.
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const serialize = useCallback(
+    <T>(documentId: string, step: (state: Loaded) => Promise<T>) => {
+      const run = queue.current.then(() => {
+        const state = latest.current
+        if (!state || state.documentId !== documentId) {
+          throw new Error('The document changed; the change was not saved')
+        }
+        return step(state)
+      })
+      queue.current = run.catch(() => undefined)
+      return run
     },
     [],
   )
@@ -129,113 +153,125 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
   const addHighlight = useCallback(
     async (anchor: Anchor) => {
       if (!current) throw new Error('Annotation store is not ready')
-      const annotation = createHighlight({
-        documentId: current.documentId,
-        anchor,
+      return serialize(current.documentId, async (state) => {
+        const annotation = createHighlight({
+          documentId: state.documentId,
+          anchor,
+        })
+        await state.store.put(annotation)
+        apply(state.documentId, (list) => [...list, annotation])
+        return annotation
       })
-      await current.store.put(annotation)
-      apply(current.documentId, (list) => [...list, annotation])
-      return annotation
     },
-    [current, apply],
+    [current, apply, serialize],
   )
 
   const addNote = useCallback(
     async (input: NewNote) => {
       if (!current) throw new Error('Annotation store is not ready')
-      if (input.voice && !input.audio) {
-        throw new Error('A voice note needs its recording')
-      }
-      const note: Note =
-        input.kind === 'suggestion'
-          ? createSuggestion({
-              documentId: current.documentId,
-              anchor: input.anchor,
-              body: input.body,
-              voice: input.voice,
-              cleanUp: input.cleanUp,
-            })
-          : createComment({
-              documentId: current.documentId,
-              anchor: input.anchor,
-              body: input.body,
-              voice: input.voice,
-              cleanUp: input.cleanUp,
-            })
-      await current.store.put(
-        note,
-        input.audio ? { id: note.id, blob: input.audio } : undefined,
-      )
-      apply(current.documentId, (list) => [...list, note])
-      return note
+      return serialize(current.documentId, async (state) => {
+        if (input.voice && !input.audio) {
+          throw new Error('A voice note needs its recording')
+        }
+        const note: Note =
+          input.kind === 'suggestion'
+            ? createSuggestion({
+                documentId: state.documentId,
+                anchor: input.anchor,
+                body: input.body,
+                voice: input.voice,
+                cleanUp: input.cleanUp,
+              })
+            : createComment({
+                documentId: state.documentId,
+                anchor: input.anchor,
+                body: input.body,
+                voice: input.voice,
+                cleanUp: input.cleanUp,
+              })
+        await state.store.put(
+          note,
+          input.audio ? { id: note.id, blob: input.audio } : undefined,
+        )
+        apply(state.documentId, (list) => [...list, note])
+        return note
+      })
     },
-    [current, apply],
+    [current, apply, serialize],
   )
 
   const updateBody = useCallback(
     async (id: string, body: string) => {
       if (!current) throw new Error('Annotation store is not ready')
-      const existing = current.annotations.find((a) => a.id === id)
-      if (!existing || !isNote(existing)) {
-        throw new Error(`No comment or suggestion with id ${id}`)
-      }
-      const updated = withBody(existing, body)
-      await current.store.put(updated)
-      apply(current.documentId, (list) =>
-        list.map((a) => (a.id === id ? updated : a)),
-      )
-      return updated
+      return serialize(current.documentId, async (state) => {
+        const existing = state.annotations.find((a) => a.id === id)
+        if (!existing || !isNote(existing)) {
+          throw new Error(`No comment or suggestion with id ${id}`)
+        }
+        const updated = withBody(existing, body)
+        await state.store.put(updated)
+        apply(state.documentId, (list) =>
+          list.map((a) => (a.id === id ? updated : a)),
+        )
+        return updated
+      })
     },
-    [current, apply],
+    [current, apply, serialize],
   )
 
   const updateVisibility = useCallback(
     async (id: string, visibility: Visibility) => {
       if (!current) throw new Error('Annotation store is not ready')
-      const existing = current.annotations.find((a) => a.id === id)
-      if (!existing) throw new Error(`No annotation with id ${id}`)
-      const updated = withVisibility(existing, visibility)
-      await current.store.put(updated)
-      apply(current.documentId, (list) =>
-        list.map((a) => (a.id === id ? updated : a)),
-      )
-      return updated
+      return serialize(current.documentId, async (state) => {
+        const existing = state.annotations.find((a) => a.id === id)
+        if (!existing) throw new Error(`No annotation with id ${id}`)
+        const updated = withVisibility(existing, visibility)
+        await state.store.put(updated)
+        apply(state.documentId, (list) =>
+          list.map((a) => (a.id === id ? updated : a)),
+        )
+        return updated
+      })
     },
-    [current, apply],
+    [current, apply, serialize],
   )
 
   const setTranscript = useCallback(
     async (id: string, transcript: Transcript) => {
       if (!current) throw new Error('Annotation store is not ready')
-      const existing = current.annotations.find((a) => a.id === id)
-      if (!existing || !isNote(existing)) {
-        throw new Error(`No comment or suggestion with id ${id}`)
-      }
-      const updated = withTranscript(existing, transcript)
-      await current.store.put(updated)
-      apply(current.documentId, (list) =>
-        list.map((a) => (a.id === id ? updated : a)),
-      )
-      return updated
+      return serialize(current.documentId, async (state) => {
+        const existing = state.annotations.find((a) => a.id === id)
+        if (!existing || !isNote(existing)) {
+          throw new Error(`No comment or suggestion with id ${id}`)
+        }
+        const updated = withTranscript(existing, transcript)
+        await state.store.put(updated)
+        apply(state.documentId, (list) =>
+          list.map((a) => (a.id === id ? updated : a)),
+        )
+        return updated
+      })
     },
-    [current, apply],
+    [current, apply, serialize],
   )
 
   const applyCleanUp = useCallback(
     async (id: string, proposal: CleanUpProposal) => {
       if (!current) throw new Error('Annotation store is not ready')
-      const existing = current.annotations.find((a) => a.id === id)
-      if (!existing || !isNote(existing)) {
-        throw new Error(`No comment or suggestion with id ${id}`)
-      }
-      const updated = withCleanUp(existing, proposal)
-      await current.store.put(updated)
-      apply(current.documentId, (list) =>
-        list.map((a) => (a.id === id ? updated : a)),
-      )
-      return updated
+      return serialize(current.documentId, async (state) => {
+        const existing = state.annotations.find((a) => a.id === id)
+        if (!existing || !isNote(existing)) {
+          throw new Error(`No comment or suggestion with id ${id}`)
+        }
+        const updated = withCleanUp(existing, proposal)
+        await state.store.put(updated)
+        apply(state.documentId, (list) =>
+          list.map((a) => (a.id === id ? updated : a)),
+        )
+        return updated
+      })
     },
-    [current, apply],
+    [current, apply, serialize],
   )
 
   const getAudio = useCallback(
@@ -250,10 +286,12 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
   const remove = useCallback(
     async (id: string) => {
       if (!current) throw new Error('Annotation store is not ready')
-      await current.store.delete(id)
-      apply(current.documentId, (list) => list.filter((a) => a.id !== id))
+      return serialize(current.documentId, async (state) => {
+        await state.store.delete(id)
+        apply(state.documentId, (list) => list.filter((a) => a.id !== id))
+      })
     },
-    [current, apply],
+    [current, apply, serialize],
   )
 
   return {

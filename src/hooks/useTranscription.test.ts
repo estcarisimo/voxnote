@@ -63,7 +63,7 @@ describe('useTranscription', () => {
   it('sends only on confirm, with the key and an abort signal, then resolves the caller', async () => {
     const transcribeImpl = vi.fn(async () => ({ text: 'hola', model: 'm' }))
     const { result } = renderHook(() =>
-      useTranscription(providersWith(), fakeProvider(transcribeImpl)),
+      useTranscription(providersWith(), null, fakeProvider(transcribeImpl)),
     )
     let promise!: ReturnType<typeof result.current.request>
     act(() => {
@@ -110,6 +110,7 @@ describe('useTranscription', () => {
     const { result } = renderHook(() =>
       useTranscription(
         providersWith({ settings: groqSettings, readKey }),
+        null,
         () => groq,
       ),
     )
@@ -123,6 +124,7 @@ describe('useTranscription', () => {
     const mismatched = renderHook(() =>
       useTranscription(
         providersWith({ settings: groqSettings, readKey }),
+        null,
         fakeProvider(transcribeImpl),
       ),
     )
@@ -139,7 +141,7 @@ describe('useTranscription', () => {
 
   it('refuses a second request while one is waiting', async () => {
     const { result } = renderHook(() =>
-      useTranscription(providersWith(), fakeProvider(vi.fn())),
+      useTranscription(providersWith(), null, fakeProvider(vi.fn())),
     )
     let first!: ReturnType<typeof result.current.request>
     act(() => {
@@ -166,6 +168,7 @@ describe('useTranscription', () => {
     const { result } = renderHook(() =>
       useTranscription(
         providersWith(),
+        null,
         fakeProvider(transcribeImpl as SpeechToTextProvider['transcribe']),
       ),
     )
@@ -186,7 +189,7 @@ describe('useTranscription', () => {
 
   it('settles the caller with null on unmount', async () => {
     const { result, unmount } = renderHook(() =>
-      useTranscription(providersWith(), fakeProvider(vi.fn())),
+      useTranscription(providersWith(), null, fakeProvider(vi.fn())),
     )
     let promise!: ReturnType<typeof result.current.request>
     act(() => {
@@ -200,6 +203,7 @@ describe('useTranscription', () => {
     const { result } = renderHook(() =>
       useTranscription(
         providersWith({ readKey: vi.fn(async () => null) }),
+        null,
         fakeProvider(vi.fn()),
       ),
     )
@@ -213,7 +217,7 @@ describe('useTranscription', () => {
 
   it('ignores a result for a request that was already cancelled, and refuses confirm after it', async () => {
     const { result } = renderHook(() =>
-      useTranscription(providersWith(), fakeProvider(vi.fn())),
+      useTranscription(providersWith(), null, fakeProvider(vi.fn())),
     )
     let first!: ReturnType<typeof result.current.request>
     act(() => {

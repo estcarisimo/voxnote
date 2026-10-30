@@ -27,7 +27,12 @@ export interface VoiceRecorder {
   elapsedMs: number
   /** Asks for the microphone and starts recording. */
   start(): Promise<void>
-  stop(): void
+  /**
+   * Stops recording. Resolves with the finished recording, or null when
+   * there is none (nothing was recording, the recording was empty or
+   * failed, or it was discarded first).
+   */
+  stop(): Promise<Recording | null>
   /** Drops the recording or the error and returns to idle. */
   discard(): void
 }
@@ -51,6 +56,14 @@ export function useVoiceRecorder(): VoiceRecorder {
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const urlRef = useRef<string | null>(null)
+  // Callers of stop() waiting for the recording that onstop publishes.
+  const stopWaiters = useRef<((recording: Recording | null) => void)[]>([])
+
+  const settleStop = useCallback((recording: Recording | null) => {
+    const waiters = stopWaiters.current
+    stopWaiters.current = []
+    for (const resolve of waiters) resolve(recording)
+  }, [])
 
   /** Stops the microphone and detaches the recorder without publishing data. */
   const teardown = useCallback(() => {
@@ -78,7 +91,13 @@ export function useVoiceRecorder(): VoiceRecorder {
   }, [state])
 
   // Unmount: stop the microphone and free the replay URL.
-  useEffect(() => teardown, [teardown])
+  useEffect(
+    () => () => {
+      teardown()
+      settleStop(null)
+    },
+    [teardown, settleStop],
+  )
 
   const start = useCallback(async () => {
     if (recorderRef.current || streamRef.current) return
@@ -112,6 +131,7 @@ export function useVoiceRecorder(): VoiceRecorder {
       recorder.onerror = () => {
         teardown()
         setState({ status: 'error', message: 'Recording failed' })
+        settleStop(null)
       }
       recorder.onstop = () => {
         const durationMs = performance.now() - startedAt
@@ -123,14 +143,14 @@ export function useVoiceRecorder(): VoiceRecorder {
             status: 'error',
             message: 'The recording is empty. Is the microphone muted?',
           })
+          settleStop(null)
           return
         }
         const url = URL.createObjectURL(blob)
         urlRef.current = url
-        setState({
-          status: 'recorded',
-          recording: { blob, mimeType: type, durationMs, recordedAt, url },
-        })
+        const recording = { blob, mimeType: type, durationMs, recordedAt, url }
+        setState({ status: 'recorded', recording })
+        settleStop(recording)
       }
       // Device unplugged or permission revoked mid-recording: finish with
       // what we have rather than sit in "recording" forever.
@@ -147,18 +167,24 @@ export function useVoiceRecorder(): VoiceRecorder {
         message: err instanceof Error ? err.message : String(err),
       })
     }
-  }, [teardown])
+  }, [teardown, settleStop])
 
   const stop = useCallback(() => {
     const recorder = recorderRef.current
-    if (recorder && recorder.state !== 'inactive') recorder.stop()
+    if (!recorder || recorder.state === 'inactive') return Promise.resolve(null)
+    const finished = new Promise<Recording | null>((resolve) => {
+      stopWaiters.current.push(resolve)
+    })
+    recorder.stop()
+    return finished
   }, [])
 
   const discard = useCallback(() => {
     teardown()
+    settleStop(null)
     setElapsedMs(0)
     setState((s) => (s.status === 'idle' ? s : { status: 'idle' }))
-  }, [teardown])
+  }, [teardown, settleStop])
 
   return { state, elapsedMs, start, stop, discard }
 }

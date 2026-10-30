@@ -38,7 +38,13 @@ interface AnnotationListProps {
   onTranscribe: (note: Note) => Promise<void>
   /** Consent-gated clean-up of a note's raw transcript; absent if unavailable. */
   onCleanUp?: (note: Note) => Promise<void>
+  /** Transcripts still on their way to notes saved before they arrived. */
+  arrivals?: Readonly<Record<string, TranscriptArrival>>
 }
+
+/** A transcript requested on Stop for a note saved before it returned. */
+export type TranscriptArrival =
+  { status: 'pending' } | { status: 'error'; message: string }
 
 const KIND_CHIPS: readonly AnnotationKind[] = [
   'suggestion',
@@ -60,6 +66,7 @@ export function AnnotationList({
   onLoadAudio,
   onTranscribe,
   onCleanUp,
+  arrivals,
 }: AnnotationListProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('kind')
   const [filter, setFilter] = useState<ReviewFilter>(EMPTY_FILTER)
@@ -116,6 +123,7 @@ export function AnnotationList({
             onLoadAudio={onLoadAudio}
             onTranscribe={onTranscribe}
             onCleanUp={onCleanUp}
+            arrivals={arrivals}
           />
         ))
       )}
@@ -258,6 +266,7 @@ function ReviewGroupSection({
   onLoadAudio,
   onTranscribe,
   onCleanUp,
+  arrivals,
 }: {
   label: string
   headed: boolean
@@ -270,6 +279,7 @@ function ReviewGroupSection({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
+  arrivals?: Readonly<Record<string, TranscriptArrival>>
 }) {
   const headingId = useId()
   return (
@@ -302,6 +312,7 @@ function ReviewGroupSection({
                 onLoadAudio={onLoadAudio}
                 onTranscribe={onTranscribe}
                 onCleanUp={onCleanUp}
+                arrival={arrivals?.[a.id]}
               />
             ) : (
               <HighlightItem
@@ -428,6 +439,7 @@ function NoteItem({
   onLoadAudio,
   onTranscribe,
   onCleanUp,
+  arrival,
 }: {
   note: Note
   onSelect: (a: Annotation) => void
@@ -437,6 +449,7 @@ function NoteItem({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
+  arrival?: TranscriptArrival
 }) {
   const [editing, setEditing] = useState(false)
   const [cleaningUp, setCleaningUp] = useState(false)
@@ -518,6 +531,11 @@ function NoteItem({
               {transcribeError}
             </p>
           )}
+          {arrival?.status === 'error' && (
+            <p role="alert" className="annotation-list-error">
+              {arrival.message}
+            </p>
+          )}
           {cleanUpError && (
             <p role="alert" className="annotation-list-error">
               {cleanUpError}
@@ -528,9 +546,11 @@ function NoteItem({
             <button
               type="button"
               onClick={() => void transcribe()}
-              disabled={transcribing}
+              disabled={transcribing || arrival?.status === 'pending'}
             >
-              {transcribing ? 'Transcribing…' : 'Transcribe…'}
+              {transcribing || arrival?.status === 'pending'
+                ? 'Transcribing…'
+                : 'Transcribe…'}
             </button>
           )}
           {onCleanUp && c.voice?.transcript && (
