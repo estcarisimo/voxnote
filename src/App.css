@@ -87,3 +87,15 @@
     display: none;
   }
 }
+
+.app-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.app-keys svg {
+  flex: none;
+}

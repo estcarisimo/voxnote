@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Key management redesigned for reviewers who have never heard the word
+  "provider": the header button is now a key icon labeled **AI keys**
+  (44 px touch target), and the dialog of the same name lists the keys
+  stored in this browser, one row per provider, with what each is used for
+  (speech-to-text, clean-up or both), the model select for the role it
+  serves, and a trash button that asks **Remove** / **Keep** inline before
+  deleting the encrypted key. An empty state says keys stay in this browser
+  and are needed only to transcribe or clean up. **Add key** opens an inline
+  row whose provider select lists only providers without a key, labeled by
+  what they do; Save validates a non-empty key and collapses the row. When
+  more than one stored key can serve a role, a compact **Use for clean-up**
+  (or **Use for speech-to-text**) select picks which; with one candidate the
+  choice is implicit and shown as text. Adding the first key that can serve
+  a role picks it; removing the key in use moves the role to the next stored
+  key. A saved key is never shown again, not even its length: a fixed "••••"
+  stands in. Error messages that said "under Providers" now say "in AI
+  keys". The language hint stays as one small field at the bottom.
+
 ### Added
 
 - Landing view redesigned so a first visit explains the app: the app icon,

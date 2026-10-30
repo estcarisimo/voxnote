@@ -33,6 +33,11 @@ export type ProviderId = 'openai' | 'anthropic' | 'xai'
 export type SttProviderId = 'openai'
 export type TextProviderId = ProviderId
 
+export const PROVIDER_IDS: readonly ProviderId[] = [
+  'openai',
+  'anthropic',
+  'xai',
+]
 export const STT_PROVIDER_IDS: readonly SttProviderId[] = ['openai']
 export const TEXT_PROVIDER_IDS: readonly TextProviderId[] = [
   'openai',
