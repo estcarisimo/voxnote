@@ -33,6 +33,12 @@ export interface SpeechToTextProvider {
   readonly name: string
   /** Where the audio goes, e.g. "api.openai.com". Shown before sending. */
   readonly endpointHost: string
+  /**
+   * Whether the provider takes a text prompt (`TranscriptionRequest.prompt`).
+   * When false the UI must not offer the quote hint, and `transcribe`
+   * refuses a request that carries one.
+   */
+  readonly acceptsPrompt: boolean
   /** Plain-language statement of exactly what this request sends. */
   describeUpload(request: TranscriptionRequest): string
   transcribe(
@@ -54,6 +60,11 @@ export async function transcribe(
 ): Promise<Transcript> {
   if (request.audio.size === 0) {
     throw new Error('Nothing to transcribe: the recording is empty')
+  }
+  if (request.prompt !== undefined && !provider.acceptsPrompt) {
+    throw new Error(
+      `${provider.name} takes no prompt; the quote hint was not sent`,
+    )
   }
   const result = await provider.transcribe(request, options)
   if (typeof result.text !== 'string' || result.text.trim() === '') {

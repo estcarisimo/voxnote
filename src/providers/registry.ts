@@ -1,7 +1,9 @@
 /**
  * The providers VoxNote knows about and the local, non-secret settings that
  * pick one. Speech-to-text and text clean-up are chosen separately; a
- * provider that offers both (OpenAI) has one key for both. The API key itself
+ * provider that offers both (OpenAI) has one key for both. Every other
+ * provider has its own key id, so a key is only ever sent to the host of
+ * the provider it was saved for. The API key itself
  * lives in the encrypted secret store under `SECRET_NAMES[id]`; nothing here
  * reads or writes it.
  */
@@ -10,6 +12,12 @@ import {
   createAnthropicTextProvider,
   DEFAULT_ANTHROPIC_TEXT_MODEL,
 } from './anthropic'
+import {
+  createDeepgramProvider,
+  DEEPGRAM_MODELS,
+  DEFAULT_DEEPGRAM_MODEL,
+} from './deepgram'
+import { createGroqProvider, DEFAULT_GROQ_MODEL, GROQ_MODELS } from './groq'
 import type { TextModelInfo, TextModelProvider } from './llm'
 import {
   createOpenAiProvider,
@@ -29,11 +37,22 @@ import {
 } from './xai'
 
 /** Every provider that may hold a key. */
-export type ProviderId = 'openai' | 'anthropic' | 'xai'
-export type SttProviderId = 'openai'
-export type TextProviderId = ProviderId
+export type ProviderId = 'openai' | 'anthropic' | 'xai' | 'deepgram' | 'groq'
+export type SttProviderId = 'openai' | 'deepgram' | 'groq'
+export type TextProviderId = 'openai' | 'anthropic' | 'xai'
 
-export const STT_PROVIDER_IDS: readonly SttProviderId[] = ['openai']
+export const PROVIDER_IDS: readonly ProviderId[] = [
+  'openai',
+  'anthropic',
+  'xai',
+  'deepgram',
+  'groq',
+]
+export const STT_PROVIDER_IDS: readonly SttProviderId[] = [
+  'openai',
+  'deepgram',
+  'groq',
+]
 export const TEXT_PROVIDER_IDS: readonly TextProviderId[] = [
   'openai',
   'anthropic',
@@ -45,12 +64,16 @@ export const SECRET_NAMES: Record<ProviderId, string> = {
   openai: 'openai.apiKey',
   anthropic: 'anthropic.apiKey',
   xai: 'xai.apiKey',
+  deepgram: 'deepgram.apiKey',
+  groq: 'groq.apiKey',
 }
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
   openai: 'OpenAI',
   anthropic: 'Anthropic (Claude)',
   xai: 'xAI (Grok)',
+  deepgram: 'Deepgram',
+  groq: 'Groq (hosted Whisper)',
 }
 
 export const STT_MODELS: Record<
@@ -58,10 +81,14 @@ export const STT_MODELS: Record<
   readonly { id: string; label: string }[]
 > = {
   openai: OPENAI_MODELS,
+  deepgram: DEEPGRAM_MODELS,
+  groq: GROQ_MODELS,
 }
 
 export const DEFAULT_STT_MODELS: Record<SttProviderId, string> = {
   openai: DEFAULT_OPENAI_MODEL,
+  deepgram: DEFAULT_DEEPGRAM_MODEL,
+  groq: DEFAULT_GROQ_MODEL,
 }
 
 export const TEXT_MODELS: Record<TextProviderId, readonly TextModelInfo[]> = {
@@ -109,6 +136,10 @@ export function createProvider(
   switch (settings.provider) {
     case 'openai':
       return createOpenAiProvider(settings.model, fetchImpl)
+    case 'deepgram':
+      return createDeepgramProvider(settings.model, fetchImpl)
+    case 'groq':
+      return createGroqProvider(settings.model, fetchImpl)
   }
 }
 

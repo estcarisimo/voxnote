@@ -62,7 +62,7 @@ export function useProviders(): Providers {
       .catch((err: unknown) => {
         if (cancelled) return
         setError(
-          `Provider keys are unavailable: ${err instanceof Error ? err.message : String(err)}`,
+          `AI keys are unavailable: ${err instanceof Error ? err.message : String(err)}`,
         )
       })
     return () => {

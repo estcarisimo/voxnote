@@ -1,12 +1,16 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { SpeechToTextProvider } from '../providers/stt'
+import { createDeepgramProvider } from '../providers/deepgram'
+import { createGroqProvider } from '../providers/groq'
+import { createOpenAiProvider } from '../providers/openai'
 import { TranscribeDialog } from './TranscribeDialog'
 
 const provider: SpeechToTextProvider = {
   id: 'fake',
   name: 'Fake STT',
   endpointHost: 'stt.example',
+  acceptsPrompt: true,
   describeUpload: (r) =>
     `Sends audio${r.prompt ? ' and the quote' : ''}${r.language ? ` (${r.language})` : ''} to stt.example`,
   transcribe: vi.fn(),
@@ -135,4 +139,59 @@ describe('TranscribeDialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onCancel).toHaveBeenCalled()
   })
+
+  it.each([
+    {
+      provider: createOpenAiProvider('gpt-transcribe', vi.fn()),
+      host: 'api.openai.com',
+      model: 'gpt-transcribe',
+      quote: true,
+    },
+    {
+      provider: createDeepgramProvider('nova-3', vi.fn()),
+      host: 'api.deepgram.com',
+      model: 'nova-3',
+      quote: false,
+    },
+    {
+      provider: createGroqProvider('whisper-large-v3-turbo', vi.fn()),
+      host: 'api.groq.com',
+      model: 'whisper-large-v3-turbo',
+      quote: true,
+    },
+  ])(
+    'names $host and $model for $provider.name, with the quote hint only if it takes a prompt',
+    ({ provider: real, host, model, quote }) => {
+      const onConfirm = vi.fn(async () => transcript)
+      render(
+        <TranscribeDialog
+          input={input}
+          provider={real}
+          language="es"
+          onConfirm={onConfirm}
+          onDone={() => {}}
+          onCancel={() => {}}
+        />,
+      )
+      const disclosure = screen.getByText(/^Sends the recording/)
+      expect(disclosure.textContent).toBe(
+        `Sends the recording (audio/webm, 4 B) and the language hint "es" to ${real.name} at ${host}, model ${model}, ` +
+          'with your API key. Nothing else: not the document, not other comments.',
+      )
+      expect(screen.queryByRole('checkbox') !== null).toBe(quote)
+      if (quote) {
+        fireEvent.click(screen.getByRole('checkbox'))
+        expect(disclosure.textContent).toContain('the quoted passage')
+      }
+      fireEvent.click(
+        screen.getByRole('button', { name: `Send to ${real.name}` }),
+      )
+      expect(onConfirm).toHaveBeenCalledWith({
+        audio: input.audio,
+        mimeType: 'audio/webm',
+        language: 'es',
+        ...(quote ? { prompt: 'the quoted passage' } : {}),
+      })
+    },
+  )
 })

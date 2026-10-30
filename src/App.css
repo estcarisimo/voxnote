@@ -88,6 +88,18 @@
   }
 }
 
+.app-bar .app-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.app-bar .app-keys svg {
+  flex: none;
+}
+
 /* Repository link in the app bar: icon only, sized like the other controls. */
 .app-bar-github {
   flex: none;

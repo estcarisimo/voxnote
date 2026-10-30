@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Key management redesigned for reviewers who have never heard the word
+  "provider": the header button is now a key icon labeled **AI keys**
+  (44 px touch target), and the dialog of the same name lists the keys
+  stored in this browser, one row per provider, with what each is used for
+  (speech-to-text, clean-up or both), the model select for the role it
+  serves, and a trash button that asks **Remove** / **Keep** inline before
+  deleting the encrypted key. An empty state says keys stay in this browser
+  and are needed only to transcribe or clean up. **Add key** opens an inline
+  row whose provider select lists only providers without a key, labeled by
+  what they do; Save validates a non-empty key and collapses the row. When
+  more than one stored key can serve a role, a compact **Use for clean-up**
+  (or **Use for speech-to-text**) select picks which; with one candidate the
+  choice is implicit and shown as text. Adding the first key that can serve
+  a role picks it; removing the key in use moves the role to the next stored
+  key. A saved key is never shown again, not even its length: a fixed "••••"
+  stands in. Error messages that said "under Providers" now say "in AI
+  keys". The language hint stays as one small field at the bottom.
+
 ### Added
 
 - The GitHub mark links to the repository from the top-right corner of the
@@ -14,6 +34,20 @@ All notable changes to this project are documented here. The format follows
   in the text color, no extra request. The app-bar mark hides below 900 px
   wide (iPad portrait), where the bar has no room. The footer's "Repository"
   text link is gone; "Open source, MIT" and the license link stay.
+- Two more speech-to-text providers, so transcription is no longer
+  OpenAI-only: **Deepgram** (`nova-3` default, `nova-2`; pre-recorded
+  `POST api.deepgram.com/v1/listen` with the raw recording as the body,
+  `Authorization: Token`, `punctuate=true` only, never `smart_format` or
+  any option that rewrites words; `detect_language=true` when no language
+  hint is set, since Deepgram otherwise assumes English) and **Groq**
+  hosted Whisper (`whisper-large-v3-turbo` default, `whisper-large-v3`;
+  OpenAI-compatible multipart upload to `api.groq.com`, Bearer auth). Each
+  has its own encrypted key; a key is only ever read for, and sent to, the
+  provider shown in the consent dialog. Deepgram has no prompt parameter,
+  so the quote-hint checkbox is not offered for it. Request shapes taken
+  from the vendors' docs read on 2026-10-30; verified with unit tests and a
+  headless run with both endpoints intercepted. **No real Deepgram or Groq
+  call has been made.**
 - Landing view redesigned so a first visit explains the app: the app icon,
   the tagline, one sentence on what VoxNote does, the **Open a PDF** button
   with the drop hint, a three-item row (Highlight, Comment by voice, Suggest
@@ -140,6 +174,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Speech-to-text adapters declare `acceptsPrompt`; the consent dialog
+  shows the quote hint only for providers that take one, and a request
+  with a prompt to one that does not is refused before anything is sent.
+  The OpenAI adapter now shares its file naming, size wording and key
+  redaction with the new adapters (`src/providers/stt-http.ts`); error
+  text also redacts the exact key that was sent, for every provider.
 - The **Highlights** panel is now **Annotations** and lists comments with
   their quote, body and voice badge.
 - IndexedDB schema version 2 adds an `audio` object store; version 1

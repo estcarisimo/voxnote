@@ -1,0 +1,152 @@
+/* The "AI keys" dialog: a list of stored keys, an inline add row. */
+
+:root {
+  --danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --danger: #ff8a80;
+  }
+}
+
+.keys-empty {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.keys-list {
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.keys-row {
+  padding: 10px 12px;
+}
+
+.keys-row + .keys-row {
+  border-top: 1px solid var(--border);
+}
+
+.keys-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.keys-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.keys-row-text strong {
+  color: var(--text-h);
+}
+
+.keys-row-uses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.keys-mask {
+  letter-spacing: 2px;
+  color: var(--text-h);
+}
+
+.dialog .keys-trash {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-color: transparent;
+}
+
+.dialog .keys-trash:hover,
+.dialog .keys-trash:focus-visible {
+  border-color: var(--border);
+}
+
+.keys-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--accent-bg);
+  font-size: 0.9rem;
+}
+
+.keys-confirm span {
+  flex: 1;
+  min-width: 160px;
+  color: var(--text-h);
+}
+
+.dialog button.is-danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.keys-model {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+.keys-model select {
+  width: 100%;
+}
+
+.keys-role {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.dialog .keys-add {
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 12px;
+}
+
+.keys-add-row {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  background: var(--accent-bg);
+}
+
+.keys-add-row .dialog-row {
+  justify-content: flex-end;
+}
+
+.keys-language {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.keys-language input {
+  max-width: 160px;
+}
