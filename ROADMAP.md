@@ -78,7 +78,12 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
       to denied, so no cookies are set. Implemented 2026-10-29
       (`src/components/analytics.ts`, verified headless: no request with the
       variable unset, one gtag script request and zero cookies with it set).
-      Counting starts only once the repository variable is set.
+      Variable set and `main` redeployed on 2026-10-30 (`gh variable list`,
+      Pages run 41115029311 success); headless Chromium 155 against the live
+      landing: one gtag.js request, `gcs=G100` and zero cookies in a fresh
+      profile, `dl` is the landing URL only. GA4's default enhanced
+      measurement adds `scroll` and `user_engagement` events to the page
+      view; turning it off is a property setting, not code.
 - [ ] Open and install the deployed PWA on a real iPad.
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.

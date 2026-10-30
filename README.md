@@ -156,10 +156,12 @@ The review flow is select, act, export:
   without cookies: the build reads the measurement id from the repository
   variable `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only,
   denies analytics and ad storage and every ad signal by default, and sends a
-  single page view. No custom events; never a file name, document id,
+  page view. The app defines no custom events; GA4's default "enhanced
+  measurement" also reports scroll depth and engagement time on the landing
+  (seen in the network log on 2026-10-30). Never a file name, document id,
   annotation or transcript. A build without the variable (your own checkout,
-  a fork) ships no analytics at all. Counting starts once the maintainer sets
-  the variable in the repository settings and `main` is deployed again.
+  a fork) ships no analytics at all. Counting on the live site started on
+  2026-10-30, when the variable was set and `main` was deployed again.
 - **Keys are yours.** API keys are added under **AI keys** (the key icon in
   the header) and stored AES-GCM encrypted at rest, with a non-extractable
   key kept in IndexedDB. A saved key is never shown again, not even
