@@ -3,11 +3,14 @@ import {
   createProvider,
   createTextProvider,
   DEFAULT_SETTINGS,
+  DEFAULT_STT_MODELS,
   DEFAULT_TEXT_SETTINGS,
   isLanguageHint,
   normalizeSettings,
   normalizeTextSettings,
   SECRET_NAMES,
+  STT_MODELS,
+  STT_PROVIDER_IDS,
   TEXT_MODELS,
   TEXT_PROVIDER_IDS,
 } from './registry'
@@ -74,6 +77,49 @@ describe('provider registry', () => {
       return p.endpointHost
     })
     expect(hosts).toEqual(['api.openai.com', 'api.anthropic.com', 'api.x.ai'])
-    expect(new Set(Object.values(SECRET_NAMES)).size).toBe(3)
+    expect(new Set(Object.values(SECRET_NAMES)).size).toBe(
+      Object.keys(SECRET_NAMES).length,
+    )
+  })
+
+  it('creates every speech-to-text provider with its own host, models and key', () => {
+    const made = STT_PROVIDER_IDS.map((id) => {
+      const p = createProvider({
+        provider: id,
+        model: DEFAULT_STT_MODELS[id],
+        language: '',
+      })
+      expect(p.id).toBe(id)
+      expect(STT_MODELS[id].some((m) => m.id === DEFAULT_STT_MODELS[id])).toBe(
+        true,
+      )
+      return [p.endpointHost, p.acceptsPrompt, SECRET_NAMES[id]]
+    })
+    expect(made).toEqual([
+      ['api.openai.com', true, 'openai.apiKey'],
+      ['api.deepgram.com', false, 'deepgram.apiKey'],
+      ['api.groq.com', true, 'groq.apiKey'],
+    ])
+  })
+
+  it('keeps a speech-to-text model only for its own provider', () => {
+    expect(
+      normalizeSettings({
+        provider: 'deepgram',
+        model: 'nova-2',
+        language: '',
+      }),
+    ).toEqual({ provider: 'deepgram', model: 'nova-2', language: '' })
+    expect(
+      normalizeSettings({ provider: 'groq', model: 'gpt-transcribe' }),
+    ).toEqual({
+      provider: 'groq',
+      model: 'whisper-large-v3-turbo',
+      language: '',
+    })
+    expect(
+      normalizeSettings({ provider: 'deepgram', model: 'whisper-large-v3' })
+        .model,
+    ).toBe('nova-3')
   })
 })

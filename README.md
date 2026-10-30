@@ -39,8 +39,8 @@ yet (see [Status](#-status-and-caveats)).
   **Comment** (typed), **Voice** (recorded with the microphone) and
   **Suggest** (edit the passage as it should read, Google Docs style, typed
   or dictated)
-- 🗣️ **Opt-in transcription**: **Transcribe…** sends a recording to OpenAI
-  with your own API key, only after a consent dialog that says exactly what
+- 🗣️ **Opt-in transcription**: **Transcribe…** sends a recording to OpenAI,
+  Deepgram or Groq (hosted Whisper) with your own API key, only after a consent dialog that says exactly what
   is sent and to which host; the raw transcript is kept verbatim
 - 🧹 **Opt-in clean-up**: **Clean up…** asks a text model (OpenAI, Anthropic
   Claude or xAI Grok, each with your own key) to fix punctuation, casing,
@@ -67,8 +67,10 @@ yet (see [Status](#-status-and-caveats)).
 Everything above works on `main` today, with these limits, all tracked in
 [ROADMAP.md](ROADMAP.md):
 
-- **No real transcription has been measured.** The OpenAI provider is
-  verified against a mocked endpoint only; there are no accuracy or latency
+- **No real transcription has been measured.** The OpenAI, Deepgram and
+  Groq providers are verified against mocked endpoints only (whether
+  Deepgram and Groq accept calls straight from a browser is unknown until a
+  real call); there are no accuracy or latency
   figures, and there will be none here without the dataset, parameters,
   provider version and date behind them.
 - **No real clean-up call has been made.** The OpenAI, Anthropic and xAI
@@ -163,7 +165,7 @@ The review flow is select, act, export:
   dialog, which states what is sent (the recording, optionally the quoted
   passage as a vocabulary hint, the language hint) and to which host, and
   only to the provider you picked. Nothing is uploaded until you tap
-  **Send to OpenAI**. A clean-up sends the raw transcript text (optionally
+  **Send to …** (OpenAI, Deepgram or Groq). A clean-up sends the raw transcript text (optionally
   the quoted passage, to spell terms) to the text provider you picked, with
   `store: false` on OpenAI and xAI, only after you tap **Send to …**.
 - **Nothing is published automatically.** Exports are downloads you start.
@@ -185,11 +187,14 @@ one stored key can serve a role, a **Use for clean-up** (or **Use for
 speech-to-text**) select picks which; with a single candidate it is implicit.
 Speech to text:
 
-| Setting       | Values                                                                                              |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| Provider      | OpenAI (the only speech-to-text provider today; Deepgram is on the roadmap)                         |
-| Model         | `gpt-transcribe` (default), or the older `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1` |
-| Language hint | An ISO 639-1 code such as `es` or `en`, or empty to let the model detect it                         |
+| Setting       | Values                                                                                                                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider      | OpenAI (default), Deepgram or Groq (hosted Whisper)                                                                                                                                                                     |
+| Model         | OpenAI `gpt-transcribe` (default), or the deprecated `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`; Deepgram `nova-3` (default) or `nova-2`; Groq `whisper-large-v3-turbo` (default) or `whisper-large-v3` |
+| Language hint | An ISO 639-1 code such as `es` or `en`, or empty to let the model detect it (Deepgram: `detect_language`)                                                                                                               |
+
+The quoted passage can be sent as a vocabulary hint to OpenAI and Groq;
+Deepgram has no prompt parameter, so the option is not offered for it.
 
 Clean-up (optional):
 
@@ -198,7 +203,7 @@ Clean-up (optional):
 | Provider | OpenAI (default), Anthropic (Claude) or xAI (Grok)                                                               |
 | Model    | OpenAI `gpt-6.1-terra` (default); Anthropic `claude-opus-5-5` (default); xAI `grok-4.7` (default); others listed |
 
-API keys: one per provider (OpenAI, Anthropic, xAI), your own, encrypted at
+API keys: one per provider (OpenAI, Anthropic, xAI, Deepgram, Groq), your own, encrypted at
 rest in the browser and sent only in the request you confirm, straight to
 that provider. Adding a key for a provider that can serve a role nobody else
 covers (the first Anthropic key, say, for clean-up) picks it for that role;
@@ -228,8 +233,9 @@ src/
 │                 #   PDF / Markdown / JSON export, recording
 ├── hooks/        # React glue: annotations, providers, recorder, transcription,
 │                 #   clean-up
-└── providers/    # Speech-to-text and text-model adapters: OpenAI
-                  #   transcription; OpenAI, Anthropic and xAI clean-up
+└── providers/    # Speech-to-text and text-model adapters: OpenAI,
+                  #   Deepgram and Groq transcription; OpenAI, Anthropic
+                  #   and xAI clean-up
 public/           # PWA manifest and icons
 ```
 
@@ -299,6 +305,9 @@ renders it under "Cite this repository").
   annotation types the export uses
 - [OpenAI speech to text](https://platform.openai.com/docs/guides/speech-to-text):
   the transcription API behind the OpenAI provider
+- [Deepgram pre-recorded audio](https://developers.deepgram.com/docs/pre-recorded-audio)
+  and [Groq speech to text](https://console.groq.com/docs/speech-to-text):
+  the transcription APIs behind the Deepgram and Groq providers
 - [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create),
   [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages.md)
   and

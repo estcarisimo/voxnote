@@ -7,6 +7,13 @@
  * return `{ text }` (`verbose_json` adds `language` for whisper-1).
  */
 import type { SpeechToTextProvider, TranscriptionResult } from './stt'
+import {
+  excerpt,
+  formatBytes,
+  joinNatural,
+  openAiStyleError,
+  uploadFileName,
+} from './stt-http'
 
 export const OPENAI_ENDPOINT = 'https://api.openai.com/v1/audio/transcriptions'
 export const OPENAI_HOST = 'api.openai.com'
@@ -57,6 +64,7 @@ export function createOpenAiProvider(
     id: 'openai',
     name: 'OpenAI',
     endpointHost: OPENAI_HOST,
+    acceptsPrompt: true,
 
     describeUpload(request) {
       const parts = [
@@ -84,7 +92,11 @@ export function createOpenAiProvider(
         )
       }
       const form = new FormData()
-      form.append('file', request.audio, fileName(request.mimeType))
+      form.append(
+        'file',
+        request.audio,
+        uploadFileName(request.mimeType, 'OpenAI'),
+      )
       form.append('model', model.id)
       form.append('response_format', 'json')
       if (request.language) form.append(model.languageField, request.language)
@@ -99,7 +111,7 @@ export function createOpenAiProvider(
       const text = await response.text()
       if (!response.ok) {
         throw new Error(
-          `OpenAI responded ${response.status}: ${errorMessage(text)}`,
+          `OpenAI responded ${response.status}: ${openAiStyleError(text, options.apiKey)}`,
         )
       }
       let json: unknown
@@ -107,15 +119,19 @@ export function createOpenAiProvider(
         json = JSON.parse(text)
       } catch {
         throw new Error(
-          `OpenAI returned something that is not JSON: ${excerpt(text)}`,
+          `OpenAI returned something that is not JSON: ${excerpt(text, options.apiKey)}`,
         )
       }
       if (typeof json !== 'object' || json === null) {
-        throw new Error(`OpenAI returned an unexpected body: ${excerpt(text)}`)
+        throw new Error(
+          `OpenAI returned an unexpected body: ${excerpt(text, options.apiKey)}`,
+        )
       }
       const body = json as Record<string, unknown>
       if (typeof body.text !== 'string') {
-        throw new Error(`OpenAI returned no "text" field: ${excerpt(text)}`)
+        throw new Error(
+          `OpenAI returned no "text" field: ${excerpt(text, options.apiKey)}`,
+        )
       }
       const result: TranscriptionResult = { text: body.text, model: model.id }
       const language = reportedLanguage(body)
@@ -137,54 +153,4 @@ function reportedLanguage(body: Record<string, unknown>): string | undefined {
   return typeof body.language === 'string' && body.language !== ''
     ? body.language
     : undefined
-}
-
-/** OpenAI picks the decoder from the filename extension. */
-function fileName(mimeType: string): string {
-  const type = mimeType.split(';')[0].trim().toLowerCase()
-  const ext: Record<string, string> = {
-    'audio/webm': 'webm',
-    'audio/mp4': 'mp4',
-    'audio/mpeg': 'mp3',
-    'audio/wav': 'wav',
-    'audio/ogg': 'ogg',
-    'audio/flac': 'flac',
-  }
-  const extension = ext[type]
-  if (!extension) {
-    throw new Error(`OpenAI does not accept recordings of type ${mimeType}`)
-  }
-  return `recording.${extension}`
-}
-
-function errorMessage(body: string): string {
-  try {
-    const json = JSON.parse(body) as { error?: { message?: unknown } }
-    if (typeof json.error?.message === 'string') {
-      return redact(json.error.message)
-    }
-  } catch {
-    // Not JSON: fall through to the raw excerpt.
-  }
-  return excerpt(body) || 'no response body'
-}
-
-function excerpt(text: string): string {
-  return redact(text.length > 200 ? `${text.slice(0, 200)}…` : text)
-}
-
-/** OpenAI error messages can quote the key that was sent; never show it. */
-function redact(text: string): string {
-  return text.replace(/sk-[A-Za-z0-9_-]{4,}/g, 'sk-…')
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function joinNatural(parts: string[]): string {
-  if (parts.length <= 1) return parts.join('')
-  return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
 }

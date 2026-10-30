@@ -103,9 +103,15 @@ describe('ProviderSettings (AI keys)', () => {
     expect(Array.from(select.options).map((o) => o.value)).toEqual([
       'anthropic',
       'xai',
+      'deepgram',
+      'groq',
     ])
     expect(select.options[0]?.textContent).toMatch(
       /Anthropic \(Claude\) — clean-up/,
+    )
+    expect(select.options[2]?.textContent).toMatch(/Deepgram — speech-to-text/)
+    expect(select.options[3]?.textContent).toMatch(
+      /Groq \(hosted Whisper\) — speech-to-text/,
     )
     fireEvent.change(select, { target: { value: 'xai' } })
     expect(within(form).getByLabelText('xAI (Grok) API key')).toBeTruthy()
@@ -114,16 +120,27 @@ describe('ProviderSettings (AI keys)', () => {
   })
 
   it('hides "Add key" once every provider has a key', () => {
-    const providers = statefulProviders(['openai', 'anthropic', 'xai'])
+    const providers = statefulProviders([
+      'openai',
+      'anthropic',
+      'xai',
+      'deepgram',
+      'groq',
+    ])
     render(<ProviderSettings providers={providers} onClose={() => {}} />)
     expect(screen.queryByRole('button', { name: 'Add key' })).toBeNull()
-    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
   })
 
   it('survives the render between storing the last key and collapsing the row', async () => {
     // The hook lists the new key as soon as the store has it, while the add
     // row is still awaiting its promise: a render with nothing left to add.
-    const stored = new Set<ProviderId>(['openai', 'anthropic'])
+    const stored = new Set<ProviderId>([
+      'openai',
+      'anthropic',
+      'deepgram',
+      'groq',
+    ])
     let finishSave: () => void = () => {}
     const providers = providersWith({
       hasKey: (id) => stored.has(id),
@@ -146,7 +163,7 @@ describe('ProviderSettings (AI keys)', () => {
     rerender(
       <ProviderSettings providers={{ ...providers }} onClose={() => {}} />,
     )
-    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
     expect(screen.queryByRole('form', { name: 'Add key' })).toBeNull()
     await act(async () => {
       finishSave()
@@ -252,6 +269,29 @@ describe('ProviderSettings (AI keys)', () => {
     fireEvent.change(select, { target: { value: 'xai' } })
     expect(two.saveTextSettings).toHaveBeenCalledWith({
       provider: 'xai',
+      model: '',
+    })
+  })
+
+  it('offers Deepgram and Groq for speech-to-text, never for clean-up', () => {
+    const providers = statefulProviders(['openai', 'deepgram', 'groq'])
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    const select = screen.getByLabelText(
+      'Use for speech-to-text',
+    ) as HTMLSelectElement
+    expect(Array.from(select.options).map((o) => o.value)).toEqual([
+      'openai',
+      'deepgram',
+      'groq',
+    ])
+    expect(screen.queryByLabelText('Use for clean-up')).toBeNull()
+    expect(
+      screen.getByRole('listitem', { name: 'Deepgram key' }).textContent,
+    ).toContain('Not in use (can do speech-to-text)')
+    fireEvent.change(select, { target: { value: 'groq' } })
+    expect(providers.saveSettings).toHaveBeenCalledWith({
+      ...providers.settings,
+      provider: 'groq',
       model: '',
     })
   })
