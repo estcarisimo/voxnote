@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- The GitHub mark links to the repository from the top-right corner of the
+  landing view and from the far right of the app bar while reviewing, so the
+  code is one tap away. The mark is the official monochrome form, inline SVG
+  in the text color, no extra request. The app-bar mark hides below 900 px
+  wide (iPad portrait), where the bar has no room. The footer's "Repository"
+  text link is gone; "Open source, MIT" and the license link stay.
 - Landing view redesigned so a first visit explains the app: the app icon,
   the tagline, one sentence on what VoxNote does, the **Open a PDF** button
   with the drop hint, a three-item row (Highlight, Comment by voice, Suggest

@@ -87,3 +87,21 @@
     display: none;
   }
 }
+
+/* Repository link in the app bar: icon only, sized like the other controls. */
+.app-bar-github {
+  flex: none;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+/* Below 900px (iPad portrait) the bar is full: the landing keeps the link. */
+@media (max-width: 899px) {
+  .app-bar-github {
+    display: none;
+  }
+}
