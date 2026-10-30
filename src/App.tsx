@@ -4,6 +4,7 @@ import {
   type TranscriptArrival,
 } from './components/AnnotationList'
 import { CleanUpDialog } from './components/CleanUpDialog'
+import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
 import { OpenPdf } from './components/OpenPdf'
@@ -157,44 +158,26 @@ function App() {
   async function createNote({ pendingTranscript, ...request }: NewNoteRequest) {
     const note = await store.addNote(request)
     setSelectedId(note.id)
-    if (pendingTranscript) void deliverTranscript(note, pendingTranscript)
+    if (pendingTranscript) receiveTranscript(note, pendingTranscript)
   }
 
-  /**
-   * A comment saved while its automatic transcription was still running
-   * gets the transcript on arrival through the stored-note path, so the
-   * usual rules apply: the raw text is kept, an empty body is filled. A
-   * failure is shown on the comment in the panel.
-   */
-  async function deliverTranscript(
+  /** The transcript reaches the saved note, or its error shows in the panel. */
+  function receiveTranscript(
     note: Note,
     pendingTranscript: Promise<Transcript | null>,
   ) {
-    const settle = (arrival: TranscriptArrival | null) =>
-      setArrivals((current) => {
-        const next = { ...current }
-        if (arrival) next[note.id] = arrival
-        else delete next[note.id]
-        return next
-      })
-    settle({ status: 'pending' })
-    try {
-      const transcript = await pendingTranscript
-      if (!transcript) {
-        settle(null)
-        return
-      }
-      if (docIdRef.current !== note.documentId) {
-        throw new Error('The document changed; the transcript was not saved')
-      }
-      await storeRef.current.setTranscript(note.id, transcript)
-      settle(null)
-    } catch (err: unknown) {
-      settle({
-        status: 'error',
-        message: `Transcription failed: ${messageOf(err)}`,
-      })
-    }
+    void deliverTranscript(note, pendingTranscript, {
+      currentDocumentId: () => docIdRef.current,
+      setTranscript: (id, transcript) =>
+        storeRef.current.setTranscript(id, transcript),
+      onArrival: (id, arrival) =>
+        setArrivals((current) => {
+          const next = { ...current }
+          if (arrival) next[id] = arrival
+          else delete next[id]
+          return next
+        }),
+    })
   }
 
   async function updateBody(note: Note, body: string) {

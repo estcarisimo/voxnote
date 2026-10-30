@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   createComment,
   createHighlight,
@@ -79,6 +79,10 @@ const NONE: Annotation[] = []
 export function useAnnotations(documentId: string | null): AnnotationsState {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState<Failed | null>(null)
+  // The list as of the last write, ahead of the render that shows it: a
+  // transcript arriving right after a save must find the saved note even
+  // when the caller still holds the callbacks of the previous render.
+  const latest = useRef<Loaded | null>(null)
 
   useEffect(() => {
     if (!documentId) return
@@ -96,7 +100,8 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
         opened = store
         const annotations = await store.list(documentId)
         if (cancelled) return
-        setLoaded({ documentId, store, annotations })
+        latest.current = { documentId, store, annotations }
+        setLoaded(latest.current)
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -117,11 +122,10 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
   /** Applies a change to this document's list, if it is still the current one. */
   const apply = useCallback(
     (documentId: string, change: (list: Annotation[]) => Annotation[]) => {
-      setLoaded((state) =>
-        state && state.documentId === documentId
-          ? { ...state, annotations: change(state.annotations) }
-          : state,
-      )
+      const state = latest.current
+      if (!state || state.documentId !== documentId) return
+      latest.current = { ...state, annotations: change(state.annotations) }
+      setLoaded(latest.current)
     },
     [],
   )
@@ -207,13 +211,18 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
   const setTranscript = useCallback(
     async (id: string, transcript: Transcript) => {
       if (!current) throw new Error('Annotation store is not ready')
-      const existing = current.annotations.find((a) => a.id === id)
+      // Read the latest write, not this render's list: see `latest`.
+      const state =
+        latest.current?.documentId === current.documentId
+          ? latest.current
+          : current
+      const existing = state.annotations.find((a) => a.id === id)
       if (!existing || !isNote(existing)) {
         throw new Error(`No comment or suggestion with id ${id}`)
       }
       const updated = withTranscript(existing, transcript)
-      await current.store.put(updated)
-      apply(current.documentId, (list) =>
+      await state.store.put(updated)
+      apply(state.documentId, (list) =>
         list.map((a) => (a.id === id ? updated : a)),
       )
       return updated
