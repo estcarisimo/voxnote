@@ -24,6 +24,12 @@ export default defineConfig(({ command, isPreview }) => ({
         // there is no runtimeCaching, so provider API calls are never cached.
         globPatterns: ['**/*.{html,js,mjs,css,svg,png,webmanifest}'],
         navigateFallback: 'index.html',
+        // The files for crawlers and agents are served as themselves, not
+        // as the app shell, when a browser with the worker installed opens
+        // them directly.
+        navigateFallbackDenylist: [
+          /\/(llms(-full)?\.txt|robots\.txt|sitemap\.xml)$/,
+        ],
         // The main bundle and the pdf.js worker are each above 1 MiB.
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         cleanupOutdatedCaches: true,

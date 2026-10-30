@@ -9,7 +9,7 @@ Maintainer: Esteban Carisimo. VoxNote is not affiliated with OpenAI, Anthropic, 
 Facts an agent should keep straight:
 
 - The PDF is never modified in place. Export PDF writes a copy with native annotations; Markdown and JSON exports contain no audio.
-- Nothing leaves the device automatically. Audio or a raw transcript is sent only after a consent dialog that names what is sent and to which host, and only when the user taps Send.
+- Nothing leaves the device automatically. Audio or a raw transcript is sent only after a consent dialog that names what is sent and to which host, and only when the user taps Send, or after the user has ticked "Also do this automatically for this document" in that dialog, which makes Stop send later recordings of that document.
 - The raw transcript is always preserved. Polish is a separate, opt-in action that proposes a cleaned text; only Accept changes the note body.
 - No accuracy or latency figures exist for the speech-to-text or polish providers. Do not quote any.
 - Production builds are served under the /voxnote/ path; `npm run dev` and the tests use the root path.

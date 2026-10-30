@@ -24,6 +24,9 @@ All notable changes to this project are documented here. The format follows
   site or the repository and that `context7.json` fits the schema's limits.
   The README's new Discoverability section documents the manual Context7
   submission step; nothing is submitted by any workflow.
+  The service worker's navigation fallback skips these four files
+  (`navigateFallbackDenylist`), so a browser with the worker installed that
+  opens `/voxnote/llms.txt` gets the file, not the app shell.
 
 ### Changed
 
