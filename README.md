@@ -9,7 +9,7 @@ never edited. Annotations live beside the document in your browser and are
 exported into a copy (annotated PDF, Markdown report or JSON). There is no
 backend: VoxNote is a static web app, local-first by default, and audio or
 transcript text leaves the device only when you confirm a transcription or a
-clean-up with your own provider key.
+polish with your own provider key.
 
 [![CI](https://github.com/estcarisimo/voxnote/actions/workflows/ci.yml/badge.svg)](https://github.com/estcarisimo/voxnote/actions/workflows/ci.yml)
 [![Security](https://github.com/estcarisimo/voxnote/actions/workflows/security.yml/badge.svg)](https://github.com/estcarisimo/voxnote/actions/workflows/security.yml)
@@ -42,12 +42,12 @@ yet (see [Status](#-status-and-caveats)).
 - 🗣️ **Opt-in transcription**: **Transcribe…** sends a recording to OpenAI,
   Deepgram or Groq (hosted Whisper) with your own API key, only after a consent dialog that says exactly what
   is sent and to which host; the raw transcript is kept verbatim
-- 🧹 **Opt-in clean-up**: **Clean up…** asks a text model (OpenAI, Anthropic
+- 🧹 **Opt-in polish**: **Polish…** asks a text model (OpenAI, Anthropic
   Claude or xAI Grok, each with your own key) to fix punctuation, casing,
   fillers and technical terms in a raw transcript; the consent dialog names
   the host and model and shows the exact prompt, the raw text and the
   proposal sit side by side, and only **Accept** changes the note. The raw
-  transcript is never touched, and a cleaned body is labeled as such in the
+  transcript is never touched, and a polished body is labeled as such in the
   sidebar and the exports
 - 🗂️ **Annotations sidebar**: group by kind, visibility or page; filter by
   kind, visibility, untranscribed voice notes or free text; edit bodies; mark
@@ -73,10 +73,10 @@ Everything above works on `main` today, with these limits, all tracked in
   real call); there are no accuracy or latency
   figures, and there will be none here without the dataset, parameters,
   provider version and date behind them.
-- **No real clean-up call has been made.** The OpenAI, Anthropic and xAI
+- **No real polish call has been made.** The OpenAI, Anthropic and xAI
   text adapters are verified against mocked endpoints only; whether each
   vendor accepts calls straight from a browser, and the quality, latency and
-  cost of the clean-ups, are unmeasured.
+  cost of the polished text, are unmeasured.
 - **Real-iPad confirmation is pending.** Pen-drag selection is verified
   headless with emulated pen events; installing the PWA and recording in
   Safari (its MP4 audio path and real permission prompt) are untested on an
@@ -125,15 +125,15 @@ The review flow is select, act, export:
      this document** in that dialog makes **Stop** send each later
      recording of this document straight away (the composer shows
      **Auto-transcribe: on**; tap it to turn it off), and you can **Save**
-     before the transcript comes back. Once there is a raw transcript, **Clean up…** offers
-     an optional tidied version: review it next to the raw text, then
+     before the transcript comes back. Once there is a raw transcript, **Polish…** offers
+     an optional polished version: review it next to the raw text, then
      **Accept** or **Discard**.
    - **Suggest** (text selections only) — edit the passage in place; saving
      needs an actual change.
 4. **Review** in the **Annotations** panel: group, filter, edit bodies, set
-   visibility, transcribe or clean up stored voice notes, delete, or tap an
+   visibility, transcribe or polish stored voice notes, delete, or tap an
    entry to scroll to its marks.
-5. **Keys** for transcription and clean-up go under **AI keys** (the key
+5. **Keys** for transcription and polish go under **AI keys** (the key
    icon in the header): tap **Add key**, pick the provider, paste the key,
    **Save**. The row then shows what the key is used for; the trash button
    removes it after a confirmation.
@@ -142,7 +142,7 @@ The review flow is select, act, export:
      original file is never modified.
    - **Markdown** → `<name>.voxnote.md`, a page-by-page report with quotes,
      comments, suggestions (original and replacement) and voice notes with
-     their raw transcripts; a cleaned body is labeled with its provider and
+     their raw transcripts; a polished body is labeled with its provider and
      model, export time labeled UTC.
    - **JSON** → `<name>.voxnote.json`, the document name, SHA-256 id, page
      count and the annotations as stored, without audio.
@@ -169,12 +169,12 @@ The review flow is select, act, export:
   dialog, which states what is sent (the recording, optionally the quoted
   passage as a vocabulary hint, the language hint) and to which host, and
   only to the provider you picked. Nothing is uploaded until you tap
-  **Send to …** (OpenAI, Deepgram or Groq). A clean-up sends the raw transcript text (optionally
+  **Send to …** (OpenAI, Deepgram or Groq). A polish sends the raw transcript text (optionally
   the quoted passage, to spell terms) to the text provider you picked, with
   `store: false` on OpenAI and xAI, only after you tap **Send to …**.
 - **Nothing is published automatically.** Exports are downloads you start.
 - **The raw transcript is preserved.** It fills the comment only when nothing
-  was typed, and stays visible read-only next to the editor. A clean-up never
+  was typed, and stays visible read-only next to the editor. A polish never
   replaces it; an accepted one changes only the note body.
 
 Security problems go to the private channel in [SECURITY.md](SECURITY.md).
@@ -183,11 +183,11 @@ Security problems go to the private channel in [SECURITY.md](SECURITY.md).
 
 All settings live in the **AI keys** dialog (the key icon in the header), in
 your browser. It lists the keys stored in this browser, one row per provider,
-with what each is used for (speech-to-text, clean-up or both), the model to
+with what each is used for (speech-to-text, polish or both), the model to
 use, and a trash button that asks for confirmation before deleting the key.
 **Add key** opens an inline row with a provider select, limited to providers
 without a key and labeled by what they do, and a key field. When more than
-one stored key can serve a role, a **Use for clean-up** (or **Use for
+one stored key can serve a role, a **Use for polish** (or **Use for
 speech-to-text**) select picks which; with a single candidate it is implicit.
 Speech to text:
 
@@ -200,7 +200,7 @@ Speech to text:
 The quoted passage can be sent as a vocabulary hint to OpenAI and Groq;
 Deepgram has no prompt parameter, so the option is not offered for it.
 
-Clean-up (optional):
+Polish (optional):
 
 | Setting  | Values                                                                                                           |
 | -------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -210,8 +210,27 @@ Clean-up (optional):
 API keys: one per provider (OpenAI, Anthropic, xAI, Deepgram, Groq), your own, encrypted at
 rest in the browser and sent only in the request you confirm, straight to
 that provider. Adding a key for a provider that can serve a role nobody else
-covers (the first Anthropic key, say, for clean-up) picks it for that role;
+covers (the first Anthropic key, say, for polish) picks it for that role;
 removing the key in use moves the role to the next stored key, if any.
+
+Where to get a key, what each provider does in VoxNote, and what the
+vendors' pricing pages said when read. VoxNote is not affiliated with any of
+these companies. You pay them directly under your own account, and audio
+goes from your device to the provider you chose. Prices change: each row
+carries the date and the page its figures were read from, and the vendor's
+page wins over this table.
+
+| Provider  | Role in VoxNote | Default model            | Pay-as-you-go price for audio, as stated by the vendor                                                                                                                 | Free credit, as stated by the vendor                                                                                                  | Key page                                     | Source, read 2026-10-30 (UTC)                                                                                                                                                                  |
+| --------- | --------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deepgram  | Speech-to-text  | `nova-3`                 | Pre-recorded Nova-3 (what VoxNote sends): "$0.0043 / min" monolingual, "$0.0052 / min" multilingual                                                                    | "Free $200 credit"; the FAQ says "No credit card is required to start."                                                               | <https://console.deepgram.com/>              | <https://deepgram.com/pricing>                                                                                                                                                                 |
+| Groq      | Speech-to-text  | `whisper-large-v3-turbo` | "$0.04" per hour for `whisper-large-v3-turbo`, "$0.111" per hour for `whisper-large-v3`; the docs quote hours, not minutes                                             | A free tier exists (the docs name it only in the "25 MB (free tier)" file limit); its audio allowance is not stated on the pages read | <https://console.groq.com/keys>              | <https://console.groq.com/docs/speech-to-text> and <https://console.groq.com/docs/models>; <https://groq.com/pricing> redirected to the home page and stated no speech-to-text figure that day |
+| OpenAI    | Speech-to-text  | `gpt-transcribe`         | "$0.0045 / minute" (estimated cost) for `gpt-transcribe`; `gpt-4o-transcribe` "$0.006 / minute", `gpt-4o-mini-transcribe` "$0.003 / minute", Whisper "$0.006 / minute" | Not stated on the pricing page                                                                                                        | <https://platform.openai.com/api-keys>       | <https://developers.openai.com/api/docs/pricing>                                                                                                                                               |
+| OpenAI    | Polish          | `gpt-6.1-terra`          | Billed per token, not per minute                                                                                                                                       | Not stated on the pricing page                                                                                                        | <https://platform.openai.com/api-keys>       | <https://developers.openai.com/api/docs/pricing>                                                                                                                                               |
+| Anthropic | Polish          | `claude-opus-5-5`        | Billed per token, not per minute                                                                                                                                       | "New users receive a small amount of free credits to test the API."                                                                   | <https://platform.claude.com/settings/keys>  | <https://platform.claude.com/docs/en/about-claude/pricing>                                                                                                                                     |
+| xAI       | Polish          | `grok-4.7`               | Billed per token, not per minute                                                                                                                                       | Not stated on the models and pricing page                                                                                             | <https://console.x.ai/team/default/api-keys> | <https://docs.x.ai/docs/models>                                                                                                                                                                |
+
+Whether Deepgram and Groq accept calls straight from a browser (CORS) is
+still unverified: no real call has been made to either.
 
 Build-time: `npm run build` targets the GitHub Pages path `/voxnote/`, so
 `npm run preview` serves the build at `http://localhost:4173/voxnote/`; the
@@ -236,17 +255,17 @@ src/
 │                 #   annotation model, selection, store (IndexedDB), secrets,
 │                 #   PDF / Markdown / JSON export, recording
 ├── hooks/        # React glue: annotations, providers, recorder, transcription,
-│                 #   clean-up
+│                 #   polish
 └── providers/    # Speech-to-text and text-model adapters: OpenAI,
                   #   Deepgram and Groq transcription; OpenAI, Anthropic
-                  #   and xAI clean-up
+                  #   and xAI polish
 public/           # PWA manifest and icons
 ```
 
 Every speech-to-text provider implements the adapter in
 [`src/providers/stt.ts`](src/providers/stt.ts) and every text model the one
 in [`src/providers/llm.ts`](src/providers/llm.ts), which also holds the
-clean-up prompt; each includes the disclosure text the consent dialog shows.
+polish prompt; each includes the disclosure text the consent dialog shows.
 The delivery-platform decision (web/PWA first, native shell re-evaluated at
 the end of M1) is Decision 0 in [ROADMAP.md](ROADMAP.md).
 
@@ -316,7 +335,7 @@ renders it under "Cite this repository").
   [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages.md)
   and
   [xAI Responses API](https://docs.x.ai/developers/rest-api-reference/inference/responses):
-  the text models behind the optional clean-up
+  the text models behind the optional polish
 - [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): the changelog
   format
 

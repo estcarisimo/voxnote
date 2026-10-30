@@ -46,7 +46,7 @@ describe('cleanUp', () => {
 
   it('rejects an empty, unchanged or oversized answer instead of proposing it', async () => {
     for (const [answer, error] of [
-      ['', /empty clean-up/],
+      ['', /empty answer/],
       ['um the claim is uh weak', /unchanged/],
       ['The claim is weak. '.repeat(10), /rejected/],
     ] as const) {

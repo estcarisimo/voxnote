@@ -68,8 +68,8 @@ describe('assertCleanUpAcceptable', () => {
     expect(() => assertCleanUpAcceptable('  ', 'Text.')).toThrow(
       /no raw transcript/,
     )
-    expect(() => assertCleanUpAcceptable(RAW, '')).toThrow(/empty clean-up/)
-    expect(() => assertCleanUpAcceptable(RAW, ' \n ')).toThrow(/empty clean-up/)
+    expect(() => assertCleanUpAcceptable(RAW, '')).toThrow(/empty answer/)
+    expect(() => assertCleanUpAcceptable(RAW, ' \n ')).toThrow(/empty answer/)
   })
 
   it('rejects a result identical to the raw text, whitespace aside', () => {
@@ -125,10 +125,10 @@ describe('checkProposal', () => {
         ...proposal,
         cleanUp: { ...record, createdAt: '2026-10-29 10:01' },
       }),
-    ).toThrow(/Invalid clean-up record/)
+    ).toThrow(/Invalid polish record/)
     expect(() =>
       checkProposal(RAW, { ...proposal, cleanUp: { ...record, model: '' } }),
-    ).toThrow(/Invalid clean-up record/)
+    ).toThrow(/Invalid polish record/)
   })
 
   it('returns a valid proposal unchanged', () => {

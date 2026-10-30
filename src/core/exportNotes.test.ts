@@ -235,12 +235,12 @@ describe('exportMarkdown', () => {
     const md = exportMarkdown(DOC, [comment, suggestion], NOW)
     expect(md).toContain(
       [
-        '  - Comment (cleaned up with xai/grok-4.7, 2026-10-01T09:02:00.000Z UTC, prompt v1; the raw transcript is below):',
+        '  - Comment (polished with xai/grok-4.7, 2026-10-01T09:02:00.000Z UTC, prompt v1; the raw transcript is below):',
         '    > This claim needs a citation.',
       ].join('\n'),
     )
     expect(md).toContain(
-      '  - Replacement (cleaned up with xai/grok-4.7, 2026-10-01T09:02:00.000Z UTC, prompt v1, then edited by the reviewer; the raw transcript is below):',
+      '  - Replacement (polished with xai/grok-4.7, 2026-10-01T09:02:00.000Z UTC, prompt v1, then edited by the reviewer; the raw transcript is below):',
     )
     expect(md).toContain(
       [
@@ -253,7 +253,7 @@ describe('exportMarkdown', () => {
       { documentId: DOC.id, anchor: textAnchor(2, 'x'), body: 'Typed.' },
       T0,
     )
-    expect(exportMarkdown(DOC, [plain], NOW)).not.toContain('cleaned up')
+    expect(exportMarkdown(DOC, [plain], NOW)).not.toContain('polished with')
   })
 
   it('carries the clean-up record in the JSON export', () => {

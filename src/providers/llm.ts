@@ -95,7 +95,7 @@ export function buildCleanUpInput(request: CleanUpRequest): string {
 export function describeParts(request: CleanUpRequest): string[] {
   const parts = [
     `the raw transcript (${request.transcript.length} characters)`,
-    'the clean-up instructions shown under Prompt',
+    'the polishing instructions shown under Prompt',
   ]
   if (request.quote) parts.push('the quoted passage, as a spelling hint')
   if (request.language) parts.push(`the language hint "${request.language}"`)
@@ -114,7 +114,7 @@ export async function cleanUp(
   now: () => Date = () => new Date(),
 ): Promise<CleanUpProposal> {
   if (request.transcript.trim() === '') {
-    throw new Error('There is no raw transcript to clean up')
+    throw new Error('There is no raw transcript to polish')
   }
   if (!provider.models.some((m) => m.id === options.model)) {
     throw new Error(`${provider.name} has no model "${options.model}"`)
@@ -157,11 +157,11 @@ export function assertSendable(
     throw new Error(`${name} needs an API key; add one under Providers`)
   }
   if (request.transcript.trim() === '') {
-    throw new Error('There is no raw transcript to clean up')
+    throw new Error('There is no raw transcript to polish')
   }
   if (request.transcript.length > MAX_TRANSCRIPT_CHARS) {
     throw new Error(
-      `The transcript is ${request.transcript.length} characters; clean-up accepts up to ${MAX_TRANSCRIPT_CHARS}`,
+      `The transcript is ${request.transcript.length} characters; polishing accepts up to ${MAX_TRANSCRIPT_CHARS}`,
     )
   }
 }

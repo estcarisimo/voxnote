@@ -30,7 +30,7 @@ type Role = 'speech-to-text' | 'clean-up'
 
 const ROLE_LABELS: Record<Role, string> = {
   'speech-to-text': 'Speech-to-text',
-  'clean-up': 'Clean-up',
+  'clean-up': 'Polish',
 }
 
 /** The roles a provider can serve, whether or not it is picked for them. */
@@ -145,7 +145,7 @@ export function ProviderSettings({
         {stored.length === 0 ? (
           <p className="keys-empty">
             No keys yet. Keys stay in this browser, encrypted, and are used only
-            when you transcribe a voice note or clean one up.
+            when you transcribe a voice note or polish one.
           </p>
         ) : (
           <ul className="keys-list" aria-label="Stored keys">
@@ -187,15 +187,13 @@ export function ProviderSettings({
 
         {textCandidates.length > 1 && (
           <label className="keys-role">
-            <span>Use for clean-up</span>
+            <span>Use for polish</span>
             <select
               value={textSettings.provider}
               onChange={(e) => {
                 const value: unknown = e.target.value
                 if (!isTextProviderId(value)) {
-                  throw new Error(
-                    `Unknown clean-up provider "${String(value)}"`,
-                  )
+                  throw new Error(`Unknown polish provider "${String(value)}"`)
                 }
                 pickForCleanUp(value)
               }}
@@ -235,7 +233,7 @@ export function ProviderSettings({
         <label className="dialog-field keys-language">
           <span>
             Language hint (optional, e.g. es, en; sent with transcriptions and
-            clean-ups)
+            polish requests)
           </span>
           <input
             type="text"
@@ -397,7 +395,7 @@ function KeyRow({
 
       {activeRoles.includes('clean-up') && isTextProviderId(id) && (
         <label className="keys-model">
-          <span>Clean-up model</span>
+          <span>Polish model</span>
           <select
             value={textSettings.model}
             onChange={(e) =>

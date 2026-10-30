@@ -90,7 +90,7 @@ describe('ProviderSettings (AI keys)', () => {
     expect(screen.queryByRole('form', { name: 'Add key' })).toBeNull()
     const row = screen.getByRole('listitem', { name: 'OpenAI key' })
     expect(row.textContent).toContain('••••')
-    expect(row.textContent).toContain('Used for speech-to-text and clean-up')
+    expect(row.textContent).toContain('Used for speech-to-text and polish')
     expect(document.body.textContent).not.toContain('sk-test')
     expect(screen.queryByText(/No keys yet/)).toBeNull()
   })
@@ -107,7 +107,7 @@ describe('ProviderSettings (AI keys)', () => {
       'groq',
     ])
     expect(select.options[0]?.textContent).toMatch(
-      /Anthropic \(Claude\) — clean-up/,
+      /Anthropic \(Claude\) — polish/,
     )
     expect(select.options[2]?.textContent).toMatch(/Deepgram — speech-to-text/)
     expect(select.options[3]?.textContent).toMatch(
@@ -250,22 +250,20 @@ describe('ProviderSettings (AI keys)', () => {
     const { unmount } = render(
       <ProviderSettings providers={one} onClose={() => {}} />,
     )
-    expect(screen.queryByLabelText('Use for clean-up')).toBeNull()
+    expect(screen.queryByLabelText('Use for polish')).toBeNull()
     expect(screen.queryByLabelText('Use for speech-to-text')).toBeNull()
     unmount()
 
     const two = statefulProviders(['openai', 'xai'])
     render(<ProviderSettings providers={two} onClose={() => {}} />)
-    const select = screen.getByLabelText(
-      'Use for clean-up',
-    ) as HTMLSelectElement
+    const select = screen.getByLabelText('Use for polish') as HTMLSelectElement
     expect(Array.from(select.options).map((o) => o.value)).toEqual([
       'openai',
       'xai',
     ])
     expect(
       screen.getByRole('listitem', { name: 'xAI (Grok) key' }).textContent,
-    ).toContain('Not in use (can do clean-up)')
+    ).toContain('Not in use (can do polish)')
     fireEvent.change(select, { target: { value: 'xai' } })
     expect(two.saveTextSettings).toHaveBeenCalledWith({
       provider: 'xai',
@@ -284,7 +282,7 @@ describe('ProviderSettings (AI keys)', () => {
       'deepgram',
       'groq',
     ])
-    expect(screen.queryByLabelText('Use for clean-up')).toBeNull()
+    expect(screen.queryByLabelText('Use for polish')).toBeNull()
     expect(
       screen.getByRole('listitem', { name: 'Deepgram key' }).textContent,
     ).toContain('Not in use (can do speech-to-text)')
@@ -305,8 +303,8 @@ describe('ProviderSettings (AI keys)', () => {
       name: 'Anthropic (Claude) key',
     })
     expect(openai.textContent).toContain('Used for speech-to-text')
-    expect(anthropic.textContent).toContain('Used for clean-up')
-    expect(within(openai).queryByLabelText('Clean-up model')).toBeNull()
+    expect(anthropic.textContent).toContain('Used for polish')
+    expect(within(openai).queryByLabelText('Polish model')).toBeNull()
 
     fireEvent.change(within(openai).getByLabelText('Speech-to-text model'), {
       target: { value: 'whisper-1' },
@@ -317,7 +315,7 @@ describe('ProviderSettings (AI keys)', () => {
     })
 
     const model = within(anthropic).getByLabelText(
-      'Clean-up model',
+      'Polish model',
     ) as HTMLSelectElement
     expect(Array.from(model.options).map((o) => o.value)).toEqual([
       'claude-opus-5-5',

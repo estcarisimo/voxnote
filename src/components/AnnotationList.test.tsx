@@ -180,7 +180,7 @@ describe('AnnotationList', () => {
     )
   })
 
-  it('offers Clean up… only beside a raw transcript, and marks a cleaned body', async () => {
+  it('offers Polish… only beside a raw transcript, and marks a polished body', async () => {
     const voice = {
       mimeType: 'audio/webm',
       durationMs: 1000,
@@ -228,11 +228,11 @@ describe('AnnotationList', () => {
         onCleanUp={onCleanUp}
       />,
     )
-    const buttons = screen.getAllByRole('button', { name: 'Clean up…' })
+    const buttons = screen.getAllByRole('button', { name: 'Polish…' })
     expect(buttons).toHaveLength(2)
     expect(
       screen.getByText(
-        '✨ Cleaned up with anthropic/claude-opus-5-5, then edited',
+        '✨ Polished with anthropic/claude-opus-5-5, then edited',
       ),
     ).toBeTruthy()
     fireEvent.click(buttons[0])
@@ -243,7 +243,7 @@ describe('AnnotationList', () => {
     )
   })
 
-  it('offers no Clean up… without a handler', () => {
+  it('offers no Polish… without a handler', () => {
     const comment = createComment({
       documentId: 'd',
       anchor,
@@ -262,7 +262,7 @@ describe('AnnotationList', () => {
     render(
       <AnnotationList annotations={[comment]} selectedId={null} {...noop} />,
     )
-    expect(screen.queryByRole('button', { name: 'Clean up…' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Polish…' })).toBeNull()
   })
 
   it('shows a suggestion as original struck through and replacement inserted, and edits need a change', async () => {

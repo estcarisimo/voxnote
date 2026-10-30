@@ -188,7 +188,7 @@ function withCleanUpLabel(label: string, cleanUp: CleanUp | undefined): string {
   if (!cleanUp) return label
   const edited = cleanUp.editedAfter ? ', then edited by the reviewer' : ''
   return (
-    `${label} (cleaned up with ${cleanUpLabel(cleanUp)}, ${cleanUp.createdAt} UTC, ` +
+    `${label} (polished with ${cleanUpLabel(cleanUp)}, ${cleanUp.createdAt} UTC, ` +
     `prompt v${cleanUp.promptVersion}${edited}; the raw transcript is below)`
   )
 }

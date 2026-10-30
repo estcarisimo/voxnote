@@ -246,15 +246,15 @@ function assertSuggestionChanges(s: Suggestion): void {
  */
 function assertCleanUpAllowed(note: Note, cleanUp: CleanUp): void {
   if (!isCleanUp(cleanUp)) {
-    throw new Error(`Invalid clean-up record: ${JSON.stringify(cleanUp)}`)
+    throw new Error(`Invalid polish record: ${JSON.stringify(cleanUp)}`)
   }
   if (!note.voice?.transcript) {
     throw new Error(
-      `${labelOf(note)} ${note.id} has no raw transcript to clean up`,
+      `${labelOf(note)} ${note.id} has no raw transcript to polish`,
     )
   }
   if (note.body.trim() === '') {
-    throw new Error('A cleaned-up note needs a body')
+    throw new Error('A polished note needs a body')
   }
 }
 

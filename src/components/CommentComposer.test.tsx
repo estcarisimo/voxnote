@@ -515,16 +515,16 @@ describe('CommentComposer', () => {
           onCancel={() => {}}
         />,
       )
-      expect(screen.queryByRole('button', { name: 'Clean up…' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Polish…' })).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'Transcribe…' }))
-      await screen.findByRole('button', { name: 'Clean up…' })
+      await screen.findByRole('button', { name: 'Polish…' })
       return onSave
     }
 
-    it('offers Clean up only with a transcript; Accept fills the body and saves the record', async () => {
+    it('offers Polish only with a transcript; Accept fills the body and saves the record', async () => {
       const cleanUp = vi.fn(async () => proposal)
       const onSave = await transcribed(cleanUp)
-      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Polish…' }))
       await vi.waitFor(() =>
         expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
           'value',
@@ -553,7 +553,7 @@ describe('CommentComposer', () => {
 
     it('flags the record when the text is edited after accepting', async () => {
       const onSave = await transcribed(vi.fn(async () => proposal))
-      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Polish…' }))
       await vi.waitFor(() =>
         expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
           'value',
@@ -577,13 +577,13 @@ describe('CommentComposer', () => {
         .mockResolvedValueOnce(null)
         .mockRejectedValueOnce(new Error('Anthropic responded 529: overloaded'))
       const onSave = await transcribed(cleanUp)
-      fireEvent.click(screen.getByRole('button', { name: 'Clean up…' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Polish…' }))
       await vi.waitFor(() => expect(cleanUp).toHaveBeenCalledTimes(1))
       expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
         'value',
         transcript.raw,
       )
-      fireEvent.click(await screen.findByRole('button', { name: 'Clean up…' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Polish…' }))
       expect((await screen.findByRole('alert')).textContent).toBe(
         'Anthropic responded 529: overloaded',
       )

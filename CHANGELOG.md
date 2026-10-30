@@ -8,17 +8,39 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- The optional LLM pass over a raw transcript is called **Polish** everywhere
+  the user reads it, no longer "Clean up", which sounded like deleting:
+  **Polish…** / **Polishing…** buttons in the composer and the Annotations
+  panel, the dialog titles "Polish this transcript with <provider>?" and
+  "Review the polished text", the "Polished with provider/model" label in
+  the panel, "(polished with …)" in the Markdown export and "[Text polished
+  with …]" in the PDF note, "Polish" as a key's role and "Polish model" /
+  "Use for polish" in the AI keys dialog, the disclosure part "the polishing
+  instructions shown under Prompt", and the error messages. Copy only: the
+  stored `cleanUp` record, the code identifiers and the prompt text
+  (`CLEAN_UP_INSTRUCTIONS`, still version 1) are unchanged.
+- The landing view has a **Get started** section under the privacy note:
+  three steps (an API key from Deepgram, Groq or OpenAI; optionally
+  Anthropic, OpenAI or xAI to polish notes; paste it in AI keys) with text
+  links to the vendors' key pages, opening in a new tab with
+  `rel="noopener noreferrer"`, and a fixed line that VoxNote is not
+  affiliated with any of them, that you pay them directly and that audio goes
+  from your device to the provider you chose. No prices on the landing;
+  nothing is fetched from any provider host. The README's configuration
+  section gets a provider table with roles, default models, the
+  pay-as-you-go audio prices and free-credit statements as the vendors'
+  pages stated them on 2026-10-30, each with its source URL.
 - Key management redesigned for reviewers who have never heard the word
   "provider": the header button is now a key icon labeled **AI keys**
   (44 px touch target), and the dialog of the same name lists the keys
   stored in this browser, one row per provider, with what each is used for
-  (speech-to-text, clean-up or both), the model select for the role it
+  (speech-to-text, polish or both), the model select for the role it
   serves, and a trash button that asks **Remove** / **Keep** inline before
   deleting the encrypted key. An empty state says keys stay in this browser
-  and are needed only to transcribe or clean up. **Add key** opens an inline
+  and are needed only to transcribe or polish. **Add key** opens an inline
   row whose provider select lists only providers without a key, labeled by
   what they do; Save validates a non-empty key and collapses the row. When
-  more than one stored key can serve a role, a compact **Use for clean-up**
+  more than one stored key can serve a role, a compact **Use for polish**
   (or **Use for speech-to-text**) select picks which; with one candidate the
   choice is implicit and shown as text. Adding the first key that can serve
   a role picks it; removing the key in use moves the role to the next stored
@@ -155,8 +177,8 @@ All notable changes to this project are documented here. The format follows
   metadata for now, the exports do not filter on it yet. Tapping an
   annotation scrolls to its marks when its page has rendered, else to the
   page.
-- Optional LLM clean-up of a dictated note, a separate opt-in action:
-  **Clean up…** appears next to a raw transcript in the composer and in the
+- Optional LLM polish of a dictated note, a separate opt-in action:
+  **Polish…** (first shipped as "Clean up…") appears next to a raw transcript in the composer and in the
   **Annotations** panel. It sends the raw transcript (never the edited body),
   optionally the quoted passage as a spelling hint, and the language hint to
   the chosen text provider, after a consent dialog that names the host and the
@@ -176,10 +198,10 @@ All notable changes to this project are documented here. The format follows
   `grok-4.20-0309-non-reasoning`). Model ids as listed in each vendor's
   documentation on 2026-10-29. Verified against mocked endpoints only: no
   real provider call has been made.
-- **Providers** lists speech-to-text and clean-up separately, each with its
+- **Providers** lists speech-to-text and polish separately, each with its
   own provider and model; keys are kept one per provider (OpenAI's key serves
   both), each encrypted at rest as before.
-- A cleaned-up body is marked as such: in the panel ("Cleaned up with
+- A polished body is marked as such: in the panel ("Polished with
   provider/model", "then edited" once changed by hand), in the Markdown
   export's label, and in the PDF note, which then also carries the raw
   transcript labeled as raw.

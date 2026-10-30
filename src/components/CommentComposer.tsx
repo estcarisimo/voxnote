@@ -449,7 +449,7 @@ function RecorderState({
               onClick={() => cleanUp.run(state.recording)}
               disabled={cleanUp.busy}
             >
-              {cleanUp.busy ? 'Cleaning up…' : 'Clean up…'}
+              {cleanUp.busy ? 'Polishing…' : 'Polish…'}
             </button>
           )}
           {transcript ? (
@@ -458,7 +458,7 @@ function RecorderState({
               <p>{transcript.raw}</p>
               {cleanUp?.accepted && (
                 <p className="comment-composer-note">
-                  Text cleaned up with {cleanUp.accepted.cleanUp.provider}/
+                  Text polished with {cleanUp.accepted.cleanUp.provider}/
                   {cleanUp.accepted.cleanUp.model}; the raw transcript above is
                   kept.
                 </p>

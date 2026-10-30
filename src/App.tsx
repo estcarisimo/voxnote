@@ -105,7 +105,7 @@ function App() {
     })
     if (!proposal) return
     if (docIdRef.current !== note.documentId) {
-      throw new Error('The document changed; the clean-up was not applied')
+      throw new Error('The document changed; the polished text was not applied')
     }
     await store.applyCleanUp(note.id, proposal)
   }

@@ -39,7 +39,7 @@ text and docs follow the same rule.
 
 - The PDF is never modified in place. Annotations live beside it and are
   exported into a copy.
-- The raw transcript is always preserved; LLM clean-up is a separate, opt-in
+- The raw transcript is always preserved; LLM polish is a separate, opt-in
   action and never silently reinterprets a critique.
 - Before audio or document excerpts leave the device, the UI states what is
   sent and to which provider. Local-first is the default.
