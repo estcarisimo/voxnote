@@ -91,13 +91,13 @@ export function useTranscription(
         }
         const { settings } = providers
         if (!providers.ready) {
-          reject(new Error('Provider keys are not ready yet'))
+          reject(new Error('AI keys are not ready yet'))
           return
         }
         if (!providers.hasKey(settings.provider)) {
           reject(
             new Error(
-              `Add your ${PROVIDER_LABELS[settings.provider]} API key under Providers first`,
+              `Add your ${PROVIDER_LABELS[settings.provider]} key in AI keys first`,
             ),
           )
           return
@@ -128,7 +128,7 @@ export function useTranscription(
       if (!current) throw new Error('No transcription is pending')
       const apiKey = await providers.readKey(providers.settings.provider)
       if (!apiKey) {
-        throw new Error('The API key is missing; add it under Providers')
+        throw new Error('The key is missing; add it in AI keys')
       }
       return transcribe(current.provider, transcriptionRequest, {
         apiKey,

@@ -87,7 +87,7 @@ export function useCleanUp(
         }
         const { textSettings } = providers
         if (!providers.ready) {
-          reject(new Error('Provider keys are not ready yet'))
+          reject(new Error('AI keys are not ready yet'))
           return
         }
         if (input.transcript.trim() === '') {
@@ -97,7 +97,7 @@ export function useCleanUp(
         if (!providers.hasKey(textSettings.provider)) {
           reject(
             new Error(
-              `Add your ${PROVIDER_LABELS[textSettings.provider]} API key under Providers first`,
+              `Add your ${PROVIDER_LABELS[textSettings.provider]} key in AI keys first`,
             ),
           )
           return
@@ -130,7 +130,7 @@ export function useCleanUp(
       if (!current) throw new Error('No clean-up is pending')
       const apiKey = await providers.readKey(current.providerId)
       if (!apiKey) {
-        throw new Error('The API key is missing; add it under Providers')
+        throw new Error('The key is missing; add it in AI keys')
       }
       return cleanUp(current.provider, cleanUpRequest, {
         apiKey,
