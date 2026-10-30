@@ -58,7 +58,7 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
       onDrop={handleDrop}
     >
       <div className="open-pdf-corner">
-        <GitHubLink className="open-pdf-github" />
+        <GitHubLink />
       </div>
       <main className="open-pdf-main">
         <img
