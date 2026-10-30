@@ -59,7 +59,9 @@ export function TranscribeDialog({
     mimeType: input.mimeType,
   }
   if (language) request.language = language
-  if (includeQuote && input.quote) request.prompt = input.quote
+  if (includeQuote && input.quote && provider.acceptsPrompt) {
+    request.prompt = input.quote
+  }
 
   async function send() {
     setSending(true)
@@ -90,7 +92,7 @@ export function TranscribeDialog({
           transcript is kept as returned; you can edit the comment text
           afterwards.
         </p>
-        {input.quote && (
+        {input.quote && provider.acceptsPrompt && (
           <label className="dialog-check">
             <input
               type="checkbox"

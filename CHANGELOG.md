@@ -8,6 +8,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Two more speech-to-text providers, so transcription is no longer
+  OpenAI-only: **Deepgram** (`nova-3` default, `nova-2`; pre-recorded
+  `POST api.deepgram.com/v1/listen` with the raw recording as the body,
+  `Authorization: Token`, `punctuate=true` only, never `smart_format` or
+  any option that rewrites words; `detect_language=true` when no language
+  hint is set, since Deepgram otherwise assumes English) and **Groq**
+  hosted Whisper (`whisper-large-v3-turbo` default, `whisper-large-v3`;
+  OpenAI-compatible multipart upload to `api.groq.com`, Bearer auth). Each
+  has its own encrypted key; a key is only ever read for, and sent to, the
+  provider shown in the consent dialog. Deepgram has no prompt parameter,
+  so the quote-hint checkbox is not offered for it. Request shapes taken
+  from the vendors' docs read on 2026-10-30; verified with unit tests and a
+  headless run with both endpoints intercepted. **No real Deepgram or Groq
+  call has been made.**
 - Landing view redesigned so a first visit explains the app: the app icon,
   the tagline, one sentence on what VoxNote does, the **Open a PDF** button
   with the drop hint, a three-item row (Highlight, Comment by voice, Suggest
@@ -134,6 +148,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Speech-to-text adapters declare `acceptsPrompt`; the consent dialog
+  shows the quote hint only for providers that take one, and a request
+  with a prompt to one that does not is refused before anything is sent.
+  The OpenAI adapter now shares its file naming, size wording and key
+  redaction with the new adapters (`src/providers/stt-http.ts`); error
+  text also redacts the exact key that was sent, for every provider.
 - The **Highlights** panel is now **Annotations** and lists comments with
   their quote, body and voice badge.
 - IndexedDB schema version 2 adds an `audio` object store; version 1
