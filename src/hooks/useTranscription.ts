@@ -13,6 +13,7 @@ import type {
 import {
   createProvider,
   PROVIDER_LABELS,
+  type SttProviderId,
   type SttSettings,
 } from '../providers/registry'
 import {
@@ -75,6 +76,8 @@ export interface TranscriptionFlow {
 }
 
 interface Pending extends PendingUpload {
+  /** Whose key to read at Send: fixed when the dialog opened. */
+  providerId: SttProviderId
   resolve: (transcript: Transcript | null) => void
   controller: AbortController
 }
@@ -143,9 +146,16 @@ export function useTranscription(
 
   const upload = useCallback(
     async (current: Pending, transcriptionRequest: TranscriptionRequest) => {
-      const apiKey = await providers.readKey(providers.settings.provider)
+      // The key of the provider the disclosure named, never the one the
+      // settings name now: a key only goes to its own host.
+      if (current.provider.id !== current.providerId) {
+        throw new Error(
+          `Provider mismatch: ${current.provider.id} is not ${current.providerId}`,
+        )
+      }
+      const apiKey = await providers.readKey(current.providerId)
       if (!apiKey) {
-        throw new Error('The API key is missing; add it under Providers')
+        throw new Error('The key is missing; add it in AI keys')
       }
       return transcribe(current.provider, transcriptionRequest, {
         apiKey,
@@ -170,13 +180,13 @@ export function useTranscription(
         }
         const { settings } = providers
         if (!providers.ready) {
-          reject(new Error('Provider keys are not ready yet'))
+          reject(new Error('AI keys are not ready yet'))
           return
         }
         if (!providers.hasKey(settings.provider)) {
           reject(
             new Error(
-              `Add your ${PROVIDER_LABELS[settings.provider]} API key under Providers first`,
+              `Add your ${PROVIDER_LABELS[settings.provider]} key in AI keys first`,
             ),
           )
           return
@@ -205,6 +215,7 @@ export function useTranscription(
           id: nextId.current++,
           input,
           provider,
+          providerId: settings.provider,
           automatic: options.automatic === true,
           offerStanding:
             documentId !== null && consentStore !== null && !consent,
@@ -223,7 +234,7 @@ export function useTranscription(
           mimeType: input.mimeType,
         }
         if (settings.language) automaticRequest.language = settings.language
-        if (consent.includeQuote && input.quote) {
+        if (consent.includeQuote && input.quote && provider.acceptsPrompt) {
           automaticRequest.prompt = input.quote
         }
         upload(next, automaticRequest).then(
@@ -263,7 +274,7 @@ export function useTranscription(
         consentStore.grant(
           createConsent({
             documentId,
-            provider: settings.provider,
+            provider: current.providerId,
             model: settings.model,
             host: current.provider.endpointHost,
             language: settings.language,

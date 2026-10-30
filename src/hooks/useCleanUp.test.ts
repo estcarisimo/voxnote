@@ -49,7 +49,7 @@ describe('useCleanUp', () => {
       useCleanUp(providersWith({ hasKey: () => false })),
     )
     await expect(noKey.result.current.request(input)).rejects.toThrow(
-      /Add your Anthropic \(Claude\) API key under Providers first/,
+      /Add your Anthropic \(Claude\) key in AI keys first/,
     )
     expect(noKey.result.current.pending).toBeNull()
 

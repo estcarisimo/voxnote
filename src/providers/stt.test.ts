@@ -12,6 +12,7 @@ function fakeProvider(
     id: 'fake',
     name: 'Fake STT',
     endpointHost: 'stt.example',
+    acceptsPrompt: true,
     describeUpload: (r) => `audio (${r.audio.size} bytes) to stt.example`,
     transcribe: impl,
   }

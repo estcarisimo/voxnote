@@ -134,10 +134,14 @@ the success criterion on real iPad hardware.
   `gpt-4o-mini-transcribe`, `whisper-1`) done, verified against a mocked
   endpoint only on 2026-10-29: no real transcription has been run yet. Keys
   are encrypted at rest in the browser (AES-GCM, non-extractable key in
-  IndexedDB; any script on this origin can still use them). Deepgram pending.
-  Keys never in the repo or in a server. The M1.3 clean-up work added text
-  providers only (2026-10-29): the speech-to-text adapter list is unchanged,
-  still OpenAI alone.
+  IndexedDB; any script on this origin can still use them). Keys never in
+  the repo or in a server. Deepgram (`nova-3`, `nova-2`) and Groq hosted
+  Whisper (`whisper-large-v3-turbo`, `whisper-large-v3`) added on
+  2026-10-30 from the vendors' docs read that day; verified with unit tests
+  and a headless Chromium run with both endpoints intercepted only. **Neither
+  has been called for real**: the request shapes, whether each endpoint
+  accepts calls straight from a browser (CORS), and transcript quality are
+  unverified. Safari's MP4 path is unit-tested only.
 - [x] Editable comment body; the raw transcript is kept verbatim and shown
       read-only next to the editor once a provider fills it.
 - [x] Explicit disclosure before anything leaves the device: the consent

@@ -31,9 +31,11 @@ const input = {
 
 function fakeProvider(transcribeImpl: SpeechToTextProvider['transcribe']) {
   const provider: SpeechToTextProvider = {
-    id: 'fake',
+    // Matches DEFAULT_SETTINGS.provider: the key read is that provider's.
+    id: 'openai',
     name: 'Fake',
     endpointHost: 'stt.example',
+    acceptsPrompt: true,
     describeUpload: () => 'sends audio',
     transcribe: transcribeImpl,
   }
@@ -46,7 +48,7 @@ describe('useTranscription', () => {
       useTranscription(providersWith({ hasKey: () => false })),
     )
     await expect(noKey.result.current.request(input)).rejects.toThrow(
-      /Add your OpenAI API key under Providers first/,
+      /Add your OpenAI key in AI keys first/,
     )
     expect(noKey.result.current.pending).toBeNull()
 
@@ -82,11 +84,59 @@ describe('useTranscription', () => {
     expect(options.apiKey).toBe('sk-test')
     expect(options.signal).toBeInstanceOf(AbortSignal)
     expect(transcript.raw).toBe('hola')
-    expect(transcript.provider).toBe('fake/m')
+    expect(transcript.provider).toBe('openai/m')
 
     act(() => result.current.finish(transcript))
     await expect(promise).resolves.toEqual(transcript)
     expect(result.current.pending).toBeNull()
+  })
+
+  it("reads the key of the dialog's provider, and never another provider's", async () => {
+    const readKey = vi.fn(async () => 'gsk_key')
+    const groqSettings = {
+      provider: 'groq' as const,
+      model: 'whisper-large-v3-turbo',
+      language: '',
+    }
+    const transcribeImpl = vi.fn(async () => ({ text: 'hola', model: 'm' }))
+    const groq: SpeechToTextProvider = {
+      id: 'groq',
+      name: 'Groq',
+      endpointHost: 'api.groq.com',
+      acceptsPrompt: true,
+      describeUpload: () => 'sends audio',
+      transcribe: transcribeImpl,
+    }
+    const { result } = renderHook(() =>
+      useTranscription(
+        providersWith({ settings: groqSettings, readKey }),
+        null,
+        () => groq,
+      ),
+    )
+    act(() => void result.current.request(input))
+    await result.current.confirm({ audio: input.audio, mimeType: 'audio/webm' })
+    expect(readKey).toHaveBeenCalledWith('groq')
+    act(() => result.current.finish(null))
+
+    // A provider that is not the one the settings named never gets a key.
+    readKey.mockClear()
+    const mismatched = renderHook(() =>
+      useTranscription(
+        providersWith({ settings: groqSettings, readKey }),
+        null,
+        fakeProvider(transcribeImpl),
+      ),
+    )
+    act(() => void mismatched.result.current.request(input))
+    await expect(
+      mismatched.result.current.confirm({
+        audio: input.audio,
+        mimeType: 'audio/webm',
+      }),
+    ).rejects.toThrow(/Provider mismatch/)
+    expect(readKey).not.toHaveBeenCalled()
+    act(() => mismatched.result.current.finish(null))
   })
 
   it('refuses a second request while one is waiting', async () => {

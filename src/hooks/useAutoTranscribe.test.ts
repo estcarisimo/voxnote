@@ -39,6 +39,7 @@ function fakeProvider(transcribeImpl: SpeechToTextProvider['transcribe']) {
     id: 'openai',
     name: 'OpenAI',
     endpointHost: 'api.openai.com',
+    acceptsPrompt: true,
     describeUpload: () => 'Sends the recording to OpenAI at api.openai.com.',
     transcribe: transcribeImpl,
   }

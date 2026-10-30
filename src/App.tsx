@@ -36,6 +36,7 @@ import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
 import { useProviders } from './hooks/useProviders'
+import { AiKeysButton } from './components/AiKeysButton'
 import { useTranscription } from './hooks/useTranscription'
 import './App.css'
 
@@ -287,13 +288,10 @@ function App() {
           pdfDisabled={store.annotations.length === 0}
           onExport={(format) => void exportAs(format)}
         />
-        <button
-          type="button"
-          aria-pressed={settingsOpen}
+        <AiKeysButton
+          pressed={settingsOpen}
           onClick={() => setSettingsOpen(true)}
-        >
-          Providers
-        </button>
+        />
       </header>
       {(error || store.error || autoConsents.error) && (
         <p role="alert" className="app-error">

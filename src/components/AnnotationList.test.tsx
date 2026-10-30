@@ -125,7 +125,7 @@ describe('AnnotationList', () => {
     })
     const typed = createComment({ documentId: 'd', anchor, body: 'typed' })
     const onTranscribe = vi.fn(async () => {
-      throw new Error('Add your OpenAI API key under Providers first')
+      throw new Error('Add your OpenAI key in AI keys first')
     })
     render(
       <AnnotationList
@@ -141,7 +141,7 @@ describe('AnnotationList', () => {
     expect(onTranscribe).toHaveBeenCalledWith(pending)
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Add your OpenAI API key under Providers first',
+      'Add your OpenAI key in AI keys first',
     )
   })
 
@@ -218,9 +218,7 @@ describe('AnnotationList', () => {
     })
     const typed = createComment({ documentId: 'd', anchor, body: 'typed' })
     const onCleanUp = vi.fn(async () => {
-      throw new Error(
-        'Add your Anthropic (Claude) API key under Providers first',
-      )
+      throw new Error('Add your Anthropic (Claude) key in AI keys first')
     })
     render(
       <AnnotationList
@@ -241,7 +239,7 @@ describe('AnnotationList', () => {
     expect(onCleanUp).toHaveBeenCalledWith(dictated)
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Add your Anthropic (Claude) API key under Providers first',
+      'Add your Anthropic (Claude) key in AI keys first',
     )
   })
 
