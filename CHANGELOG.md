@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Discoverability for search engines and AI agents**, the same pattern as
+  the maintainer's other repositories (`llms.txt` plus `llms-full.txt`,
+  `context7.json`, README links), adapted to a Vite site with no MkDocs:
+  hand-written `public/llms.txt` (an index of the README, roadmap, changelog
+  and design notes as raw Markdown, with the privacy and non-affiliation
+  facts an agent should keep straight) and `public/llms-full.txt` (the
+  project in one file, dated), `public/robots.txt` (every crawler allowed,
+  sitemap named), `public/sitemap.xml` (the landing, no `lastmod`), a
+  `<meta name="description">` in `index.html`, and `context7.json` at the
+  root so Context7 indexes `docs/` and the root Markdown but not the source,
+  tests or maintainer files. All are served under
+  `https://estcarisimo.github.io/voxnote/` once `main` is deployed. A unit
+  test checks the files exist, that their absolute URLs point at the live
+  site or the repository and that `context7.json` fits the schema's limits.
+  The README's new Discoverability section documents the manual Context7
+  submission step; nothing is submitted by any workflow.
+
 ### Changed
 
 - The optional LLM pass over a raw transcript is called **Polish** everywhere

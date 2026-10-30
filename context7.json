@@ -1,0 +1,31 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "VoxNote",
+  "description": "Open-source, AI-native PDF reviewer for iPad and the browser: highlight, comment, record voice notes and suggest rewordings on a PDF without editing it. Static web app, local-first, with opt-in speech-to-text and transcript polish through the user's own provider keys.",
+  "folders": ["docs"],
+  "excludeFolders": [
+    "src",
+    "public",
+    "scripts",
+    ".github",
+    "dist",
+    "node_modules",
+    "coverage"
+  ],
+  "excludeFiles": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md"
+  ],
+  "rules": [
+    "VoxNote is a static web app at https://estcarisimo.github.io/voxnote/ with no backend and no accounts. PDFs, annotations and recordings stay in the browser's IndexedDB, keyed by the document's SHA-256.",
+    "The PDF is never modified in place. Export PDF writes a copy with native annotations; the Markdown and JSON exports contain no audio.",
+    "Transcription and polish are opt-in and need the user's own API key: OpenAI, Deepgram or Groq for speech-to-text; OpenAI, Anthropic or xAI for polish. Nothing is sent before the user taps Send in the consent dialog, which names the host and what is sent.",
+    "The raw transcript is always preserved. Polish proposes a cleaned text next to the raw one, and only Accept changes the note body.",
+    "No accuracy or latency figures exist for any provider; do not quote any. Whether Deepgram and Groq accept calls straight from a browser is unverified.",
+    "Run from source with npm ci and npm run dev (Node 24 in CI). Production builds and npm run preview are served under the /voxnote/ path."
+  ]
+}

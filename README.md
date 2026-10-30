@@ -21,6 +21,12 @@ polish with your own provider key.
 
 ### ▶️ Try it: **<https://estcarisimo.github.io/voxnote/>**
 
+Documentation for language models:
+[`llms.txt`](https://estcarisimo.github.io/voxnote/llms.txt) (an index of
+what to read) and
+[`llms-full.txt`](https://estcarisimo.github.io/voxnote/llms-full.txt) (the
+project in one file). See [Discoverability](#-discoverability).
+
 On an iPad, open the link in Safari, tap **Share**, then **Add to Home
 Screen** to install it as an app. Install on a real iPad has not been verified
 yet (see [Status](#-status-and-caveats)).
@@ -261,7 +267,7 @@ src/
 └── providers/    # Speech-to-text and text-model adapters: OpenAI,
                   #   Deepgram and Groq transcription; OpenAI, Anthropic
                   #   and xAI polish
-public/           # PWA manifest and icons
+public/           # PWA manifest and icons, llms.txt, robots.txt, sitemap.xml
 ```
 
 Every speech-to-text provider implements the adapter in
@@ -270,6 +276,49 @@ in [`src/providers/llm.ts`](src/providers/llm.ts), which also holds the
 polish prompt; each includes the disclosure text the consent dialog shows.
 The delivery-platform decision (web/PWA first, native shell re-evaluated at
 the end of M1) is Decision 0 in [ROADMAP.md](ROADMAP.md).
+
+## 🔎 Discoverability
+
+What search engines and AI agents find, how it is served, and what is left
+for a human to do. Nothing here submits VoxNote anywhere: registering with
+an index is a manual step, listed last.
+
+- **`llms.txt` and `llms-full.txt`** ([llmstxt.org](https://llmstxt.org/)):
+  hand-written in [`public/`](public/), copied as-is by Vite into the Pages
+  build, and served at
+  <https://estcarisimo.github.io/voxnote/llms.txt> and
+  <https://estcarisimo.github.io/voxnote/llms-full.txt> once `main` is
+  deployed. The index links the README, roadmap, changelog and design notes
+  as raw Markdown; the full text describes the app, the privacy rules and
+  the non-affiliation with providers, and carries the date it was written.
+  The README wins where they disagree, so a PR that changes what the app
+  does should update both.
+- **`robots.txt`** allows every crawler everywhere (the app has no server
+  and no per-user pages) and names the sitemap. **`sitemap.xml`** lists the
+  landing, the site's only page; it has no `lastmod`, because the file is
+  not regenerated on deploy and a stale date would be a false claim.
+- **`index.html`** carries a `<meta name="description">` for search result
+  snippets.
+- **`context7.json`** at the repository root tells
+  [Context7](https://context7.com/), the documentation index that coding
+  agents query, to index `docs/` and the root Markdown, to skip the source,
+  tests, build output and maintainer files (`AGENTS.md`, `CLAUDE.md`,
+  `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`), and gives it the
+  product rules as usage notes. The file follows
+  `https://context7.com/schema/context7.json` (fetched 2026-10-30 (UTC) with
+  `curl`; every rule is under the schema's 255-character limit).
+- A unit test, [`src/discoverability.test.ts`](src/discoverability.test.ts),
+  checks that these files exist, that every absolute URL in them points at
+  the live site or the repository, that `robots.txt` names the sitemap and
+  that `context7.json` fits the schema's limits.
+
+**Submitting to Context7 (manual, not done by any workflow).** Open
+<https://context7.com/add-library>, which on 2026-10-30 (UTC) accepted
+"GitHub repositories, websites, OpenAPI specifications, or llms.txt"
+(`curl -sSL https://context7.com/add-library`), and paste
+`https://github.com/estcarisimo/voxnote`. Context7 reads `context7.json`
+from the default branch. Record the submission date and the resulting
+library page in the session log.
 
 ## 🧪 Development
 
