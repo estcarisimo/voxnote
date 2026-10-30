@@ -88,7 +88,7 @@
   }
 }
 
-.app-keys {
+.app-bar .app-keys {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -96,6 +96,6 @@
   min-width: 44px;
 }
 
-.app-keys svg {
+.app-bar .app-keys svg {
   flex: none;
 }

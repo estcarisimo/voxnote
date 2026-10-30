@@ -1,5 +1,15 @@
 /* The "AI keys" dialog: a list of stored keys, an inline add row. */
 
+:root {
+  --danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --danger: #ff8a80;
+  }
+}
+
 .keys-empty {
   margin: 0 0 12px;
   padding: 12px;
@@ -88,22 +98,20 @@
 }
 
 .dialog button.is-danger {
-  border-color: #b3261e;
-  color: #b3261e;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .keys-model {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px 12px;
+  flex-direction: column;
+  gap: 4px;
   margin-top: 8px;
   font-size: 0.85rem;
 }
 
 .keys-model select {
-  max-width: 100%;
+  width: 100%;
 }
 
 .keys-role {
