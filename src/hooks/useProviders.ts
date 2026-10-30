@@ -2,13 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { openSecretStore, type SecretStore } from '../core/secrets'
 import {
   DEFAULT_SETTINGS,
+  DEFAULT_TEXT_SETTINGS,
   normalizeSettings,
+  normalizeTextSettings,
   SECRET_NAMES,
   type ProviderId,
   type SttSettings,
+  type TextSettings,
 } from '../providers/registry'
 
 const SETTINGS_KEY = 'voxnote.stt.settings'
+const TEXT_SETTINGS_KEY = 'voxnote.text.settings'
 
 export interface Providers {
   /** False until the secret store opened and the key names were listed. */
@@ -16,6 +20,9 @@ export interface Providers {
   error: string | null
   settings: SttSettings
   saveSettings: (settings: SttSettings) => void
+  /** Which text provider and model clean up transcripts. */
+  textSettings: TextSettings
+  saveTextSettings: (settings: TextSettings) => void
   /** Which providers have a key stored; values are never exposed here. */
   hasKey: (id: ProviderId) => boolean
   setKey: (id: ProviderId, value: string) => Promise<void>
@@ -34,6 +41,8 @@ export function useProviders(): Providers {
   const [stored, setStored] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [settings, setSettings] = useState<SttSettings>(loadSettings)
+  const [textSettings, setTextSettings] =
+    useState<TextSettings>(loadTextSettings)
 
   useEffect(() => {
     let cancelled = false
@@ -67,6 +76,18 @@ export function useProviders(): Providers {
     setSettings(normalized)
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized))
+    } catch (err: unknown) {
+      setError(
+        `Settings could not be saved: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }, [])
+
+  const saveTextSettings = useCallback((next: TextSettings) => {
+    const normalized = normalizeTextSettings(next)
+    setTextSettings(normalized)
+    try {
+      localStorage.setItem(TEXT_SETTINGS_KEY, JSON.stringify(normalized))
     } catch (err: unknown) {
       setError(
         `Settings could not be saved: ${err instanceof Error ? err.message : String(err)}`,
@@ -112,12 +133,25 @@ export function useProviders(): Providers {
       error,
       settings,
       saveSettings,
+      textSettings,
+      saveTextSettings,
       hasKey,
       setKey,
       removeKey,
       readKey,
     }),
-    [ready, error, settings, saveSettings, hasKey, setKey, removeKey, readKey],
+    [
+      ready,
+      error,
+      settings,
+      saveSettings,
+      textSettings,
+      saveTextSettings,
+      hasKey,
+      setKey,
+      removeKey,
+      readKey,
+    ],
   )
 }
 
@@ -129,5 +163,15 @@ function loadSettings(): SttSettings {
     // Unreadable storage or corrupt JSON: defaults, and the user can save
     // again. Not worth blocking the app for.
     return DEFAULT_SETTINGS
+  }
+}
+
+function loadTextSettings(): TextSettings {
+  try {
+    const raw = localStorage.getItem(TEXT_SETTINGS_KEY)
+    return raw ? normalizeTextSettings(JSON.parse(raw)) : DEFAULT_TEXT_SETTINGS
+  } catch {
+    // Same as loadSettings: defaults, and the user can save again.
+    return DEFAULT_TEXT_SETTINGS
   }
 }

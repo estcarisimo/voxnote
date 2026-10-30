@@ -56,6 +56,28 @@ describe('IndexedDB annotation store', () => {
     store.close()
   })
 
+  it('reads schema v1 records as v2 without touching their content', async () => {
+    const factory = new IDBFactory()
+    const store = await openAnnotationStore('test', factory)
+    const current = createHighlight({ documentId: 'doc', anchor: region(1) })
+    const v1 = { ...current, schemaVersion: 1 }
+    await new Promise<void>((resolve, reject) => {
+      const req = factory.open('test', 2)
+      req.onsuccess = () => {
+        const tx = req.result.transaction('annotations', 'readwrite')
+        tx.objectStore('annotations').put(v1)
+        tx.oncomplete = () => {
+          req.result.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+    expect(await store.list('doc')).toEqual([current])
+    store.close()
+  })
+
   it('fails loudly on a corrupt record instead of skipping it', async () => {
     const factory = new IDBFactory()
     const store = await openAnnotationStore('test', factory)

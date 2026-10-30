@@ -184,6 +184,60 @@ describe('exportAnnotatedPdf', () => {
     ).toBe('Suggested change recorded by voice; not transcribed yet')
   })
 
+  it('marks a cleaned-up body and carries the raw transcript, labeled raw', async () => {
+    const voice = {
+      mimeType: 'audio/webm',
+      durationMs: 1000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      transcript: {
+        raw: 'um the the claim is uh weak',
+        provider: 'openai/gpt-transcribe',
+        transcribedAt: '2026-10-29T10:00:01.000Z',
+      },
+    }
+    const cleanUp = {
+      provider: 'anthropic',
+      model: 'claude-opus-5-5',
+      createdAt: '2026-10-29T10:00:02.000Z',
+      promptVersion: 1,
+    }
+    const anchor: TextAnchor = {
+      type: 'text',
+      page: 1,
+      quote: 'the claim',
+      rects: [{ x: 10, y: 10, width: 50, height: 10 }],
+    }
+    const comment = createComment({
+      documentId: 'doc',
+      anchor,
+      body: 'The claim is weak.',
+      voice,
+      cleanUp,
+    })
+    const suggestion = createSuggestion({
+      documentId: 'doc',
+      anchor,
+      body: 'The claim is weak.',
+      voice,
+      cleanUp: { ...cleanUp, editedAfter: true },
+    })
+    const pdf = await PDFDocument.load(
+      await exportAnnotatedPdf(await twoPagePdf(), [comment, suggestion]),
+    )
+    const [c, s] = annots(pdf.getPages()[0], pdf).map((a) =>
+      (a.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
+    )
+    expect(c).toBe(
+      'The claim is weak.\n\n[Text cleaned up with anthropic/claude-opus-5-5.]' +
+        '\nRaw transcript: um the the claim is uh weak',
+    )
+    expect(s).toBe(
+      'Replace with: The claim is weak.\n\n' +
+        '[Text cleaned up with anthropic/claude-opus-5-5, then edited.]' +
+        '\nRaw transcript: um the the claim is uh weak',
+    )
+  })
+
   it('fails loudly when an annotation points past the last page', async () => {
     const original = await twoPagePdf()
     const bad = createHighlight({

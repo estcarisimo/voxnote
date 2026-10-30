@@ -8,7 +8,12 @@
  * `audio` (one Blob per voice note, keyed by the annotation id). A comment and
  * its recording are written in one transaction so neither can exist alone.
  */
-import { isAnnotation, isNote, type Annotation } from './annotations'
+import {
+  isAnnotation,
+  isNote,
+  migrateAnnotation,
+  type Annotation,
+} from './annotations'
 
 /** The recording behind a comment's voice note. */
 export interface AudioRecord {
@@ -100,7 +105,10 @@ class IndexedDbAnnotationStore implements AnnotationStore {
   list(documentId: string): Promise<Annotation[]> {
     return this.run([ANNOTATIONS], 'readonly', (tx) =>
       tx.objectStore(ANNOTATIONS).index(BY_DOCUMENT).getAll(documentId),
-    ).then((records: unknown[]) => {
+    ).then((stored: unknown[]) => {
+      // Older records are upgraded in memory; the next write stores them in
+      // the current schema.
+      const records = stored.map(migrateAnnotation)
       const bad: unknown = records.find((r) => !isAnnotation(r))
       if (bad !== undefined) {
         throw new Error(

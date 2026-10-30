@@ -9,12 +9,14 @@ import {
   withVisibility,
   type Anchor,
   type Annotation,
+  type CleanUp,
   type Note,
   type TextAnchor,
   type Transcript,
   type Visibility,
   type VoiceNote,
 } from '../core/annotations'
+import { withCleanUp, type CleanUpProposal } from '../core/cleanUp'
 import { openAnnotationStore, type AnnotationStore } from '../core/store'
 
 export type NewNote =
@@ -25,6 +27,7 @@ export type NewNote =
       voice?: VoiceNote
       /** Required when `voice` is set: the recording itself. */
       audio?: Blob
+      cleanUp?: CleanUp
     }
   | {
       kind: 'suggestion'
@@ -33,6 +36,7 @@ export type NewNote =
       body: string
       voice?: VoiceNote
       audio?: Blob
+      cleanUp?: CleanUp
     }
 
 interface AnnotationsState {
@@ -47,6 +51,8 @@ interface AnnotationsState {
   updateVisibility: (id: string, visibility: Visibility) => Promise<Annotation>
   /** Attaches a transcript to a dictated note; fills an empty body. */
   setTranscript: (id: string, transcript: Transcript) => Promise<Note>
+  /** Puts an accepted clean-up in the body; the raw transcript stays. */
+  applyCleanUp: (id: string, proposal: CleanUpProposal) => Promise<Note>
   /** The recording behind a voice comment, or null when it has none. */
   getAudio: (id: string) => Promise<Blob | null>
   remove: (id: string) => Promise<void>
@@ -147,12 +153,14 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
               anchor: input.anchor,
               body: input.body,
               voice: input.voice,
+              cleanUp: input.cleanUp,
             })
           : createComment({
               documentId: current.documentId,
               anchor: input.anchor,
               body: input.body,
               voice: input.voice,
+              cleanUp: input.cleanUp,
             })
       await current.store.put(
         note,
@@ -213,6 +221,23 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     [current, apply],
   )
 
+  const applyCleanUp = useCallback(
+    async (id: string, proposal: CleanUpProposal) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      const existing = current.annotations.find((a) => a.id === id)
+      if (!existing || !isNote(existing)) {
+        throw new Error(`No comment or suggestion with id ${id}`)
+      }
+      const updated = withCleanUp(existing, proposal)
+      await current.store.put(updated)
+      apply(current.documentId, (list) =>
+        list.map((a) => (a.id === id ? updated : a)),
+      )
+      return updated
+    },
+    [current, apply],
+  )
+
   const getAudio = useCallback(
     async (id: string) => {
       if (!current) throw new Error('Annotation store is not ready')
@@ -240,6 +265,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     updateBody,
     updateVisibility,
     setTranscript,
+    applyCleanUp,
     getAudio,
     remove,
   }

@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Providers } from '../hooks/useProviders'
-import { DEFAULT_SETTINGS } from '../providers/registry'
+import { DEFAULT_SETTINGS, DEFAULT_TEXT_SETTINGS } from '../providers/registry'
 import { ProviderSettings } from './ProviderSettings'
 
 function providersWith(overrides: Partial<Providers> = {}): Providers {
@@ -10,6 +10,8 @@ function providersWith(overrides: Partial<Providers> = {}): Providers {
     error: null,
     settings: DEFAULT_SETTINGS,
     saveSettings: vi.fn(),
+    textSettings: DEFAULT_TEXT_SETTINGS,
+    saveTextSettings: vi.fn(),
     hasKey: () => false,
     setKey: vi.fn(async () => {}),
     removeKey: vi.fn(async () => {}),
@@ -22,10 +24,11 @@ describe('ProviderSettings', () => {
   it('saves a key through the store, never echoing it, and clears the field', async () => {
     const providers = providersWith()
     render(<ProviderSettings providers={providers} onClose={() => {}} />)
-    const field = screen.getByLabelText('API key') as HTMLInputElement
+    const field = screen.getByLabelText('OpenAI API key') as HTMLInputElement
     expect(field.type).toBe('password')
-    expect(screen.getByText(/none stored/)).toBeTruthy()
-    const save = screen.getByRole('button', { name: 'Save key' })
+    const form = screen.getByRole('form', { name: 'OpenAI key' })
+    expect(form.textContent).toMatch(/none stored/)
+    const save = within(form).getByRole('button', { name: 'Save key' })
     expect(save).toHaveProperty('disabled', true)
 
     fireEvent.change(field, { target: { value: '  sk-test-123 ' } })
@@ -39,10 +42,14 @@ describe('ProviderSettings', () => {
   })
 
   it('shows that a key is stored and can remove it', async () => {
-    const providers = providersWith({ hasKey: () => true })
+    const providers = providersWith({ hasKey: (id) => id === 'openai' })
     render(<ProviderSettings providers={providers} onClose={() => {}} />)
-    expect(screen.getByText(/a key is stored/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Remove key' }))
+    const form = screen.getByRole('form', { name: 'OpenAI key' })
+    expect(form.textContent).toMatch(/a key is stored/)
+    expect(
+      screen.getByRole('form', { name: 'xAI (Grok) key' }).textContent,
+    ).toMatch(/none stored/)
+    fireEvent.click(within(form).getByRole('button', { name: 'Remove key' }))
     await vi.waitFor(() =>
       expect(providers.removeKey).toHaveBeenCalledWith('openai'),
     )
@@ -51,7 +58,7 @@ describe('ProviderSettings', () => {
   it('saves model and language hint as settings', () => {
     const providers = providersWith()
     render(<ProviderSettings providers={providers} onClose={() => {}} />)
-    fireEvent.change(screen.getByLabelText('Model'), {
+    fireEvent.change(screen.getByLabelText('Transcription model'), {
       target: { value: 'whisper-1' },
     })
     expect(providers.saveSettings).toHaveBeenCalledWith({
@@ -86,6 +93,51 @@ describe('ProviderSettings', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('picks the clean-up provider and model, and keeps one key per provider', async () => {
+    const providers = providersWith({
+      textSettings: { provider: 'anthropic', model: 'claude-opus-5-5' },
+    })
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    const model = screen.getByLabelText('Clean-up model') as HTMLSelectElement
+    expect(Array.from(model.options).map((o) => o.value)).toEqual([
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
+      'claude-haiku-5-5',
+      'claude-fable-5-1',
+    ])
+    fireEvent.change(model, { target: { value: 'claude-haiku-5-5' } })
+    expect(providers.saveTextSettings).toHaveBeenCalledWith({
+      provider: 'anthropic',
+      model: 'claude-haiku-5-5',
+    })
+    fireEvent.change(screen.getByLabelText('Clean-up provider'), {
+      target: { value: 'xai' },
+    })
+    expect(providers.saveTextSettings).toHaveBeenLastCalledWith({
+      provider: 'xai',
+      model: '',
+    })
+
+    const anthropic = screen.getByRole('form', {
+      name: 'Anthropic (Claude) key',
+    })
+    expect(anthropic.textContent).toContain('used for clean-up')
+    expect(
+      screen.getByRole('form', { name: 'OpenAI key' }).textContent,
+    ).toContain('used for speech-to-text')
+    fireEvent.change(
+      within(anthropic).getByLabelText('Anthropic (Claude) API key'),
+      {
+        target: { value: 'sk-ant-test' },
+      },
+    )
+    fireEvent.click(within(anthropic).getByRole('button', { name: 'Save key' }))
+    await vi.waitFor(() =>
+      expect(providers.setKey).toHaveBeenCalledWith('anthropic', 'sk-ant-test'),
+    )
+    expect(document.body.textContent).not.toContain('sk-ant-test')
+  })
+
   it('closes on Escape and starts with focus inside the dialog', () => {
     const onClose = vi.fn()
     render(<ProviderSettings providers={providersWith()} onClose={onClose} />)
@@ -103,10 +155,15 @@ describe('ProviderSettings', () => {
       }),
     })
     render(<ProviderSettings providers={providers} onClose={() => {}} />)
-    fireEvent.change(screen.getByLabelText('API key'), {
+    fireEvent.change(screen.getByLabelText('OpenAI API key'), {
       target: { value: 'k' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Save key' }))
+    fireEvent.click(
+      within(screen.getByRole('form', { name: 'OpenAI key' })).getByRole(
+        'button',
+        { name: 'Save key' },
+      ),
+    )
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'The secret store is not ready',
@@ -118,7 +175,7 @@ describe('ProviderSettings', () => {
     const { rerender } = render(
       <ProviderSettings providers={providers} onClose={() => {}} />,
     )
-    const keyField = screen.getByLabelText('API key')
+    const keyField = screen.getByLabelText('OpenAI API key')
     keyField.focus()
     // What committing the language does in the app: settings change, the
     // parent re-renders, and every callback prop is a fresh closure.

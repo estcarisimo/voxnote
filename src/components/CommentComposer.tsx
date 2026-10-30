@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import type { Transcript, VoiceNote } from '../core/annotations'
+import type { CleanUp, Transcript, VoiceNote } from '../core/annotations'
+import { cleanUpForDraft, type CleanUpProposal } from '../core/cleanUp'
 import { formatDuration } from '../core/recording'
 import type { Recording, VoiceRecorder } from '../hooks/useVoiceRecorder'
+import type { CleanUpFn } from './CleanUpDialog'
 import type { ToolbarPlacement } from './SelectionToolbar'
 import type { TranscribeFn } from './TranscribeDialog'
 import './CommentComposer.css'
@@ -10,6 +12,8 @@ export interface CommentDraft {
   body: string
   voice?: VoiceNote
   audio?: Blob
+  /** Set when the body came from an accepted clean-up of the transcript. */
+  cleanUp?: CleanUp
 }
 
 export type ComposerMode = 'comment' | 'suggestion'
@@ -24,6 +28,8 @@ interface CommentComposerProps {
   recorder: VoiceRecorder | null
   /** Opens the consent dialog and transcribes; null when unavailable. */
   transcribe: TranscribeFn | null
+  /** Opens the clean-up consent dialog; null when unavailable. */
+  cleanUp?: CleanUpFn | null
   onSave: (draft: CommentDraft) => Promise<void>
   onCancel: () => void
 }
@@ -32,6 +38,12 @@ interface CommentComposerProps {
 interface Transcribed {
   url: string
   transcript: Transcript
+}
+
+/** An accepted clean-up belongs to one recording's transcript, too. */
+interface Cleaned {
+  url: string
+  proposal: CleanUpProposal
 }
 
 /**
@@ -47,6 +59,7 @@ export function CommentComposer({
   quote,
   recorder,
   transcribe,
+  cleanUp = null,
   onSave,
   onCancel,
 }: CommentComposerProps) {
@@ -57,6 +70,8 @@ export function CommentComposer({
   const [error, setError] = useState<string | null>(null)
   const [transcribed, setTranscribed] = useState<Transcribed | null>(null)
   const [transcribing, setTranscribing] = useState(false)
+  const [cleaned, setCleaned] = useState<Cleaned | null>(null)
+  const [cleaningUp, setCleaningUp] = useState(false)
 
   const recording =
     recorder?.state.status === 'recorded' ? recorder.state.recording : null
@@ -64,6 +79,31 @@ export function CommentComposer({
     recording && transcribed?.url === recording.url
       ? transcribed.transcript
       : null
+  const accepted =
+    transcript && recording && cleaned?.url === recording.url
+      ? cleaned.proposal
+      : null
+
+  async function runCleanUp(current: Recording, raw: Transcript) {
+    if (!cleanUp) return
+    setCleaningUp(true)
+    setError(null)
+    try {
+      const proposal = await cleanUp({
+        transcript: raw.raw,
+        kind: mode,
+        quote,
+        currentBody: body,
+      })
+      if (!proposal) return
+      setCleaned({ url: current.url, proposal })
+      setBody(proposal.text)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCleaningUp(false)
+    }
+  }
 
   async function runTranscription(current: Recording) {
     if (!transcribe) return
@@ -103,6 +143,7 @@ export function CommentComposer({
     !saving &&
     !busy &&
     !transcribing &&
+    !cleaningUp &&
     (voiceOnly || (!unchanged && (body.trim() !== '' || recording !== null)))
 
   async function submit(event: FormEvent) {
@@ -119,6 +160,9 @@ export function CommentComposer({
       }
       if (transcript) draft.voice.transcript = transcript
       draft.audio = recording.blob
+      if (accepted && draft.body.trim() !== '') {
+        draft.cleanUp = cleanUpForDraft(accepted, draft.body)
+      }
     }
     try {
       await onSave(draft)
@@ -149,6 +193,15 @@ export function CommentComposer({
           transcribing={transcribing}
           transcript={transcript}
           onTranscribe={(current) => void runTranscription(current)}
+          cleanUp={
+            cleanUp && transcript
+              ? {
+                  busy: cleaningUp,
+                  accepted,
+                  run: (current) => void runCleanUp(current, transcript),
+                }
+              : null
+          }
         />
       )}
       <textarea
@@ -160,7 +213,8 @@ export function CommentComposer({
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
           // Not while an upload runs: the result would be lost after paying.
-          if (e.key === 'Escape' && !transcribing && !saving) onCancel()
+          if (e.key === 'Escape' && !transcribing && !cleaningUp && !saving)
+            onCancel()
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
             e.currentTarget.form?.requestSubmit()
           }
@@ -182,7 +236,7 @@ export function CommentComposer({
         <button
           type="button"
           onClick={onCancel}
-          disabled={saving || transcribing}
+          disabled={saving || transcribing || cleaningUp}
         >
           Cancel
         </button>
@@ -209,12 +263,19 @@ function RecorderControls({
   transcribing,
   transcript,
   onTranscribe,
+  cleanUp,
 }: {
   recorder: VoiceRecorder
   canTranscribe: boolean
   transcribing: boolean
   transcript: Transcript | null
   onTranscribe: (recording: Recording) => void
+  /** Present when a transcript exists and a clean-up can be requested. */
+  cleanUp: {
+    busy: boolean
+    accepted: CleanUpProposal | null
+    run: (recording: Recording) => void
+  } | null
 }) {
   const { state } = recorder
   switch (state.status) {
@@ -251,7 +312,7 @@ function RecorderControls({
           <button
             type="button"
             onClick={recorder.discard}
-            disabled={transcribing}
+            disabled={transcribing || cleanUp?.busy}
           >
             Re-record
           </button>
@@ -264,10 +325,26 @@ function RecorderControls({
               {transcribing ? 'Transcribing…' : 'Transcribe…'}
             </button>
           )}
+          {cleanUp && (
+            <button
+              type="button"
+              onClick={() => cleanUp.run(state.recording)}
+              disabled={cleanUp.busy}
+            >
+              {cleanUp.busy ? 'Cleaning up…' : 'Clean up…'}
+            </button>
+          )}
           {transcript ? (
             <details className="comment-composer-raw">
               <summary>Raw transcript ({transcript.provider})</summary>
               <p>{transcript.raw}</p>
+              {cleanUp?.accepted && (
+                <p className="comment-composer-note">
+                  Text cleaned up with {cleanUp.accepted.cleanUp.provider}/
+                  {cleanUp.accepted.cleanUp.model}; the raw transcript above is
+                  kept.
+                </p>
+              )}
             </details>
           ) : (
             <p className="comment-composer-note">

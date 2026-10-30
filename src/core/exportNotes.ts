@@ -12,8 +12,10 @@ import {
   unionRects,
   type Anchor,
   type Annotation,
+  type CleanUp,
   type VoiceNote,
 } from './annotations'
+import { cleanUpLabel } from './cleanUp'
 
 /** Version of the JSON export envelope, independent of the annotation schema. */
 export const NOTES_EXPORT_SCHEMA_VERSION = 1
@@ -146,7 +148,12 @@ function itemLines(annotation: Annotation): string[] {
     if (annotation.body.trim() === '') {
       lines.push('  - Replacement: recorded by voice; not transcribed yet.')
     } else {
-      lines.push(...field('Replacement', annotation.body))
+      lines.push(
+        ...field(
+          withCleanUpLabel('Replacement', annotation.cleanUp),
+          annotation.body,
+        ),
+      )
     }
   } else {
     if (anchor.type === 'text') {
@@ -158,7 +165,12 @@ function itemLines(annotation: Annotation): string[] {
       if (annotation.body.trim() === '') {
         lines.push('  - Comment: recorded by voice; not transcribed yet.')
       } else {
-        lines.push(...field('Comment', annotation.body))
+        lines.push(
+          ...field(
+            withCleanUpLabel('Comment', annotation.cleanUp),
+            annotation.body,
+          ),
+        )
       }
     }
   }
@@ -166,6 +178,19 @@ function itemLines(annotation: Annotation): string[] {
     lines.push(...voiceLines(annotation.voice))
   }
   return lines
+}
+
+/**
+ * Marks a body that is an LLM clean-up of the raw transcript, so a reader
+ * never mistakes it for the reviewer's verbatim words.
+ */
+function withCleanUpLabel(label: string, cleanUp: CleanUp | undefined): string {
+  if (!cleanUp) return label
+  const edited = cleanUp.editedAfter ? ', then edited by the reviewer' : ''
+  return (
+    `${label} (cleaned up with ${cleanUpLabel(cleanUp)}, ${cleanUp.createdAt} UTC, ` +
+    `prompt v${cleanUp.promptVersion}${edited}; the raw transcript is below)`
+  )
 }
 
 function voiceLines(voice: VoiceNote): string[] {

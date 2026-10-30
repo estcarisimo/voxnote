@@ -145,6 +145,93 @@ describe('AnnotationList', () => {
     )
   })
 
+  it('offers Clean up… only beside a raw transcript, and marks a cleaned body', async () => {
+    const voice = {
+      mimeType: 'audio/webm',
+      durationMs: 1000,
+      recordedAt: '2026-10-29T10:00:00.000Z',
+      transcript: {
+        raw: 'um the claim is uh weak',
+        provider: 'openai/gpt-transcribe',
+        transcribedAt: '2026-10-29T10:01:00.000Z',
+      },
+    }
+    const dictated = createComment({
+      documentId: 'd',
+      anchor,
+      body: voice.transcript.raw,
+      voice,
+    })
+    const cleaned = createComment({
+      documentId: 'd',
+      anchor: { ...anchor, page: 4 },
+      body: 'The claim is weak.',
+      voice,
+      cleanUp: {
+        provider: 'anthropic',
+        model: 'claude-opus-5-5',
+        createdAt: '2026-10-29T10:02:00.000Z',
+        promptVersion: 1,
+        editedAfter: true,
+      },
+    })
+    const untranscribed = createComment({
+      documentId: 'd',
+      anchor,
+      body: '',
+      voice: { ...voice, transcript: undefined },
+    })
+    const typed = createComment({ documentId: 'd', anchor, body: 'typed' })
+    const onCleanUp = vi.fn(async () => {
+      throw new Error(
+        'Add your Anthropic (Claude) API key under Providers first',
+      )
+    })
+    render(
+      <AnnotationList
+        annotations={[dictated, cleaned, untranscribed, typed]}
+        selectedId={null}
+        {...noop}
+        onCleanUp={onCleanUp}
+      />,
+    )
+    const buttons = screen.getAllByRole('button', { name: 'Clean up…' })
+    expect(buttons).toHaveLength(2)
+    expect(
+      screen.getByText(
+        '✨ Cleaned up with anthropic/claude-opus-5-5, then edited',
+      ),
+    ).toBeTruthy()
+    fireEvent.click(buttons[0])
+    expect(onCleanUp).toHaveBeenCalledWith(dictated)
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Add your Anthropic (Claude) API key under Providers first',
+    )
+  })
+
+  it('offers no Clean up… without a handler', () => {
+    const comment = createComment({
+      documentId: 'd',
+      anchor,
+      body: 'x',
+      voice: {
+        mimeType: 'audio/webm',
+        durationMs: 1000,
+        recordedAt: '2026-10-29T10:00:00.000Z',
+        transcript: {
+          raw: 'x',
+          provider: 'openai/gpt-transcribe',
+          transcribedAt: '2026-10-29T10:01:00.000Z',
+        },
+      },
+    })
+    render(
+      <AnnotationList annotations={[comment]} selectedId={null} {...noop} />,
+    )
+    expect(screen.queryByRole('button', { name: 'Clean up…' })).toBeNull()
+  })
+
   it('shows a suggestion as original struck through and replacement inserted, and edits need a change', async () => {
     const s = createSuggestion({ documentId: 'd', anchor, body: 'quoted word' })
     const onUpdateBody = vi.fn(async () => {})

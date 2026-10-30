@@ -287,3 +287,8 @@
   text-decoration: none;
   color: #1e7b34;
 }
+
+.annotation-list-cleaned {
+  color: var(--text);
+  font-size: 0.75rem;
+}

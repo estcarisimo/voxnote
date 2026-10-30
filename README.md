@@ -7,8 +7,9 @@ passage with the Apple Pencil, a finger or the mouse, then highlight it,
 comment on it, record a voice note or suggest a rewording — the PDF itself is
 never edited. Annotations live beside the document in your browser and are
 exported into a copy (annotated PDF, Markdown report or JSON). There is no
-backend: VoxNote is a static web app, local-first by default, and audio leaves
-the device only when you confirm a transcription with your own provider key.
+backend: VoxNote is a static web app, local-first by default, and audio or
+transcript text leaves the device only when you confirm a transcription or a
+clean-up with your own provider key.
 
 [![CI](https://github.com/estcarisimo/voxnote/actions/workflows/ci.yml/badge.svg)](https://github.com/estcarisimo/voxnote/actions/workflows/ci.yml)
 [![Security](https://github.com/estcarisimo/voxnote/actions/workflows/security.yml/badge.svg)](https://github.com/estcarisimo/voxnote/actions/workflows/security.yml)
@@ -41,6 +42,13 @@ yet (see [Status](#-status-and-caveats)).
 - 🗣️ **Opt-in transcription**: **Transcribe…** sends a recording to OpenAI
   with your own API key, only after a consent dialog that says exactly what
   is sent and to which host; the raw transcript is kept verbatim
+- 🧹 **Opt-in clean-up**: **Clean up…** asks a text model (OpenAI, Anthropic
+  Claude or xAI Grok, each with your own key) to fix punctuation, casing,
+  fillers and technical terms in a raw transcript; the consent dialog names
+  the host and model and shows the exact prompt, the raw text and the
+  proposal sit side by side, and only **Accept** changes the note. The raw
+  transcript is never touched, and a cleaned body is labeled as such in the
+  sidebar and the exports
 - 🗂️ **Annotations sidebar**: group by kind, visibility or page; filter by
   kind, visibility, untranscribed voice notes or free text; edit bodies; mark
   each one **Private** or **For author**; tap to jump to the passage
@@ -63,6 +71,10 @@ Everything above works on `main` today, with these limits, all tracked in
   verified against a mocked endpoint only; there are no accuracy or latency
   figures, and there will be none here without the dataset, parameters,
   provider version and date behind them.
+- **No real clean-up call has been made.** The OpenAI, Anthropic and xAI
+  text adapters are verified against mocked endpoints only; whether each
+  vendor accepts calls straight from a browser, and the quality, latency and
+  cost of the clean-ups, are unmeasured.
 - **Real-iPad confirmation is pending.** Pen-drag selection is verified
   headless with emulated pen events; installing the PWA and recording in
   Safari (its MP4 audio path and real permission prompt) are untested on an
@@ -107,18 +119,21 @@ The review flow is select, act, export:
    - **Comment** — type a note.
    - **Voice** — starts recording right away; **Stop**, replay or re-record,
      then **Save**. The audio stays on the device until you choose
-     **Transcribe…**.
+     **Transcribe…**. Once there is a raw transcript, **Clean up…** offers
+     an optional tidied version: review it next to the raw text, then
+     **Accept** or **Discard**.
    - **Suggest** (text selections only) — edit the passage in place; saving
      needs an actual change.
 4. **Review** in the **Annotations** panel: group, filter, edit bodies, set
-   visibility, transcribe stored voice notes, delete, or tap an entry to
-   scroll to its marks.
+   visibility, transcribe or clean up stored voice notes, delete, or tap an
+   entry to scroll to its marks.
 5. **Export** from the header:
    - **Export PDF** → a copy of the document with native annotations. The
      original file is never modified.
    - **Markdown** → `<name>.voxnote.md`, a page-by-page report with quotes,
      comments, suggestions (original and replacement) and voice notes with
-     their raw transcripts, export time labeled UTC.
+     their raw transcripts; a cleaned body is labeled with its provider and
+     model, export time labeled UTC.
    - **JSON** → `<name>.voxnote.json`, the document name, SHA-256 id, page
      count and the annotations as stored, without audio.
 
@@ -143,23 +158,37 @@ The review flow is select, act, export:
   dialog, which states what is sent (the recording, optionally the quoted
   passage as a vocabulary hint, the language hint) and to which host, and
   only to the provider you picked. Nothing is uploaded until you tap
-  **Send to OpenAI**.
+  **Send to OpenAI**. A clean-up sends the raw transcript text (optionally
+  the quoted passage, to spell terms) to the text provider you picked, with
+  `store: false` on OpenAI and xAI, only after you tap **Send to …**.
 - **Nothing is published automatically.** Exports are downloads you start.
 - **The raw transcript is preserved.** It fills the comment only when nothing
-  was typed, and stays visible read-only next to the editor.
+  was typed, and stays visible read-only next to the editor. A clean-up never
+  replaces it; an accepted one changes only the note body.
 
 Security problems go to the private channel in [SECURITY.md](SECURITY.md).
 
 ## 🔧 Configuration
 
-All settings live in the **Providers** dialog, in your browser:
+All settings live in the **Providers** dialog, in your browser. Speech to
+text:
 
-| Setting       | Values                                                                                                      |
-| ------------- | ----------------------------------------------------------------------------------------------------------- |
-| Provider      | OpenAI (the only speech-to-text provider today; Deepgram is on the roadmap)                                 |
-| Model         | `gpt-transcribe` (default), or the older `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1`         |
-| Language hint | An ISO 639-1 code such as `es` or `en`, or empty to let the model detect it                                 |
-| API key       | Your own key, encrypted at rest in the browser and sent only in the request you confirm, straight to OpenAI |
+| Setting       | Values                                                                                              |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| Provider      | OpenAI (the only speech-to-text provider today; Deepgram is on the roadmap)                         |
+| Model         | `gpt-transcribe` (default), or the older `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1` |
+| Language hint | An ISO 639-1 code such as `es` or `en`, or empty to let the model detect it                         |
+
+Clean-up (optional):
+
+| Setting  | Values                                                                                                           |
+| -------- | ---------------------------------------------------------------------------------------------------------------- |
+| Provider | OpenAI (default), Anthropic (Claude) or xAI (Grok)                                                               |
+| Model    | OpenAI `gpt-6.1-terra` (default); Anthropic `claude-opus-5-5` (default); xAI `grok-4.7` (default); others listed |
+
+API keys: one per provider (OpenAI, Anthropic, xAI), your own, encrypted at
+rest in the browser and sent only in the request you confirm, straight to
+that provider.
 
 Build-time: `npm run build` targets the GitHub Pages path `/voxnote/`, so
 `npm run preview` serves the build at `http://localhost:4173/voxnote/`; the
@@ -183,16 +212,19 @@ src/
 ├── core/         # Pure, framework-free domain logic, fully unit-tested:
 │                 #   annotation model, selection, store (IndexedDB), secrets,
 │                 #   PDF / Markdown / JSON export, recording
-├── hooks/        # React glue: annotations, providers, recorder, transcription
-└── providers/    # Speech-to-text adapter interface and the OpenAI provider
+├── hooks/        # React glue: annotations, providers, recorder, transcription,
+│                 #   clean-up
+└── providers/    # Speech-to-text and text-model adapters: OpenAI
+                  #   transcription; OpenAI, Anthropic and xAI clean-up
 public/           # PWA manifest and icons
 ```
 
-Every provider implements the adapter in
-[`src/providers/stt.ts`](src/providers/stt.ts), including the disclosure text
-the consent dialog shows. The delivery-platform decision (web/PWA first,
-native shell re-evaluated at the end of M1) is Decision 0 in
-[ROADMAP.md](ROADMAP.md).
+Every speech-to-text provider implements the adapter in
+[`src/providers/stt.ts`](src/providers/stt.ts) and every text model the one
+in [`src/providers/llm.ts`](src/providers/llm.ts), which also holds the
+clean-up prompt; each includes the disclosure text the consent dialog shows.
+The delivery-platform decision (web/PWA first, native shell re-evaluated at
+the end of M1) is Decision 0 in [ROADMAP.md](ROADMAP.md).
 
 ## 🧪 Development
 
@@ -253,6 +285,11 @@ renders it under "Cite this repository").
   annotation types the export uses
 - [OpenAI speech to text](https://platform.openai.com/docs/guides/speech-to-text):
   the transcription API behind the OpenAI provider
+- [OpenAI Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create),
+  [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages.md)
+  and
+  [xAI Responses API](https://docs.x.ai/developers/rest-api-reference/inference/responses):
+  the text models behind the optional clean-up
 - [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): the changelog
   format
 
