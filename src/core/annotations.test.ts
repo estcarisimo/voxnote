@@ -13,6 +13,7 @@ import {
   rectFromCorners,
   unionRects,
   withBody,
+  withColor,
   withVisibility,
   withTranscript,
   type Anchor,
@@ -45,10 +46,36 @@ describe('createHighlight', () => {
     expect(a.schemaVersion).toBe(ANNOTATION_SCHEMA_VERSION)
     expect(a.kind).toBe('highlight')
     expect(a.visibility).toBe('private')
+    expect(a.color).toBe('yellow')
     expect(a.createdAt).toBe('2026-10-29T12:34:56.000Z')
     expect(a.updatedAt).toBe(a.createdAt)
     expect(a.id).toMatch(/^[0-9a-f-]{36}$/)
     expect(isAnnotation(a)).toBe(true)
+  })
+
+  it('takes a palette color and rejects any other', () => {
+    const anchor = {
+      type: 'region',
+      page: 1,
+      rect: rect(0, 0, 1, 1),
+    } as const
+    expect(
+      createHighlight({ documentId: 'doc', anchor, color: 'pink' }).color,
+    ).toBe('pink')
+    expect(() =>
+      createHighlight({
+        documentId: 'doc',
+        anchor,
+        color: 'magenta' as unknown as 'pink',
+      }),
+    ).toThrow(/Unknown highlight color "magenta"/)
+    expect(() =>
+      createHighlight({
+        documentId: 'doc',
+        anchor,
+        color: '#ff00ff' as unknown as 'pink',
+      }),
+    ).toThrow(/Unknown highlight color/)
   })
 
   it('rejects an invalid anchor loudly', () => {
@@ -154,8 +181,13 @@ describe('isAnchor / isAnnotation', () => {
       },
       new Date('2026-01-01T00:00:00Z'),
     )
-    expect(isAnnotation({ ...good, schemaVersion: 3 })).toBe(false)
+    expect(isAnnotation({ ...good, schemaVersion: 4 })).toBe(false)
+    expect(isAnnotation({ ...good, schemaVersion: 2 })).toBe(false)
     expect(isAnnotation({ ...good, schemaVersion: 1 })).toBe(false)
+    const { color: _color, ...colorless } = good
+    expect(isAnnotation(colorless)).toBe(false)
+    expect(isAnnotation({ ...good, color: 'magenta' })).toBe(false)
+    expect(isAnnotation({ ...good, color: '#ffdc3c' })).toBe(false)
     expect(
       isAnnotation({ ...good, createdAt: '2026-01-01T00:00:00+02:00' }),
     ).toBe(false)
@@ -368,6 +400,40 @@ describe('createSuggestion', () => {
   })
 })
 
+describe('withColor', () => {
+  const anchor = {
+    type: 'region',
+    page: 1,
+    rect: rect(0, 0, 1, 1),
+  } as const
+
+  it('recolors a highlight and bumps updatedAt only', () => {
+    const h = createHighlight(
+      { documentId: 'doc', anchor },
+      new Date('2026-11-05T10:00:00.000Z'),
+    )
+    const green = withColor(h, 'green', new Date('2026-11-05T10:05:00.000Z'))
+    expect(green).toEqual({
+      ...h,
+      color: 'green',
+      updatedAt: '2026-11-05T10:05:00.000Z',
+    })
+    expect(h.color).toBe('yellow')
+    expect(isAnnotation(green)).toBe(true)
+  })
+
+  it('rejects colors outside the palette and non-highlights', () => {
+    const h = createHighlight({ documentId: 'doc', anchor })
+    expect(() => withColor(h, 'red' as unknown as 'pink')).toThrow(
+      /Unknown highlight color "red"/,
+    )
+    const c = createComment({ documentId: 'doc', anchor, body: 'x' })
+    expect(() => withColor(c as unknown as typeof h, 'pink')).toThrow(
+      /Only a highlight has a color/,
+    )
+  })
+})
+
 describe('withVisibility', () => {
   it('flips the visibility and bumps updatedAt, leaving the rest alone', () => {
     const h = createHighlight(
@@ -482,23 +548,42 @@ describe('clean-up records and schema v2', () => {
     ).toBe(false)
   })
 
-  it('migrates a v1 record by its version number only', () => {
-    const v2 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
-    expect(ANNOTATION_SCHEMA_VERSION).toBe(2)
-    const v1 = { ...v2, schemaVersion: 1 }
-    expect(isAnnotation(v1)).toBe(false)
-    const migrated = migrateAnnotation(v1)
-    expect(migrated).toEqual(v2)
-    expect(isAnnotation(migrated)).toBe(true)
+  it('migrates a v1 or v2 note by its version number only', () => {
+    const v3 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
+    expect(ANNOTATION_SCHEMA_VERSION).toBe(3)
+    for (const schemaVersion of [1, 2]) {
+      const old = { ...v3, schemaVersion }
+      expect(isAnnotation(old)).toBe(false)
+      const migrated = migrateAnnotation(old)
+      expect(migrated).toEqual(v3)
+      expect(isAnnotation(migrated)).toBe(true)
+    }
+  })
+
+  it('gives a v1 or v2 highlight the default color', () => {
+    const v3 = createHighlight({ documentId: 'doc', anchor })
+    const { color: _color, ...colorless } = v3
+    for (const schemaVersion of [1, 2]) {
+      const old = { ...colorless, schemaVersion }
+      expect(isAnnotation(old)).toBe(false)
+      const migrated = migrateAnnotation(old)
+      expect(migrated).toEqual({ ...v3, color: 'yellow' })
+      expect(isAnnotation(migrated)).toBe(true)
+    }
   })
 
   it('leaves anything else for isAnnotation to reject', () => {
-    const v2 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
-    expect(migrateAnnotation(v2)).toBe(v2)
-    const future = { ...v2, schemaVersion: 3 }
+    const v3 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
+    expect(migrateAnnotation(v3)).toBe(v3)
+    const future = { ...v3, schemaVersion: 4 }
     expect(migrateAnnotation(future)).toBe(future)
-    const odd = { ...v2, schemaVersion: 1, cleanUp }
+    const odd = { ...v3, schemaVersion: 1, cleanUp }
     expect(migrateAnnotation(odd)).toBe(odd)
+    // Neither v1 nor v2 had a color: such a record is corrupt, not old.
+    const h = createHighlight({ documentId: 'doc', anchor })
+    const colored = { ...h, schemaVersion: 2 }
+    expect(migrateAnnotation(colored)).toBe(colored)
+    expect(isAnnotation(colored)).toBe(false)
     expect(migrateAnnotation(null)).toBeNull()
     expect(migrateAnnotation('x')).toBe('x')
   })

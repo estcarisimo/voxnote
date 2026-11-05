@@ -10,7 +10,7 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
-.selection-toolbar button {
+.selection-toolbar > button {
   font: inherit;
   font-size: 0.95rem;
   padding: 8px 14px;
@@ -23,6 +23,15 @@
   min-height: 40px;
 }
 
-.selection-toolbar button:hover {
+.selection-toolbar > button:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+/* The dots sit on the dark bar, so the chosen ring takes the bar's colors. */
+.selection-toolbar .color-dots {
+  --dot-ring: var(--bg);
+  --dot-ring-gap: var(--text-h);
+  margin-right: 2px;
+  padding-right: 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
 }

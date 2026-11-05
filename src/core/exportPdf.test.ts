@@ -14,6 +14,7 @@ import {
   type TextAnchor,
 } from './annotations'
 import { exportAnnotatedPdf } from './exportPdf'
+import { highlightPdfColor } from './palette'
 
 async function twoPagePdf(): Promise<Uint8Array> {
   const pdf = await PDFDocument.create()
@@ -125,7 +126,40 @@ describe('exportAnnotatedPdf', () => {
     expect(
       (h.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
     ).toBe('')
-    expect(numbers(h, 'C')).toEqual([1, 0.85, 0.2])
+    expect(numbers(h, 'C')).toEqual([1, 0.863, 0.235])
+  })
+
+  it('writes each highlight in its palette color, for text and regions alike', async () => {
+    const original = await twoPagePdf()
+    const text = createHighlight({
+      documentId: 'doc',
+      anchor: {
+        type: 'text',
+        page: 1,
+        quote: 'q',
+        rects: [{ x: 10, y: 500, width: 100, height: 12 }],
+      },
+      color: 'green',
+    })
+    const region = createHighlight({
+      documentId: 'doc',
+      anchor: {
+        type: 'region',
+        page: 1,
+        rect: { x: 0, y: 0, width: 10, height: 10 },
+      },
+      color: 'purple',
+    })
+    const pdf = await PDFDocument.load(
+      await exportAnnotatedPdf(original, [text, region]),
+    )
+    const [t, r] = annots(pdf.getPages()[0], pdf)
+    expect(t.lookup(PDFName.of('Subtype'))).toBe(PDFName.of('Highlight'))
+    expect(numbers(t, 'C')).toEqual(highlightPdfColor('green'))
+    expect(numbers(t, 'C')).toEqual([0.49, 0.863, 0.431])
+    expect(r.lookup(PDFName.of('Subtype'))).toBe(PDFName.of('Square'))
+    expect(numbers(r, 'C')).toEqual(highlightPdfColor('purple'))
+    expect(numbers(r, 'C')).toEqual([0.784, 0.608, 1])
   })
 
   it('round-trips non-Latin-1 comment text through Contents', async () => {

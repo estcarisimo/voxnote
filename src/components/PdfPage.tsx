@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState, type PointerEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent,
+} from 'react'
 import { TextLayer, type PageViewport } from 'pdfjs-dist'
 import type { Anchor, Annotation, RegionAnchor } from '../core/annotations'
+import { highlightRgb } from '../core/palette'
 import type { PDFDocumentProxy, PDFPageProxy } from '../core/pdf'
 import { caretLookup, hasStylusTouch, PenSelection } from '../core/penSelection'
 import { createPageGeometry, type PageGeometry } from './geometry'
@@ -287,6 +294,7 @@ export function PdfPage({
               anchor={a.anchor}
               geometry={geometry}
               kind={a.kind}
+              color={a.kind === 'highlight' ? highlightRgb(a.color) : null}
               selected={a.id === selectedId}
             />
           ))}
@@ -361,16 +369,20 @@ function Marks({
   anchor,
   geometry,
   kind,
+  color = null,
   selected = false,
 }: {
   id: string
   anchor: Anchor
   geometry: PageGeometry
   kind: 'highlight' | 'comment' | 'suggestion' | 'pending'
+  /** A highlight's palette color, 0–255; the CSS mixes in the opacity. */
+  color?: [number, number, number] | null
   selected?: boolean
 }) {
   const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]
   const className = `highlight highlight--${anchor.type} highlight--${kind}${selected ? ' highlight--selected' : ''}`
+  const tint = color ? { '--highlight-rgb': color.join(' ') } : null
   return (
     <>
       {rects.map((r, i) => (
@@ -378,7 +390,7 @@ function Marks({
           key={i}
           className={className}
           data-annotation-id={id}
-          style={geometry.toCssRect(r)}
+          style={{ ...geometry.toCssRect(r), ...tint } as CSSProperties}
         />
       ))}
     </>

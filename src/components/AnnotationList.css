@@ -149,8 +149,22 @@
 }
 
 .annotation-list-page {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.8rem;
   color: var(--accent);
+}
+
+.annotation-list-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+}
+
+.annotation-list-actions .color-dots {
+  margin-right: auto;
 }
 
 .annotation-list-text {

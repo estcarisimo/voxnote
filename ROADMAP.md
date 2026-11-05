@@ -106,6 +106,11 @@ the success criterion on real iPad hardware.
       events; real-iPad confirmation is still pending.
 - [x] Region (rectangle) selection for figures, charts and equations where
       there is no text.
+- [x] Highlight colors (2026-11-05): a fixed six-color palette as dots in
+      the selection toolbar, remembered across reloads; recolor from the
+      panel; the color travels into the PDF, Markdown and JSON exports.
+      Verified with unit tests, poppler and headless Chromium; not yet on
+      an iPad.
 - [x] Persist locally in IndexedDB; reload restores annotations onto the PDF.
 - [~] Interoperability test: export highlights as native PDF annotations with
   `pdf-lib` and open the result in Preview, Acrobat, PDF Expert, Chrome.

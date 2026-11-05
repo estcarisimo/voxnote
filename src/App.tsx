@@ -21,10 +21,12 @@ import { TranscribeDialog } from './components/TranscribeDialog'
 import type {
   Anchor,
   Annotation,
+  Highlight,
   Note,
   Transcript,
   Visibility,
 } from './core/annotations'
+import type { HighlightColor } from './core/palette'
 import { exportJson, exportMarkdown } from './core/exportNotes'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
@@ -38,6 +40,7 @@ import { fetchPdf } from './core/remotePdf'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
+import { useHighlightColor } from './hooks/useHighlightColor'
 import { useProviders } from './hooks/useProviders'
 import { AiKeysButton } from './components/AiKeysButton'
 import { useTranscription } from './hooks/useTranscription'
@@ -62,6 +65,7 @@ function App() {
   const [draftXml, setDraftXml] = useState<File | null>(null)
   const viewerRef = useRef<PdfViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
+  const highlightColor = useHighlightColor()
   const providers = useProviders()
   const autoConsents = useAutoTranscribeConsent(providers)
   const transcription = useTranscription(providers, {
@@ -169,8 +173,8 @@ function App() {
     setTool('select')
   }
 
-  function createHighlight(anchor: Anchor) {
-    store.addHighlight(anchor).then(
+  function createHighlight(anchor: Anchor, color: HighlightColor) {
+    store.addHighlight(anchor, color).then(
       (a) => setSelectedId(a.id),
       (err: unknown) => setError(messageOf(err)),
     )
@@ -207,6 +211,10 @@ function App() {
 
   async function updateVisibility(a: Annotation, visibility: Visibility) {
     await store.updateVisibility(a.id, visibility)
+  }
+
+  async function updateColor(h: Highlight, color: HighlightColor) {
+    await store.updateColor(h.id, color)
   }
 
   function deleteAnnotation(a: Annotation) {
@@ -333,9 +341,9 @@ function App() {
         />
         <GitHubLink className="app-bar-github" />
       </header>
-      {(error || store.error || autoConsents.error) && (
+      {(error || store.error || autoConsents.error || highlightColor.error) && (
         <p role="alert" className="app-error">
-          {error ?? store.error ?? autoConsents.error}
+          {error ?? store.error ?? autoConsents.error ?? highlightColor.error}
         </p>
       )}
       <div className="app-body">
@@ -347,6 +355,8 @@ function App() {
           tool={tool}
           annotations={store.annotations}
           selectedId={selectedId}
+          highlightColor={highlightColor.color}
+          onHighlightColorChange={highlightColor.setColor}
           onCreateHighlight={createHighlight}
           onCreateNote={createNote}
           transcribe={transcription.request}
@@ -361,6 +371,7 @@ function App() {
             onDelete={deleteAnnotation}
             onUpdateBody={updateBody}
             onUpdateVisibility={updateVisibility}
+            onUpdateColor={updateColor}
             onLoadAudio={(c) => store.getAudio(c.id)}
             onTranscribe={transcribeStored}
             onCleanUp={cleanUpStored}

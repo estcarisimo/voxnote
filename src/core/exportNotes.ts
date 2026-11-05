@@ -16,6 +16,7 @@ import {
   type VoiceNote,
 } from './annotations'
 import { cleanUpLabel } from './cleanUp'
+import { HIGHLIGHT_PALETTE } from './palette'
 
 /** Version of the JSON export envelope, independent of the annotation schema. */
 export const NOTES_EXPORT_SCHEMA_VERSION = 1
@@ -140,8 +141,12 @@ const KIND_LABELS = {
 
 function itemLines(annotation: Annotation): string[] {
   const { anchor } = annotation
+  const tags: string[] = [annotation.visibility]
+  if (annotation.kind === 'highlight') {
+    tags.push(HIGHLIGHT_PALETTE[annotation.color].label.toLowerCase())
+  }
   const lines = [
-    `- **${KIND_LABELS[annotation.kind]}** (${annotation.visibility}), created ${annotation.createdAt} (UTC)`,
+    `- **${KIND_LABELS[annotation.kind]}** (${tags.join(', ')}), created ${annotation.createdAt} (UTC)`,
   ]
   if (annotation.kind === 'suggestion') {
     lines.push(...field('Original', annotation.original))

@@ -3,10 +3,13 @@ import {
   isNote,
   type Annotation,
   type AnnotationKind,
+  type Highlight,
   type Note,
   type Visibility,
 } from '../core/annotations'
 import { cleanUpLabel } from '../core/cleanUp'
+import { HIGHLIGHT_PALETTE, type HighlightColor } from '../core/palette'
+import { ColorDots } from './ColorDots'
 import { formatDuration } from '../core/recording'
 import {
   EMPTY_FILTER,
@@ -33,6 +36,8 @@ interface AnnotationListProps {
     annotation: Annotation,
     visibility: Visibility,
   ) => Promise<void>
+  /** Recolors a highlight; rejecting leaves the dots as they were. */
+  onUpdateColor: (highlight: Highlight, color: HighlightColor) => Promise<void>
   onLoadAudio: (note: Note) => Promise<Blob | null>
   /** Consent-gated transcription of a stored voice note; rejects on failure. */
   onTranscribe: (note: Note) => Promise<void>
@@ -63,6 +68,7 @@ export function AnnotationList({
   onDelete,
   onUpdateBody,
   onUpdateVisibility,
+  onUpdateColor,
   onLoadAudio,
   onTranscribe,
   onCleanUp,
@@ -120,6 +126,7 @@ export function AnnotationList({
             onDelete={onDelete}
             onUpdateBody={onUpdateBody}
             onUpdateVisibility={onUpdateVisibility}
+            onUpdateColor={onUpdateColor}
             onLoadAudio={onLoadAudio}
             onTranscribe={onTranscribe}
             onCleanUp={onCleanUp}
@@ -263,6 +270,7 @@ function ReviewGroupSection({
   onDelete,
   onUpdateBody,
   onUpdateVisibility,
+  onUpdateColor,
   onLoadAudio,
   onTranscribe,
   onCleanUp,
@@ -276,6 +284,7 @@ function ReviewGroupSection({
   onDelete: (annotation: Annotation) => void
   onUpdateBody: (note: Note, body: string) => Promise<void>
   onUpdateVisibility: (a: Annotation, visibility: Visibility) => Promise<void>
+  onUpdateColor: (h: Highlight, color: HighlightColor) => Promise<void>
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
@@ -320,6 +329,7 @@ function ReviewGroupSection({
                 onSelect={onSelect}
                 onDelete={onDelete}
                 onUpdateVisibility={onUpdateVisibility}
+                onUpdateColor={onUpdateColor}
               />
             )}
           </li>
@@ -396,12 +406,29 @@ function HighlightItem({
   onSelect,
   onDelete,
   onUpdateVisibility,
+  onUpdateColor,
 }: {
-  annotation: Annotation
+  annotation: Highlight
   onSelect: (a: Annotation) => void
   onDelete: (a: Annotation) => void
   onUpdateVisibility: (a: Annotation, visibility: Visibility) => Promise<void>
+  onUpdateColor: (h: Highlight, color: HighlightColor) => Promise<void>
 }) {
+  const [recoloring, setRecoloring] = useState(false)
+  const [colorError, setColorError] = useState<string | null>(null)
+
+  async function recolor(color: HighlightColor) {
+    setRecoloring(true)
+    setColorError(null)
+    try {
+      await onUpdateColor(a, color)
+    } catch (err: unknown) {
+      setColorError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setRecoloring(false)
+    }
+  }
+
   return (
     <div className="annotation-list-comment">
       <button
@@ -409,10 +436,28 @@ function HighlightItem({
         className="annotation-list-item"
         onClick={() => onSelect(a)}
       >
-        <span className="annotation-list-page">p. {a.anchor.page}</span>
+        <span className="annotation-list-page">
+          <span
+            className="annotation-list-swatch"
+            style={{ background: HIGHLIGHT_PALETTE[a.color].hex }}
+            aria-hidden="true"
+          />
+          p. {a.anchor.page} · {HIGHLIGHT_PALETTE[a.color].label.toLowerCase()}
+        </span>
         <span className="annotation-list-text">{anchorLabel(a)}</span>
       </button>
       <div className="annotation-list-actions">
+        {colorError && (
+          <p role="alert" className="annotation-list-error">
+            {colorError}
+          </p>
+        )}
+        <ColorDots
+          value={a.color}
+          onChange={(color) => void recolor(color)}
+          label={`Color of the highlight on page ${a.anchor.page}`}
+          disabled={recoloring}
+        />
         <VisibilityToggle
           annotation={a}
           onUpdateVisibility={onUpdateVisibility}
