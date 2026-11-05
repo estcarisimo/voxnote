@@ -228,10 +228,18 @@ row checked on 2026-11-05 with
 | `datatracker.ietf.org/api/v1/doc/document/`  | JSON               | `*`                 |
 | `author-tools.ietf.org/api/*`                | see below          | reflects the origin |
 
-Done (this date): **open from a link** (any PDF with CORS, so every RFC) and
-**open a draft from its XML** through `author-tools.ietf.org/api/render/pdf`,
-which takes an uploaded XML, runs xml2rfc and returns a link to the PDF on
-the same host, also with CORS. Consent dialog first, warnings shown.
+Shipped on this date: **open from a link** (any PDF with CORS, so every
+RFC) and **open a draft from its XML** through
+`author-tools.ietf.org/api/render/pdf`, which takes an uploaded XML, runs
+xml2rfc and returns a link to the PDF on the same host, also with CORS.
+Consent dialog first, warnings shown. Verified on 2026-11-05: unit and
+component tests; and both flows end to end in headless Chromium 155 against
+the live hosts, driven over the DevTools protocol by `scripts/browser-e2e.mjs`
+on the production build (`npm run build && npm run preview`): `rfc9000.pdf`
+opened (151 pages), `draft-ietf-quic-bit-grease-04.txt` by link was refused
+with the no-CORS message, and `draft-ietf-quic-bit-grease-04.xml` compiled
+with two xml2rfc warnings and opened (7 pages). Not yet tried in Safari on
+an iPad.
 
 Not done, and why:
 

@@ -218,14 +218,26 @@ describe('renderDraftPdf', () => {
     )
   })
 
-  it('refuses a PDF link on another host', async () => {
+  it('refuses a PDF link outside the author-tools origin', async () => {
+    for (const url of [
+      'https://evil.example/x.pdf',
+      'http://author-tools.ietf.org/api/export/abc/x.pdf',
+    ]) {
+      const fetchFn = vi.fn<FetchFn>().mockResolvedValue(jsonResponse({ url }))
+      await expect(renderDraftPdf(xml, fetchFn)).rejects.toThrow(
+        `outside ${AUTHOR_TOOLS_HOST} (${url})`,
+      )
+      expect(fetchFn).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('does not follow a redirect from the PDF link', async () => {
     const fetchFn = vi
       .fn<FetchFn>()
-      .mockResolvedValue(jsonResponse({ url: 'https://evil.example/x.pdf' }))
-    await expect(renderDraftPdf(xml, fetchFn)).rejects.toThrow(
-      /another host \(https:\/\/evil\.example\/x\.pdf\)/,
-    )
-    expect(fetchFn).toHaveBeenCalledTimes(1)
+      .mockResolvedValueOnce(jsonResponse({ url: exportUrl }))
+      .mockResolvedValueOnce(pdfResponse())
+    await renderDraftPdf(xml, fetchFn)
+    expect(fetchFn.mock.calls[1][1]).toMatchObject({ redirect: 'error' })
   })
 
   it('explains a rejected upload', async () => {
@@ -233,7 +245,7 @@ describe('renderDraftPdf', () => {
       .fn<FetchFn>()
       .mockRejectedValue(new TypeError('Failed to fetch'))
     await expect(renderDraftPdf(xml, fetchFn)).rejects.toThrow(
-      /author-tools\.ietf\.org did not answer/,
+      /author-tools\.ietf\.org did not answer.*\(no CORS\)\.$/,
     )
   })
 })

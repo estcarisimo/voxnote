@@ -214,6 +214,7 @@ describe('OpenPdf', () => {
     expect(line).toContain('key lives only in this browser, client side')
     expect(line).toContain('for statistical purposes')
   })
+
   it('sends a parsed http(s) link to onUrl', () => {
     const onUrl = vi.fn()
     render(<OpenPdf {...props} onUrl={onUrl} />)

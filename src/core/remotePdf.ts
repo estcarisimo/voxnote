@@ -56,12 +56,6 @@ export function looksLikePdf(bytes: Uint8Array): boolean {
   )
 }
 
-/**
- * A `fetch` rejection in the browser is a bare "Failed to fetch" that covers
- * both a network failure and a server that does not allow cross-origin
- * downloads (no CORS). The message says so, since the second is the common
- * case and nothing in the app can work around it.
- */
 function isAbort(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -71,10 +65,19 @@ function isAbort(err: unknown): boolean {
   )
 }
 
-function describeFetchFailure(host: string, err: unknown): string {
+/**
+ * A `fetch` rejection in the browser is a bare "Failed to fetch" that covers
+ * both a network failure and a server that does not allow cross-origin
+ * requests (no CORS). The message says so, since the second is the common
+ * case and nothing in the app can work around it. `advice` closes the
+ * sentence with what the user can do instead, if anything.
+ */
+function describeFetchFailure(host: string, err: unknown, advice = ''): string {
   const detail = err instanceof Error ? err.message : String(err)
-  return `${host} did not answer the browser (${detail}). Either the network is down or that server does not allow web apps to download from it (no CORS); in that case, download the file yourself and open it.`
+  return `${host} did not answer the browser (${detail}). Either the network is down or that server does not allow web apps to reach it (no CORS)${advice}.`
 }
+
+const DOWNLOAD_ADVICE = '; in that case, download the file yourself and open it'
 
 /**
  * Downloads the PDF at `url` into a File. The request goes straight from the
@@ -85,13 +88,17 @@ export async function fetchPdf(
   url: URL,
   fetchFn: FetchFn,
   signal?: AbortSignal,
+  options: { redirect?: RequestRedirect } = {},
 ): Promise<File> {
   let response: Response
   try {
-    response = await fetchFn(url.href, { signal, redirect: 'follow' })
+    response = await fetchFn(url.href, {
+      signal,
+      redirect: options.redirect ?? 'follow',
+    })
   } catch (err: unknown) {
     if (isAbort(err)) throw err
-    throw new Error(describeFetchFailure(url.host, err))
+    throw new Error(describeFetchFailure(url.host, err, DOWNLOAD_ADVICE))
   }
   if (!response.ok) {
     throw new Error(
@@ -124,7 +131,7 @@ export function isDraftXmlFile(file: File): boolean {
  * the host and what comes back.
  */
 export function describeDraftUpload(file: File): string {
-  return `"${file.name}" (${formatSize(file.size)}) is uploaded to ${new URL(AUTHOR_TOOLS_HOST).host}, the IETF's author tools, which compile it with xml2rfc and return a PDF. The IETF keeps the PDF on that server for a while under an unguessable link. Nothing else is sent.`
+  return `"${file.name}" (${formatSize(file.size)}) is uploaded to ${new URL(AUTHOR_TOOLS_HOST).host}, the IETF's author tools, which compile it with xml2rfc and return a PDF. The PDF stays on that server under the link it returns, for as long as the IETF keeps it. Nothing else is sent.`
 }
 
 function formatSize(bytes: number): string {
@@ -160,6 +167,7 @@ export async function renderDraftPdf(
   signal?: AbortSignal,
 ): Promise<RenderedDraft> {
   const host = new URL(AUTHOR_TOOLS_HOST).host
+  const origin = new URL(AUTHOR_TOOLS_HOST).origin
   const body = new FormData()
   body.append('file', xml, xml.name)
   let response: Response
@@ -192,12 +200,16 @@ export async function renderDraftPdf(
     throw new Error(`${host} answered ${response.status} without a PDF link.`)
   }
   const pdfUrl = parseHttpUrl(payload.url)
-  if (!pdfUrl || pdfUrl.host !== host) {
+  if (!pdfUrl || pdfUrl.origin !== origin) {
     throw new Error(
-      `${host} returned a PDF link on another host (${String(payload.url)}); refusing to follow it.`,
+      `${host} returned a PDF link outside ${origin} (${String(payload.url)}); refusing to follow it.`,
     )
   }
-  const downloaded = await fetchPdf(pdfUrl, fetchFn, signal)
+  // The same-origin check covers the link itself, so a redirect from it is
+  // refused rather than followed somewhere else.
+  const downloaded = await fetchPdf(pdfUrl, fetchFn, signal, {
+    redirect: 'error',
+  })
   const name = xml.name.replace(/\.xml$/i, '') + '.pdf'
   const pdf = new File([downloaded], name, { type: 'application/pdf' })
   return { pdf, warnings: stringList(payload.logs?.warnings) }

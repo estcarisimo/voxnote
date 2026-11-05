@@ -12,12 +12,12 @@ All notable changes to this project are documented here. The format follows
   link" field: paste an http(s) URL and tap **Open**, and the browser
   downloads the file straight from that site and opens it as if it had been
   picked. Nothing goes through any VoxNote server, and the site must allow
-  cross-origin downloads (CORS). RFCs from rfc-editor.org do (checked on
-  2026-11-05 with `curl -I -H "Origin: https://estcarisimo.github.io"
-https://www.rfc-editor.org/rfc/rfc9000.pdf`: `access-control-allow-origin:
-*`); the Internet-Draft archive at `www.ietf.org/archive/id/` does not,
-  and the error message says so and points at the XML flow below. A body
-  that is not a PDF (an HTML or text page) is refused with its content type.
+  cross-origin downloads (CORS). RFCs from rfc-editor.org do and the
+  Internet-Draft archive at `www.ietf.org/archive/id/` does not (headers
+  checked on 2026-11-05 with `curl -I` and an `Origin:` header; see the
+  ROADMAP design note), and the error message says so and points at the XML
+  flow below. A body that is not a PDF (an HTML or text page) is refused
+  with its content type.
 - **Open an Internet-Draft from its XML.** Drafts are published as text,
   HTML and XML, not PDF, so the landing offers **Open an Internet-Draft
   (XML)** (a dropped `.xml` takes the same path). A consent dialog states
@@ -29,9 +29,15 @@ https://www.rfc-editor.org/rfc/rfc9000.pdf`: `access-control-allow-origin:
   message verbatim. The returned link is followed only when it is on the
   same host. Domain logic in `src/core/remotePdf.ts` (URL parsing, file
   naming, the `%PDF-` check, the two-request author-tools exchange) is unit
-  tested with an injected `fetch`. Text-only drafts are not supported: on
-  2026-11-05 author-tools' own text-to-XML conversion failed on
-  `draft-ietf-quic-bit-grease-04.txt`, so the flow takes XML only.
+  tested with an injected `fetch`. The link the service returns is followed
+  only on the author-tools origin and without redirects. Text-only drafts
+  are not supported: on 2026-11-05 author-tools' own text-to-XML conversion
+  failed on `draft-ietf-quic-bit-grease-04.txt`, so the flow takes XML only.
+  Both flows were run on 2026-11-05 in headless Chromium 155 against the
+  live hosts with `scripts/browser-e2e.mjs` (production build served by
+  `vite preview`): `rfc9000.pdf` opened with 151 pages, the draft's `.txt`
+  was refused with the no-CORS message, and the draft's XML came back as a
+  7-page PDF after the consent dialog, with two xml2rfc warnings listed.
 - The ROADMAP records why diffs between draft versions stay out of scope
   for now (no IETF service returns a diff as PDF) and the two upstream
   changes that would make drafts openable by name.
