@@ -16,6 +16,7 @@ import {
 } from './components/PdfViewer'
 import type { Tool } from './components/PdfPage'
 import { ProviderSettings } from './components/ProviderSettings'
+import { RenderDraftDialog } from './components/RenderDraftDialog'
 import { TranscribeDialog } from './components/TranscribeDialog'
 import type {
   Anchor,
@@ -33,6 +34,7 @@ import {
   loadDocument,
   type PDFDocumentProxy,
 } from './core/pdf'
+import { fetchPdf } from './core/remotePdf'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
@@ -56,6 +58,8 @@ function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [listOpen, setListOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // An Internet-Draft's XML waiting for consent to be compiled into a PDF.
+  const [draftXml, setDraftXml] = useState<File | null>(null)
   const viewerRef = useRef<PdfViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
   const providers = useProviders()
@@ -136,6 +140,21 @@ function App() {
         `Could not open "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
       )
     } finally {
+      setLoading(false)
+    }
+  }
+
+  /** Downloads the PDF at `url` into the browser, then opens it. */
+  async function openUrl(url: URL) {
+    if (loading) return
+    setError(null)
+    setLoading(true)
+    try {
+      const file = await fetchPdf(url, (input, init) => fetch(input, init))
+      setLoading(false)
+      await openFile(file)
+    } catch (err: unknown) {
+      setError(`Could not open ${url.href}: ${messageOf(err)}`)
       setLoading(false)
     }
   }
@@ -240,8 +259,27 @@ function App() {
   if (!doc) {
     return (
       <main className="app">
-        <OpenPdf onFile={openFile} error={error} />
+        <OpenPdf
+          onFile={openFile}
+          onUrl={(url) => void openUrl(url)}
+          onDraftXml={(file) => {
+            setError(null)
+            setDraftXml(file)
+          }}
+          error={error}
+        />
         {loading && <p className="app-status">Opening…</p>}
+        {draftXml && (
+          <RenderDraftDialog
+            key={draftXml.name + draftXml.lastModified}
+            xml={draftXml}
+            onDone={(pdf) => {
+              setDraftXml(null)
+              void openFile(pdf)
+            }}
+            onCancel={() => setDraftXml(null)}
+          />
+        )}
       </main>
     )
   }

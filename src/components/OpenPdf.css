@@ -116,6 +116,79 @@
   }
 }
 
+/* Second row of ways in: a link to a PDF, or a draft's XML to compile. */
+.open-pdf-remote {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  margin-top: 20px;
+  text-align: left;
+}
+
+.open-pdf-url,
+.open-pdf-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  font-size: 0.95rem;
+}
+
+.open-pdf-url label {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.open-pdf-url-row {
+  display: flex;
+  gap: 6px;
+}
+
+.open-pdf-url-row input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.open-pdf-url-row button,
+.open-pdf-draft button {
+  font: inherit;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 6px 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.open-pdf-draft button {
+  align-self: flex-start;
+}
+
+.open-pdf-url-row button:hover,
+.open-pdf-draft button:hover {
+  background: var(--accent-bg);
+}
+
+.open-pdf-remote .open-pdf-hint {
+  font-size: 0.85rem;
+}
+
+.open-pdf-remote .open-pdf-error {
+  margin: 0;
+}
+
 .open-pdf-features {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -233,7 +306,8 @@
 }
 
 @media (max-width: 640px) {
-  .open-pdf-features {
+  .open-pdf-features,
+  .open-pdf-remote {
     grid-template-columns: 1fr;
   }
 

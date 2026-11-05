@@ -118,7 +118,13 @@ Then open the printed URL. To try it on an iPad on the same network, run
 
 The review flow is select, act, export:
 
-1. **Open a PDF** with the file picker or by dropping it on the page.
+1. **Open a PDF** with the file picker or by dropping it on the page. Or
+   paste a link under **Or open a PDF from a link**: the browser downloads
+   it from that site, which must allow cross-origin downloads (RFCs from
+   rfc-editor.org do). For an IETF Internet-Draft, which is not published
+   as PDF, use **Open an Internet-Draft (XML)** with the draft's `.xml`:
+   after you confirm, the file is uploaded to the IETF's
+   author-tools.ietf.org, compiled with xml2rfc and opened here as a PDF.
 2. **Select** a passage: drag with the Apple Pencil or the mouse, or use
    touch selection (on an iPad, a finger needs a long press). For a figure with no text, switch to the **Region** tool
    and drag a box.
