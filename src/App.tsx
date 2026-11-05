@@ -8,6 +8,10 @@ import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
 import { GitHubLink } from './components/GitHubLink'
+import {
+  MarkdownViewer,
+  type MarkdownViewerHandle,
+} from './components/MarkdownViewer'
 import { OpenPdf } from './components/OpenPdf'
 import {
   PdfViewer,
@@ -18,15 +22,25 @@ import type { Tool } from './components/PdfPage'
 import { ProviderSettings } from './components/ProviderSettings'
 import { RenderDraftDialog } from './components/RenderDraftDialog'
 import { TranscribeDialog } from './components/TranscribeDialog'
-import type {
-  Anchor,
-  Annotation,
-  Note,
-  Transcript,
-  Visibility,
+import {
+  quoteOf,
+  type Anchor,
+  type Annotation,
+  type Note,
+  type Transcript,
+  type Visibility,
 } from './core/annotations'
-import { exportJson, exportMarkdown } from './core/exportNotes'
+import {
+  exportJson,
+  exportMarkdown,
+  type ExportDocument,
+} from './core/exportNotes'
 import { exportAnnotatedPdf } from './core/exportPdf'
+import {
+  isMarkdownFile,
+  parseMarkdown,
+  type MarkdownDocument,
+} from './core/markdown'
 import {
   computeDocumentId,
   destroyDocument,
@@ -43,11 +57,30 @@ import { AiKeysButton } from './components/AiKeysButton'
 import { useTranscription } from './hooks/useTranscription'
 import './App.css'
 
-interface OpenDocument {
-  id: string
-  name: string
-  bytes: Uint8Array
-  pdf: PDFDocumentProxy
+/** The open document: its SHA-256 id, its file name and its parsed form. */
+type OpenDocument =
+  | {
+      kind: 'pdf'
+      id: string
+      name: string
+      bytes: Uint8Array
+      pdf: PDFDocumentProxy
+    }
+  | { kind: 'markdown'; id: string; name: string; markdown: MarkdownDocument }
+
+function exportInfo(doc: OpenDocument): ExportDocument {
+  return doc.kind === 'pdf'
+    ? { kind: 'pdf', name: doc.name, id: doc.id, pageCount: doc.pdf.numPages }
+    : {
+        kind: 'markdown',
+        name: doc.name,
+        id: doc.id,
+        blockCount: doc.markdown.blocks.length,
+      }
+}
+
+function release(doc: OpenDocument | null) {
+  if (doc?.kind === 'pdf') void destroyDocument(doc.pdf)
 }
 
 function App() {
@@ -61,6 +94,7 @@ function App() {
   // An Internet-Draft's XML waiting for consent to be compiled into a PDF.
   const [draftXml, setDraftXml] = useState<File | null>(null)
   const viewerRef = useRef<PdfViewerHandle>(null)
+  const markdownViewerRef = useRef<MarkdownViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
   const providers = useProviders()
   const autoConsents = useAutoTranscribeConsent(providers)
@@ -93,7 +127,7 @@ function App() {
       audio,
       mimeType: comment.voice.mimeType,
       durationMs: comment.voice.durationMs,
-      quote: comment.anchor.type === 'text' ? comment.anchor.quote : null,
+      quote: quoteOf(comment.anchor),
     })
     if (transcript) await store.setTranscript(comment.id, transcript)
   }
@@ -104,7 +138,7 @@ function App() {
     const proposal = await cleanUpFlow.request({
       transcript: transcript.raw,
       kind: note.kind,
-      quote: note.anchor.type === 'text' ? note.anchor.quote : null,
+      quote: quoteOf(note.anchor),
       currentBody: note.body,
     })
     if (!proposal) return
@@ -117,23 +151,39 @@ function App() {
   async function openFile(file: File) {
     if (loading) return
     setError(null)
-    if (!isPdfFile(file)) {
-      setError(`"${file.name}" is not a PDF.`)
+    const markdown = isMarkdownFile(file)
+    if (!markdown && !isPdfFile(file)) {
+      setError(`"${file.name}" is neither a PDF nor a Markdown file.`)
       return
     }
     setLoading(true)
     try {
       const bytes = new Uint8Array(await file.arrayBuffer())
-      const [id, pdf] = await Promise.all([
-        computeDocumentId(bytes),
-        loadDocument(bytes),
-      ])
-      if (doc) void destroyDocument(doc.pdf)
+      let opened: OpenDocument
+      if (markdown) {
+        const [id, source] = await Promise.all([
+          computeDocumentId(bytes),
+          file.text(),
+        ])
+        opened = {
+          kind: 'markdown',
+          id,
+          name: file.name,
+          markdown: parseMarkdown(source),
+        }
+      } else {
+        const [id, pdf] = await Promise.all([
+          computeDocumentId(bytes),
+          loadDocument(bytes),
+        ])
+        opened = { kind: 'pdf', id, name: file.name, bytes, pdf }
+      }
+      release(doc)
       // A consent dialog for the old document must not outlive it.
       transcription.finish(null)
       cleanUpFlow.finish(null)
       setArrivals({})
-      setDoc({ id, name: file.name, bytes, pdf })
+      setDoc(opened)
       setSelectedId(null)
     } catch (err: unknown) {
       setError(
@@ -160,7 +210,7 @@ function App() {
   }
 
   function closeDocument() {
-    if (doc) void destroyDocument(doc.pdf)
+    release(doc)
     transcription.finish(null)
     cleanUpFlow.finish(null)
     setArrivals({})
@@ -219,15 +269,19 @@ function App() {
   function selectAnnotation(a: Annotation) {
     setSelectedId(a.id)
     viewerRef.current?.scrollToAnnotation(a)
+    markdownViewerRef.current?.scrollToAnnotation(a)
   }
 
   async function exportAs(format: ExportFormat) {
     if (!doc) return
     const name = baseName(doc.name)
-    const info = { name: doc.name, id: doc.id, pageCount: doc.pdf.numPages }
+    const info = exportInfo(doc)
     try {
       switch (format) {
         case 'pdf': {
+          if (doc.kind !== 'pdf') {
+            throw new Error('Only a PDF can be exported as an annotated PDF')
+          }
           const bytes = await exportAnnotatedPdf(doc.bytes, store.annotations)
           downloadFile(
             bytes as BlobPart,
@@ -293,28 +347,30 @@ function App() {
         <span className="app-title" title={doc.id}>
           {doc.name}
         </span>
-        <div
-          className="app-tools"
-          role="radiogroup"
-          aria-label="Selection tool"
-        >
-          <button
-            type="button"
-            role="radio"
-            aria-checked={tool === 'select'}
-            onClick={() => setTool('select')}
+        {doc.kind === 'pdf' && (
+          <div
+            className="app-tools"
+            role="radiogroup"
+            aria-label="Selection tool"
           >
-            Text
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={tool === 'region'}
-            onClick={() => setTool('region')}
-          >
-            Region
-          </button>
-        </div>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={tool === 'select'}
+              onClick={() => setTool('select')}
+            >
+              Text
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={tool === 'region'}
+              onClick={() => setTool('region')}
+            >
+              Region
+            </button>
+          </div>
+        )}
         <button
           type="button"
           aria-pressed={listOpen}
@@ -324,7 +380,9 @@ function App() {
         </button>
         <ExportMenu
           disabled={!store.ready}
-          pdfDisabled={store.annotations.length === 0}
+          pdfDisabled={
+            doc.kind === 'pdf' ? store.annotations.length === 0 : 'hidden'
+          }
           onExport={(format) => void exportAs(format)}
         />
         <AiKeysButton
@@ -339,20 +397,35 @@ function App() {
         </p>
       )}
       <div className="app-body">
-        <PdfViewer
-          // A new document starts with no pending anchor or open composer.
-          key={doc.id}
-          ref={viewerRef}
-          document={doc.pdf}
-          tool={tool}
-          annotations={store.annotations}
-          selectedId={selectedId}
-          onCreateHighlight={createHighlight}
-          onCreateNote={createNote}
-          transcribe={transcription.request}
-          cleanUp={cleanUpFlow.request}
-          autoTranscribe={transcription.auto}
-        />
+        {doc.kind === 'pdf' ? (
+          <PdfViewer
+            // A new document starts with no pending anchor or open composer.
+            key={doc.id}
+            ref={viewerRef}
+            document={doc.pdf}
+            tool={tool}
+            annotations={store.annotations}
+            selectedId={selectedId}
+            onCreateHighlight={createHighlight}
+            onCreateNote={createNote}
+            transcribe={transcription.request}
+            cleanUp={cleanUpFlow.request}
+            autoTranscribe={transcription.auto}
+          />
+        ) : (
+          <MarkdownViewer
+            key={doc.id}
+            ref={markdownViewerRef}
+            document={doc.markdown}
+            annotations={store.annotations}
+            selectedId={selectedId}
+            onCreateHighlight={createHighlight}
+            onCreateNote={createNote}
+            transcribe={transcription.request}
+            cleanUp={cleanUpFlow.request}
+            autoTranscribe={transcription.auto}
+          />
+        )}
         {listOpen && (
           <AnnotationList
             annotations={store.annotations}

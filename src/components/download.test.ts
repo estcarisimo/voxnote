@@ -36,7 +36,9 @@ describe('downloadFile', () => {
 })
 
 describe('baseName', () => {
-  it('drops a .pdf extension in any case and keeps anything else', () => {
+  it('drops a .pdf, .md or .markdown extension in any case and keeps anything else', () => {
+    expect(baseName('notes.md')).toBe('notes')
+    expect(baseName('notes.MARKDOWN')).toBe('notes')
     expect(baseName('paper.PDF')).toBe('paper')
     expect(baseName('notes.pdf.txt')).toBe('notes.pdf.txt')
   })

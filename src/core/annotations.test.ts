@@ -9,6 +9,8 @@ import {
   isVoiceNote,
   migrateAnnotation,
   isAnchor,
+  isQuoteAnchor,
+  quoteOf,
   mergeLineRects,
   rectFromCorners,
   unionRects,
@@ -154,7 +156,7 @@ describe('isAnchor / isAnnotation', () => {
       },
       new Date('2026-01-01T00:00:00Z'),
     )
-    expect(isAnnotation({ ...good, schemaVersion: 3 })).toBe(false)
+    expect(isAnnotation({ ...good, schemaVersion: 4 })).toBe(false)
     expect(isAnnotation({ ...good, schemaVersion: 1 })).toBe(false)
     expect(
       isAnnotation({ ...good, createdAt: '2026-01-01T00:00:00+02:00' }),
@@ -482,24 +484,77 @@ describe('clean-up records and schema v2', () => {
     ).toBe(false)
   })
 
-  it('migrates a v1 record by its version number only', () => {
-    const v2 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
-    expect(ANNOTATION_SCHEMA_VERSION).toBe(2)
-    const v1 = { ...v2, schemaVersion: 1 }
-    expect(isAnnotation(v1)).toBe(false)
-    const migrated = migrateAnnotation(v1)
-    expect(migrated).toEqual(v2)
-    expect(isAnnotation(migrated)).toBe(true)
+  it('migrates a v1 or v2 record by its version number only', () => {
+    const v3 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
+    expect(ANNOTATION_SCHEMA_VERSION).toBe(3)
+    for (const version of [1, 2]) {
+      const old = { ...v3, schemaVersion: version }
+      expect(isAnnotation(old)).toBe(false)
+      const migrated = migrateAnnotation(old)
+      expect(migrated).toEqual(v3)
+      expect(isAnnotation(migrated)).toBe(true)
+    }
   })
 
   it('leaves anything else for isAnnotation to reject', () => {
-    const v2 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
-    expect(migrateAnnotation(v2)).toBe(v2)
-    const future = { ...v2, schemaVersion: 3 }
+    const v3 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
+    expect(migrateAnnotation(v3)).toBe(v3)
+    const future = { ...v3, schemaVersion: 4 }
     expect(migrateAnnotation(future)).toBe(future)
-    const odd = { ...v2, schemaVersion: 1, cleanUp }
+    const odd = { ...v3, schemaVersion: 1, cleanUp }
     expect(migrateAnnotation(odd)).toBe(odd)
+    // v2 had no block-text anchors: a record claiming both is not a v2 one.
+    const blockAnchor = {
+      type: 'block-text',
+      page: 1,
+      quote: 'q',
+      start: 0,
+      end: 1,
+    }
+    const impostor = { ...v3, schemaVersion: 2, anchor: blockAnchor }
+    expect(migrateAnnotation(impostor)).toBe(impostor)
     expect(migrateAnnotation(null)).toBeNull()
     expect(migrateAnnotation('x')).toBe('x')
+  })
+
+  describe('block-text anchors', () => {
+    const block = {
+      type: 'block-text',
+      page: 2,
+      quote: 'the claim',
+      start: 4,
+      end: 13,
+    } as const
+
+    it('are valid anchors with a non-empty range', () => {
+      expect(isAnchor(block)).toBe(true)
+      expect(isAnchor({ ...block, end: 4 })).toBe(false)
+      expect(isAnchor({ ...block, start: -1 })).toBe(false)
+      expect(isAnchor({ ...block, start: 1.5 })).toBe(false)
+      expect(isAnchor({ ...block, page: 0 })).toBe(false)
+      expect(isAnchor({ ...block, quote: 7 })).toBe(false)
+    })
+
+    it('carry a quote and can be suggested on', () => {
+      expect(quoteOf(block)).toBe('the claim')
+      expect(isQuoteAnchor(block)).toBe(true)
+      expect(
+        quoteOf({
+          type: 'region',
+          page: 1,
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+        }),
+      ).toBeNull()
+      const s = createSuggestion({
+        documentId: 'doc',
+        anchor: block,
+        body: 'the result',
+      })
+      expect(s.original).toBe('the claim')
+      expect(isAnnotation(s)).toBe(true)
+      expect(
+        isAnnotation(createHighlight({ documentId: 'doc', anchor: block })),
+      ).toBe(true)
+    })
   })
 })

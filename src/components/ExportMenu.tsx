@@ -5,8 +5,11 @@ export type ExportFormat = 'pdf' | 'markdown' | 'json'
 interface Props {
   /** True until the annotation store has loaded; every export waits for it. */
   disabled: boolean
-  /** The annotated PDF needs at least one annotation to be worth a copy. */
-  pdfDisabled: boolean
+  /**
+   * The annotated PDF needs at least one annotation to be worth a copy.
+   * `'hidden'` for a document that is not a PDF: there is no copy to write.
+   */
+  pdfDisabled: boolean | 'hidden'
   onExport: (format: ExportFormat) => void
 }
 
@@ -14,14 +17,16 @@ interface Props {
 export function ExportMenu({ disabled, pdfDisabled, onExport }: Props) {
   return (
     <div className="app-tools export-menu" role="group" aria-label="Export">
-      <button
-        type="button"
-        onClick={() => onExport('pdf')}
-        disabled={disabled || pdfDisabled}
-        title="Download a copy of the PDF with the annotations"
-      >
-        Export PDF
-      </button>
+      {pdfDisabled !== 'hidden' && (
+        <button
+          type="button"
+          onClick={() => onExport('pdf')}
+          disabled={disabled || pdfDisabled}
+          title="Download a copy of the PDF with the annotations"
+        >
+          Export PDF
+        </button>
+      )}
       <button
         type="button"
         onClick={() => onExport('markdown')}

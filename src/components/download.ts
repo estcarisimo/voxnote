@@ -17,7 +17,7 @@ export function downloadFile(
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-/** "paper.pdf" → "paper", so exports can add their own suffix. */
+/** "paper.pdf" → "paper", "notes.md" → "notes", so exports can add a suffix. */
 export function baseName(filename: string): string {
-  return filename.replace(/\.pdf$/i, '')
+  return filename.replace(/\.(pdf|md|markdown)$/i, '')
 }

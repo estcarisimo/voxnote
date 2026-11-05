@@ -28,6 +28,15 @@ describe('ExportMenu', () => {
     }
   })
 
+  it('hides the PDF export for a document that is not a PDF', () => {
+    render(
+      <ExportMenu disabled={false} pdfDisabled="hidden" onExport={() => {}} />,
+    )
+    expect(screen.queryByRole('button', { name: 'Export PDF' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Markdown' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'JSON' })).toBeTruthy()
+  })
+
   it('can disable only the PDF export', () => {
     render(<ExportMenu disabled={false} pdfDisabled onExport={() => {}} />)
     expect(screen.getByRole('button', { name: 'Export PDF' })).toHaveProperty(

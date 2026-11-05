@@ -1,8 +1,9 @@
-import type {
-  Anchor,
-  Annotation,
-  AnnotationKind,
-  Visibility,
+import {
+  quoteOf,
+  type Anchor,
+  type Annotation,
+  type AnnotationKind,
+  type Visibility,
 } from './annotations'
 
 /** How the review sidebar groups a document's annotations. */
@@ -65,15 +66,34 @@ export function isFilterActive(filter: ReviewFilter): boolean {
   )
 }
 
-/** The highest PDF-space y edge of an anchor: larger is higher on the page. */
+/**
+ * The highest PDF-space y edge of an anchor: larger is higher on the page.
+ * A block-text anchor has no rectangles; earlier text sorts first, so its
+ * "top" is the negated start offset.
+ */
 export function topOf(anchor: Anchor): number {
+  if (anchor.type === 'block-text') return -anchor.start
   const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]
   return Math.max(...rects.map((r) => r.y + r.height))
 }
 
 export function leftOf(anchor: Anchor): number {
+  if (anchor.type === 'block-text') return 0
   const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]
   return Math.min(...rects.map((r) => r.x))
+}
+
+/**
+ * What the anchor's `page` counts: a page of a PDF or a top-level block of a
+ * Markdown document. "Block 3", "Page 3".
+ */
+export function placeLabel(anchor: Anchor): string {
+  return `${anchor.type === 'block-text' ? 'Block' : 'Page'} ${anchor.page}`
+}
+
+/** Short form of placeLabel for a list row: "p. 3", "¶ 3". */
+export function placeAbbreviation(anchor: Anchor): string {
+  return `${anchor.type === 'block-text' ? '¶' : 'p.'} ${anchor.page}`
 }
 
 /**
@@ -99,7 +119,8 @@ export function sortAnnotations(
 /** Everything a text search should look at, lower-cased. */
 export function searchableText(a: Annotation): string {
   const parts: string[] = []
-  if (a.anchor.type === 'text') parts.push(a.anchor.quote)
+  const quote = quoteOf(a.anchor)
+  if (quote !== null) parts.push(quote)
   if (a.kind !== 'highlight') {
     parts.push(a.body)
     if (a.voice?.transcript) parts.push(a.voice.transcript.raw)
@@ -169,7 +190,7 @@ export function groupAnnotations(
         } else {
           groups.push({
             key: `page-${a.anchor.page}`,
-            label: `Page ${a.anchor.page}`,
+            label: placeLabel(a.anchor),
             annotations: [a],
           })
         }

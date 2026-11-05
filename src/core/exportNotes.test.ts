@@ -15,7 +15,12 @@ import {
   type ExportDocument,
 } from './exportNotes'
 
-const DOC: ExportDocument = { name: 'paper.pdf', id: 'abc123', pageCount: 3 }
+const DOC: ExportDocument = {
+  kind: 'pdf',
+  name: 'paper.pdf',
+  id: 'abc123',
+  pageCount: 3,
+}
 const NOW = new Date('2026-10-29T12:00:00.000Z')
 const T0 = new Date('2026-10-01T09:00:00.000Z')
 const T1 = new Date('2026-10-01T09:05:00.000Z')
@@ -417,5 +422,83 @@ describe('exportJson', () => {
       document: unknown
     }
     expect(parsed.document).toEqual(DOC)
+  })
+})
+
+describe('Markdown documents', () => {
+  const MD: ExportDocument = {
+    kind: 'markdown',
+    name: 'notes.md',
+    id: 'md123',
+    blockCount: 4,
+  }
+  const block = (page: number, start: number, quote: string) =>
+    ({
+      type: 'block-text',
+      page,
+      quote,
+      start,
+      end: start + quote.length,
+    }) as const
+
+  it('reports blocks instead of pages and sorts by block then offset', () => {
+    const later = createHighlight(
+      { documentId: MD.id, anchor: block(2, 10, 'second') },
+      T0,
+    )
+    const earlier = createComment(
+      { documentId: MD.id, anchor: block(2, 0, 'first'), body: 'Why?' },
+      T1,
+    )
+    const last = createSuggestion(
+      { documentId: MD.id, anchor: block(4, 0, 'old'), body: 'new' },
+      T0,
+    )
+    const md = exportMarkdown(MD, [last, later, earlier], NOW)
+    expect(md).toContain('- Blocks: 4')
+    expect(md).not.toContain('Pages:')
+    const headings = md.split('\n').filter((l) => l.startsWith('## '))
+    expect(headings).toEqual(['## Block 2', '## Block 4'])
+    expect(md.indexOf('> first')).toBeLessThan(md.indexOf('> second'))
+    expect(md.indexOf('> second')).toBeLessThan(md.indexOf('> old'))
+
+    const json = JSON.parse(exportJson(MD, [later, earlier], NOW)) as {
+      schemaVersion: number
+      document: unknown
+      annotations: { id: string }[]
+    }
+    expect(json.schemaVersion).toBe(NOTES_EXPORT_SCHEMA_VERSION)
+    expect(json.document).toEqual(MD)
+    expect(json.annotations.map((a) => a.id)).toEqual([earlier.id, later.id])
+  })
+
+  it('refuses a PDF anchor in a Markdown document and the reverse', () => {
+    const pdfAnchored = createHighlight({
+      documentId: MD.id,
+      anchor: textAnchor(1, 'q'),
+    })
+    expect(() => exportMarkdown(MD, [pdfAnchored], NOW)).toThrow(
+      'does not belong in a markdown document',
+    )
+    const blockAnchored = createHighlight({
+      documentId: DOC.id,
+      anchor: block(1, 0, 'q'),
+    })
+    expect(() => exportJson(DOC, [blockAnchored], NOW)).toThrow(
+      'does not belong in a pdf document',
+    )
+  })
+
+  it('refuses a block past the last one and an empty document', () => {
+    const past = createHighlight({
+      documentId: MD.id,
+      anchor: block(5, 0, 'q'),
+    })
+    expect(() => exportMarkdown(MD, [past], NOW)).toThrow(
+      'points at block 5, but the document has 4',
+    )
+    expect(() => exportJson({ ...MD, blockCount: 0 }, [], NOW)).toThrow(
+      'Invalid block count: 0',
+    )
   })
 })

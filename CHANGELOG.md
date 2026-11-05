@@ -8,6 +8,43 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Review Markdown documents.** The landing's **Open a document** button
+  (and a drop anywhere on the page) takes a `.md` or `.markdown` file as
+  well as a PDF. The file is rendered in the browser and reviewed with the
+  same tools: select a passage, then **Highlight**, **Comment**, **Voice** or
+  **Suggest**; the Annotations panel, visibility, transcription and polish
+  work unchanged; **Markdown** and **JSON** export the notes. Design and
+  the routes weighed are in the ROADMAP's design note dated 2026-11-05.
+  How it is built: `marked` (18.1.3) is used as a lexer only and its tokens
+  become a restricted block tree (`src/core/markdown.ts`) that React
+  renders itself, so no HTML from the file is ever injected: raw HTML shows
+  as text, link targets other than `http(s):` and `mailto:` render as plain
+  text, and images are placeholders that are never fetched (loading one
+  would call a third party without consent). A new anchor type,
+  `block-text`, records the top-level block's ordinal, character offsets
+  into the block's plain text and the quote; the renderer guarantees the
+  block's `textContent` equals that plain text (component-tested), so an
+  anchor resolves from stored data alone. Marks are drawn from DOM ranges
+  after each layout and follow the window width; an anchor that no longer
+  fits its block is reported in an alert, never dropped. Selections across
+  two top-level blocks get no toolbar, like selections across two PDF pages.
+  The annotation schema is now v3 (v1 and v2 records migrate by version
+  number only) and the notes-export envelope v2 (`document.kind`, with
+  `blockCount` for Markdown where a PDF has `pageCount`). The sidebar and
+  the Markdown report label a block anchor's position as "Block N" / "¶ N".
+  The annotated-PDF export is hidden for Markdown documents, and
+  `exportAnnotatedPdf` refuses a block-text anchor outright. The document id
+  is the SHA-256 of the file's bytes, as for PDFs, so reopening the same
+  file brings its annotations back. Verified on 2026-11-05 with unit tests
+  for the parser, the plain-text contract, the selection bridge, the
+  model, the review ordering and the exports, and component tests for the
+  renderer and the viewer (toolbar on a single-block selection, highlight,
+  typed comment and suggestion saved with block-text anchors, cross-block
+  selections ignored, unplaceable anchors reported); not yet tried on an
+  iPad or with a real voice note on a Markdown document. Not in this
+  change: an annotated copy of the Markdown source with CriticMarkup marks,
+  opening a Markdown file from a link, re-anchoring after the source changes.
+
 - **Open a PDF from a link.** The landing has an "Or open a PDF from a
   link" field: paste an http(s) URL and tap **Open**, and the browser
   downloads the file straight from that site and opens it as if it had been

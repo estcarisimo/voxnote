@@ -369,6 +369,9 @@ function Marks({
   kind: 'highlight' | 'comment' | 'suggestion' | 'pending'
   selected?: boolean
 }) {
+  if (anchor.type === 'block-text') {
+    throw new Error(`Annotation ${id} belongs to a Markdown document`)
+  }
   const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]
   const className = `highlight highlight--${anchor.type} highlight--${kind}${selected ? ' highlight--selected' : ''}`
   return (

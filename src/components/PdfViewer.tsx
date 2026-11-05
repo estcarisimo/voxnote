@@ -10,6 +10,7 @@ import {
 import type {
   Anchor,
   Annotation,
+  QuoteAnchor,
   RegionAnchor,
   TextAnchor,
 } from '../core/annotations'
@@ -34,7 +35,7 @@ export interface PdfViewerHandle {
 export type NewNoteRequest = CommentDraft &
   (
     | { kind: 'comment'; anchor: Anchor }
-    | { kind: 'suggestion'; anchor: TextAnchor }
+    | { kind: 'suggestion'; anchor: QuoteAnchor }
   )
 
 interface PdfViewerProps {

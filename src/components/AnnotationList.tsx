@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import {
   isNote,
+  quoteOf,
   type Annotation,
   type AnnotationKind,
   type Note,
@@ -15,6 +16,7 @@ import {
   isFilterActive,
   isGroupBy,
   KIND_LABELS,
+  placeAbbreviation,
   VISIBILITY_LABELS,
   type GroupBy,
   type ReviewFilter,
@@ -386,9 +388,7 @@ function VisibilityToggle({
 }
 
 function anchorLabel(a: Annotation): string {
-  return a.anchor.type === 'text'
-    ? a.anchor.quote
-    : 'Region (figure, chart or equation)'
+  return quoteOf(a.anchor) ?? 'Region (figure, chart or equation)'
 }
 
 function HighlightItem({
@@ -409,7 +409,9 @@ function HighlightItem({
         className="annotation-list-item"
         onClick={() => onSelect(a)}
       >
-        <span className="annotation-list-page">p. {a.anchor.page}</span>
+        <span className="annotation-list-page">
+          {placeAbbreviation(a.anchor)}
+        </span>
         <span className="annotation-list-text">{anchorLabel(a)}</span>
       </button>
       <div className="annotation-list-actions">
@@ -489,7 +491,7 @@ function NoteItem({
         onClick={() => onSelect(c)}
       >
         <span className="annotation-list-page">
-          p. {c.anchor.page} · {c.kind}
+          {placeAbbreviation(c.anchor)} · {c.kind}
           {c.voice && ` · 🎤 ${formatDuration(c.voice.durationMs)}`}
         </span>
         {c.kind === 'suggestion' ? (
