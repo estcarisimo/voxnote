@@ -213,6 +213,43 @@ interruptions compared against the current workflow, written in the session log 
       from the annotations. The reviewer keeps final judgement on every line.
 - [ ] Agent-friendly structured export (the JSON schema from M1.1, documented).
 
+## Design note — IETF Internet-Drafts and RFCs (2026-11-05)
+
+Reviewing IETF documents in VoxNote. What the IETF publishes and what a
+browser on GitHub Pages (static, no server, per `AGENTS.md`) can fetch; each
+row checked on 2026-11-05 with
+`curl -sI -H "Origin: https://estcarisimo.github.io" <url>`:
+
+| Source                                       | PDF?               | CORS                |
+| -------------------------------------------- | ------------------ | ------------------- |
+| `rfc-editor.org/rfc/rfcNNNN.{pdf,txt,xml}`   | yes                | `*`                 |
+| `ietf.org/archive/id/draft-*.{txt,html,xml}` | no (404)           | none                |
+| `datatracker.ietf.org/doc/pdf/draft-*`       | redirects to login | n/a                 |
+| `datatracker.ietf.org/api/v1/doc/document/`  | JSON               | `*`                 |
+| `author-tools.ietf.org/api/*`                | see below          | reflects the origin |
+
+Done (this date): **open from a link** (any PDF with CORS, so every RFC) and
+**open a draft from its XML** through `author-tools.ietf.org/api/render/pdf`,
+which takes an uploaded XML, runs xml2rfc and returns a link to the PDF on
+the same host, also with CORS. Consent dialog first, warnings shown.
+
+Not done, and why:
+
+- **A draft by name.** The archive has no CORS and author-tools' render
+  endpoint takes a file, not a draft name (its `iddiff` endpoint does take
+  names). Two upstream changes would fix it, either one: CORS on
+  `www.ietf.org/archive/id/`, or a `doc=` parameter on `render/pdf` like the
+  one `iddiff` has. Worth an issue at github.com/ietf-tools.
+- **Diffs between versions.** `author-tools.ietf.org/api/iddiff?doc_1=…&doc_2=…`
+  works from the browser (CORS `*`) but returns rfcdiff HTML; no IETF
+  service returns a diff as PDF. Today: open the diff in the browser, print
+  it to PDF, open that file in VoxNote. Turning HTML into PDF in the browser
+  would cost a text layer and quality; letting VoxNote review HTML documents
+  directly would be a new document type, a product decision for M2+.
+- **Text-only drafts.** author-tools converts text to XML before rendering,
+  and that conversion failed on `draft-ietf-quic-bit-grease-04.txt` on
+  2026-11-05 (`Expected <dl> attribute "indent"…`). XML only, for now.
+
 ## Non-goals
 
 Not a PDF editor. Not a general PDF chatbot. The app never changes the

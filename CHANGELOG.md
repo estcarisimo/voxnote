@@ -8,6 +8,34 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Open a PDF from a link.** The landing has an "Or open a PDF from a
+  link" field: paste an http(s) URL and tap **Open**, and the browser
+  downloads the file straight from that site and opens it as if it had been
+  picked. Nothing goes through any VoxNote server, and the site must allow
+  cross-origin downloads (CORS). RFCs from rfc-editor.org do (checked on
+  2026-11-05 with `curl -I -H "Origin: https://estcarisimo.github.io"
+https://www.rfc-editor.org/rfc/rfc9000.pdf`: `access-control-allow-origin:
+*`); the Internet-Draft archive at `www.ietf.org/archive/id/` does not,
+  and the error message says so and points at the XML flow below. A body
+  that is not a PDF (an HTML or text page) is refused with its content type.
+- **Open an Internet-Draft from its XML.** Drafts are published as text,
+  HTML and XML, not PDF, so the landing offers **Open an Internet-Draft
+  (XML)** (a dropped `.xml` takes the same path). A consent dialog states
+  that the file, with its name and size, is uploaded to
+  `author-tools.ietf.org`, the IETF's public author tools, which compile it
+  with xml2rfc and return a PDF, and that nothing is sent until **Send** is
+  tapped; Cancel aborts a request in flight. xml2rfc warnings are listed
+  before the PDF opens, never hidden; errors keep the dialog open with the
+  message verbatim. The returned link is followed only when it is on the
+  same host. Domain logic in `src/core/remotePdf.ts` (URL parsing, file
+  naming, the `%PDF-` check, the two-request author-tools exchange) is unit
+  tested with an injected `fetch`. Text-only drafts are not supported: on
+  2026-11-05 author-tools' own text-to-XML conversion failed on
+  `draft-ietf-quic-bit-grease-04.txt`, so the flow takes XML only.
+- The ROADMAP records why diffs between draft versions stay out of scope
+  for now (no IETF service returns a diff as PDF) and the two upstream
+  changes that would make drafts openable by name.
+
 - **Discoverability for search engines and AI agents**, the same pattern as
   the maintainer's other repositories (`llms.txt` plus `llms-full.txt`,
   `context7.json`, README links), adapted to a Vite site with no MkDocs:

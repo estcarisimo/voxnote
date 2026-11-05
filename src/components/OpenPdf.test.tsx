@@ -7,6 +7,14 @@ function pdfFile(name = 'paper.pdf') {
   return new File(['%PDF-1.4'], name, { type: 'application/pdf' })
 }
 
+/** Default props; a test overrides the callback it watches. */
+const props = {
+  onFile: vi.fn(),
+  onUrl: vi.fn(),
+  onDraftXml: vi.fn(),
+  error: null,
+}
+
 /** Installs a `matchMedia` that answers `matches` for every query. */
 function stubDisplayMode(matches: boolean) {
   vi.stubGlobal(
@@ -29,7 +37,7 @@ describe('OpenPdf', () => {
 
   it('passes a picked file to onFile', () => {
     const onFile = vi.fn()
-    const { container } = render(<OpenPdf onFile={onFile} error={null} />)
+    const { container } = render(<OpenPdf {...props} onFile={onFile} />)
     const input =
       container.querySelector<HTMLInputElement>('input[type="file"]')!
     const file = pdfFile()
@@ -40,7 +48,7 @@ describe('OpenPdf', () => {
 
   it('passes a dropped file to onFile and clears the dragging state', () => {
     const onFile = vi.fn()
-    const { container } = render(<OpenPdf onFile={onFile} error={null} />)
+    const { container } = render(<OpenPdf {...props} onFile={onFile} />)
     const zone = container.firstElementChild!
     fireEvent.dragOver(zone)
     expect(zone.className).toContain('open-pdf--dragging')
@@ -52,7 +60,7 @@ describe('OpenPdf', () => {
 
   it('ignores a drop with no file', () => {
     const onFile = vi.fn()
-    const { container } = render(<OpenPdf onFile={onFile} error={null} />)
+    const { container } = render(<OpenPdf {...props} onFile={onFile} />)
     fireEvent.drop(container.firstElementChild!, {
       dataTransfer: { files: [] },
     })
@@ -60,17 +68,17 @@ describe('OpenPdf', () => {
   })
 
   it('shows the error as an alert', () => {
-    render(<OpenPdf onFile={vi.fn()} error="Not a PDF" />)
+    render(<OpenPdf {...props} error="Not a PDF" />)
     expect(screen.getByRole('alert').textContent).toBe('Not a PDF')
   })
 
   it('shows no alert without an error', () => {
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('has one h1 and links to the repository and license in new tabs', () => {
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     const repo = screen.getByRole('link', { name: 'VoxNote on GitHub' })
     expect(repo.getAttribute('href')).toBe(
@@ -89,33 +97,33 @@ describe('OpenPdf', () => {
   })
 
   it('loads the icon relative to the base URL', () => {
-    const { container } = render(<OpenPdf onFile={vi.fn()} error={null} />)
+    const { container } = render(<OpenPdf {...props} />)
     const icon = container.querySelector<HTMLImageElement>('img.open-pdf-icon')!
     expect(icon.getAttribute('src')).toBe(`${import.meta.env.BASE_URL}icon.svg`)
   })
 
   it('shows the install hint when not running standalone', () => {
     stubDisplayMode(false)
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     expect(screen.getByText(/Add to Home Screen/)).toBeTruthy()
     expect(window.matchMedia).toHaveBeenCalledWith('(display-mode: standalone)')
   })
 
   it('shows the install hint when matchMedia is unavailable', () => {
     vi.stubGlobal('matchMedia', undefined)
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     expect(screen.getByText(/Add to Home Screen/)).toBeTruthy()
   })
 
   it('hides the install hint when running standalone', () => {
     stubDisplayMode(true)
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     expect(screen.queryByText(/Add to Home Screen/)).toBeNull()
   })
 
   it('loads no analytics script without VITE_GA_MEASUREMENT_ID', () => {
     vi.stubEnv('VITE_GA_MEASUREMENT_ID', '')
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     expect(
       document.querySelector(`script[${GTAG_SCRIPT_ATTRIBUTE}]`),
     ).toBeNull()
@@ -124,7 +132,7 @@ describe('OpenPdf', () => {
 
   it('loads gtag with storage denied when VITE_GA_MEASUREMENT_ID is set', () => {
     vi.stubEnv('VITE_GA_MEASUREMENT_ID', 'G-LANDING1')
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     const script = document.querySelector<HTMLScriptElement>(
       `script[${GTAG_SCRIPT_ATTRIBUTE}]`,
     )
@@ -136,7 +144,7 @@ describe('OpenPdf', () => {
   })
 
   it('lists the three Get started steps with key links in new tabs', () => {
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     const section = screen.getByRole('region', { name: 'Get started' })
     const steps = within(section).getAllByRole('listitem')
     expect(steps).toHaveLength(3)
@@ -167,7 +175,7 @@ describe('OpenPdf', () => {
   })
 
   it('states non-affiliation and names no price on the landing', () => {
-    const { container } = render(<OpenPdf onFile={vi.fn()} error={null} />)
+    const { container } = render(<OpenPdf {...props} />)
     const section = screen.getByRole('region', { name: 'Get started' })
     expect(section.textContent).toContain(
       'VoxNote is not affiliated with any of these companies. You pay them directly under your own account, and audio goes from your device to the provider you chose.',
@@ -185,7 +193,7 @@ describe('OpenPdf', () => {
   })
 
   it('places Get started after the feature cards and before the footer', () => {
-    const { container } = render(<OpenPdf onFile={vi.fn()} error={null} />)
+    const { container } = render(<OpenPdf {...props} />)
     const order = Array.from(
       container.querySelectorAll(
         '.open-pdf-features, .open-pdf-privacy, .open-pdf-start, .open-pdf-footer',
@@ -200,10 +208,62 @@ describe('OpenPdf', () => {
   })
 
   it('mentions visit counting in the privacy line', () => {
-    render(<OpenPdf onFile={vi.fn()} error={null} />)
+    render(<OpenPdf {...props} />)
     const line = screen.getByText(/Google Analytics/).textContent
     expect(line).toContain('stay in this browser')
     expect(line).toContain('key lives only in this browser, client side')
     expect(line).toContain('for statistical purposes')
+  })
+  it('sends a parsed http(s) link to onUrl', () => {
+    const onUrl = vi.fn()
+    render(<OpenPdf {...props} onUrl={onUrl} />)
+    const input = screen.getByLabelText('Or open a PDF from a link')
+    fireEvent.change(input, {
+      target: { value: ' https://www.rfc-editor.org/rfc/rfc9000.pdf ' },
+    })
+    fireEvent.submit(input.closest('form')!)
+    expect(onUrl).toHaveBeenCalledTimes(1)
+    expect(onUrl.mock.calls[0][0]).toBeInstanceOf(URL)
+    expect((onUrl.mock.calls[0][0] as URL).href).toBe(
+      'https://www.rfc-editor.org/rfc/rfc9000.pdf',
+    )
+  })
+
+  it('refuses a link that is not http(s) without calling onUrl', () => {
+    const onUrl = vi.fn()
+    render(<OpenPdf {...props} onUrl={onUrl} />)
+    const input = screen.getByLabelText('Or open a PDF from a link')
+    fireEvent.change(input, { target: { value: 'rfc9000.pdf' } })
+    fireEvent.submit(input.closest('form')!)
+    expect(onUrl).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert').textContent).toContain(
+      'Paste a full http(s) link to a PDF.',
+    )
+  })
+
+  it('routes a picked XML file to onDraftXml, not onFile', () => {
+    const onFile = vi.fn()
+    const onDraftXml = vi.fn()
+    render(<OpenPdf {...props} onFile={onFile} onDraftXml={onDraftXml} />)
+    const xml = new File(['<rfc/>'], 'draft-x-04.xml', { type: 'text/xml' })
+    fireEvent.change(screen.getByLabelText('Internet-Draft XML'), {
+      target: { files: [xml] },
+    })
+    expect(onDraftXml).toHaveBeenCalledWith(xml)
+    expect(onFile).not.toHaveBeenCalled()
+  })
+
+  it('routes a dropped XML file to onDraftXml', () => {
+    const onFile = vi.fn()
+    const onDraftXml = vi.fn()
+    const { container } = render(
+      <OpenPdf {...props} onFile={onFile} onDraftXml={onDraftXml} />,
+    )
+    const xml = new File(['<rfc/>'], 'draft-x-04.xml')
+    fireEvent.drop(container.firstElementChild!, {
+      dataTransfer: { files: [xml] },
+    })
+    expect(onDraftXml).toHaveBeenCalledWith(xml)
+    expect(onFile).not.toHaveBeenCalled()
   })
 })

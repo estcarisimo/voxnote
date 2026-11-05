@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+  type FormEvent,
+} from 'react'
+import { isDraftXmlFile, parseHttpUrl } from '../core/remotePdf'
 import { loadAnalytics } from './analytics'
 import { GitHubLink, REPOSITORY_URL } from './GitHubLink'
 import './OpenPdf.css'
 
 interface OpenPdfProps {
   onFile: (file: File) => void
+  /** A PDF to download from that URL, straight from the browser. */
+  onUrl: (url: URL) => void
+  /** An Internet-Draft's XML source, to compile into a PDF after consent. */
+  onDraftXml: (file: File) => void
   error: string | null
 }
 
@@ -44,9 +55,12 @@ function isStandalone(): boolean {
 }
 
 /** Landing view: pick a PDF with the file dialog or drop one onto the page. */
-export function OpenPdf({ onFile, error }: OpenPdfProps) {
+export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const xmlInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
+  const [urlText, setUrlText] = useState('')
+  const [urlError, setUrlError] = useState<string | null>(null)
   const [standalone] = useState(isStandalone)
 
   // Visit counting runs from the landing view only; a no-op unless the
@@ -55,16 +69,29 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
     loadAnalytics(import.meta.env.VITE_GA_MEASUREMENT_ID)
   }, [])
 
+  /** A dropped or picked XML file is a draft to compile; anything else, a PDF. */
   function accept(fileList: FileList | null) {
     const file = fileList?.[0]
     if (!file) return
-    onFile(file)
+    if (isDraftXmlFile(file)) onDraftXml(file)
+    else onFile(file)
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
     setDragging(false)
     accept(event.dataTransfer.files)
+  }
+
+  function submitUrl(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const url = parseHttpUrl(urlText)
+    if (!url) {
+      setUrlError('Paste a full http(s) link to a PDF.')
+      return
+    }
+    setUrlError(null)
+    onUrl(url)
   }
 
   return (
@@ -118,6 +145,49 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
           )}
         </div>
 
+        <div className="open-pdf-remote">
+          <form className="open-pdf-url" onSubmit={submitUrl}>
+            <label htmlFor="open-pdf-url">Or open a PDF from a link</label>
+            <div className="open-pdf-url-row">
+              <input
+                id="open-pdf-url"
+                type="url"
+                inputMode="url"
+                placeholder="https://www.rfc-editor.org/rfc/rfc9000.pdf"
+                value={urlText}
+                onChange={(e) => setUrlText(e.target.value)}
+              />
+              <button type="submit">Open</button>
+            </div>
+            <p className="open-pdf-hint">
+              Downloaded by your browser from that site, which must allow it
+              (CORS). RFCs from rfc-editor.org work.
+            </p>
+            {urlError && (
+              <p role="alert" className="open-pdf-error">
+                {urlError}
+              </p>
+            )}
+          </form>
+          <div className="open-pdf-draft">
+            <button type="button" onClick={() => xmlInputRef.current?.click()}>
+              Open an Internet-Draft (XML)
+            </button>
+            <p className="open-pdf-hint">
+              The XML is compiled into a PDF by the IETF's author tools, after
+              you confirm.
+            </p>
+            <input
+              ref={xmlInputRef}
+              type="file"
+              accept="text/xml,application/xml,.xml"
+              hidden
+              aria-label="Internet-Draft XML"
+              onChange={(e) => accept(e.target.files)}
+            />
+          </div>
+        </div>
+
         <ul className="open-pdf-features" aria-label="What you can do">
           <li>
             <strong>Highlight</strong>
@@ -141,10 +211,11 @@ export function OpenPdf({ onFile, error }: OpenPdfProps) {
 
         <p className="open-pdf-privacy">
           Your PDF, notes and recordings stay in this browser; audio goes out
-          only when you confirm a transcription with your own provider key. That
-          key lives only in this browser, client side: there is no VoxNote
-          server. Nothing is published. Visits are counted with Google Analytics
-          for statistical purposes, without cookies.
+          only when you confirm a transcription with your own provider key, and
+          an Internet-Draft's XML only when you confirm sending it to the IETF's
+          author tools. That key lives only in this browser, client side: there
+          is no VoxNote server. Nothing is published. Visits are counted with
+          Google Analytics for statistical purposes, without cookies.
         </p>
 
         <section className="open-pdf-start" aria-labelledby="get-started">
