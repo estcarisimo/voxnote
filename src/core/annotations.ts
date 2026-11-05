@@ -4,12 +4,19 @@
  * migration in the store whenever this shape changes.
  */
 
+import {
+  DEFAULT_HIGHLIGHT_COLOR,
+  isHighlightColor,
+  type HighlightColor,
+} from './palette'
+
 export const ANNOTATION_SCHEMA_VERSION = 3
 // Schema history. v1: highlights, comments, suggestions, voice notes. v2:
-// the optional `cleanUp` record on notes. A v1 record is a valid v2 record
-// without `cleanUp`, so migrateAnnotation only rewrites the version number.
-// v3: the `block-text` anchor for Markdown documents. Every v2 record is a
-// valid v3 record, so the migration again only rewrites the version.
+// the optional `cleanUp` record on notes; a v1 record is a valid v2 record
+// without `cleanUp`. v3: the required `color` on highlights, from the fixed
+// palette in ./palette (an older highlight gets the default, yellow, the one
+// color every highlight had before), and the `block-text` anchor for
+// Markdown documents, which no older record can carry.
 
 /**
  * A rectangle in PDF user space: points, origin at the bottom-left of the
@@ -99,6 +106,8 @@ interface AnnotationBase {
 
 export interface Highlight extends AnnotationBase {
   kind: 'highlight'
+  /** A name from the fixed palette; see HIGHLIGHT_PALETTE. */
+  color: HighlightColor
 }
 
 /**
@@ -183,16 +192,25 @@ export interface CreateHighlightInput {
   documentId: string
   anchor: Anchor
   visibility?: Visibility
+  /** Defaults to DEFAULT_HIGHLIGHT_COLOR. */
+  color?: HighlightColor
 }
 
 export function createHighlight(
   input: CreateHighlightInput,
   now: Date = new Date(),
 ): Highlight {
-  return { ...base(input, now), kind: 'highlight' }
+  const color = input.color ?? DEFAULT_HIGHLIGHT_COLOR
+  if (!isHighlightColor(color)) {
+    throw new Error(`Unknown highlight color "${String(color)}"`)
+  }
+  return { ...base(input, now), kind: 'highlight', color }
 }
 
-export interface CreateCommentInput extends CreateHighlightInput {
+/** Notes have no color of their own; the palette is for highlights. */
+export type CreateNoteInput = Omit<CreateHighlightInput, 'color'>
+
+export interface CreateCommentInput extends CreateNoteInput {
   body: string
   voice?: VoiceNote
   /** Set when the body is an accepted clean-up of the voice transcript. */
@@ -226,7 +244,7 @@ export function createComment(
   return comment
 }
 
-export interface CreateSuggestionInput extends CreateHighlightInput {
+export interface CreateSuggestionInput extends CreateNoteInput {
   anchor: QuoteAnchor
   /** The replacement text; may be empty when a voice note is attached. */
   body: string
@@ -319,6 +337,21 @@ export function withBody<N extends Note>(
   return updated
 }
 
+/** Recolors a highlight from the palette; nothing else moves. */
+export function withColor(
+  highlight: Highlight,
+  color: HighlightColor,
+  now: Date = new Date(),
+): Highlight {
+  if (highlight.kind !== 'highlight') {
+    throw new Error('Only a highlight has a color')
+  }
+  if (!isHighlightColor(color)) {
+    throw new Error(`Unknown highlight color "${String(color)}"`)
+  }
+  return { ...highlight, color, updatedAt: now.toISOString() }
+}
+
 /** Changes who an annotation is meant for; nothing else moves. */
 export function withVisibility<A extends Annotation>(
   annotation: A,
@@ -380,7 +413,7 @@ export function isNote(value: Annotation): value is Note {
   return value.kind === 'comment' || value.kind === 'suggestion'
 }
 
-function base(input: CreateHighlightInput, now: Date): AnnotationBase {
+function base(input: CreateNoteInput, now: Date): AnnotationBase {
   validateAnchor(input.anchor)
   const timestamp = now.toISOString()
   return {
@@ -577,18 +610,20 @@ function cleanUpOk(a: Record<string, unknown>): boolean {
 export function migrateAnnotation(value: unknown): unknown {
   if (typeof value !== 'object' || value === null) return value
   const a = value as Record<string, unknown>
-  if (a.schemaVersion === 1) {
-    // v1 had no clean-up record; anything named so is not a v1 record.
-    if ('cleanUp' in a) return value
-    return { ...a, schemaVersion: ANNOTATION_SCHEMA_VERSION }
+  if (a.schemaVersion !== 1 && a.schemaVersion !== 2) return value
+  // v1 had no clean-up record; anything named so is not a v1 record.
+  if (a.schemaVersion === 1 && 'cleanUp' in a) return value
+  // Neither had a color; a highlight that names one is not one of them.
+  if ('color' in a) return value
+  // Neither had block-text anchors; a record with one is not one of them.
+  const anchor = a.anchor as Record<string, unknown> | null | undefined
+  if (anchor?.type === 'block-text') return value
+  const migrated: Record<string, unknown> = {
+    ...a,
+    schemaVersion: ANNOTATION_SCHEMA_VERSION,
   }
-  if (a.schemaVersion === 2) {
-    // v2 had no block-text anchors; one claiming so is not a v2 record.
-    const anchor = a.anchor as Record<string, unknown> | undefined
-    if (anchor?.type === 'block-text') return value
-    return { ...a, schemaVersion: ANNOTATION_SCHEMA_VERSION }
-  }
-  return value
+  if (a.kind === 'highlight') migrated.color = DEFAULT_HIGHLIGHT_COLOR
+  return migrated
 }
 
 /** Structural validation for records read from storage or import files. */
@@ -607,7 +642,9 @@ export function isAnnotation(value: unknown): value is Annotation {
     isUtcTimestamp(a.createdAt) &&
     isUtcTimestamp(a.updatedAt)
   if (!baseOk) return false
-  if (a.kind === 'highlight') return a.cleanUp === undefined
+  if (a.kind === 'highlight') {
+    return a.cleanUp === undefined && isHighlightColor(a.color)
+  }
   if (a.kind === 'comment') {
     if (typeof a.body !== 'string') return false
     if (a.voice !== undefined && !isVoiceNote(a.voice)) return false

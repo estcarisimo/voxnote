@@ -37,6 +37,8 @@ function renderViewer(
       document={DOC}
       annotations={[]}
       selectedId={null}
+      highlightColor="yellow"
+      onHighlightColorChange={() => {}}
       onCreateHighlight={onCreateHighlight}
       onCreateNote={onCreateNote}
       transcribe={null}
@@ -77,13 +79,10 @@ describe('MarkdownViewer', () => {
     })
     expect(toolbar).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Highlight' }))
-    expect(onCreateHighlight).toHaveBeenCalledWith({
-      type: 'block-text',
-      page: 2,
-      quote: 'claim',
-      start: 4,
-      end: 9,
-    })
+    expect(onCreateHighlight).toHaveBeenCalledWith(
+      { type: 'block-text', page: 2, quote: 'claim', start: 4, end: 9 },
+      'yellow',
+    )
     await waitFor(() => expect(screen.queryByRole('toolbar')).toBeNull())
   })
 

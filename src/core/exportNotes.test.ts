@@ -79,6 +79,7 @@ describe('exportMarkdown', () => {
           rect: { x: 0, y: 0, width: 50, height: 50 },
         },
         visibility: 'author-facing',
+        color: 'green',
       },
       T0,
     )
@@ -87,13 +88,13 @@ describe('exportMarkdown', () => {
       [
         '## Page 1',
         '',
-        '- **Highlight** (private), created 2026-10-01T09:00:00.000Z (UTC)',
+        '- **Highlight** (private, yellow), created 2026-10-01T09:00:00.000Z (UTC)',
         '  - Passage:',
         '    > the key result',
         '',
         '## Page 2',
         '',
-        '- **Highlight** (author-facing), created 2026-10-01T09:00:00.000Z (UTC)',
+        '- **Highlight** (author-facing, green), created 2026-10-01T09:00:00.000Z (UTC)',
         '  - Region on page 2',
         '',
       ].join('\n'),
@@ -383,6 +384,7 @@ describe('exportJson', () => {
           ...textAnchor(1, 'quoted'),
           textOffsets: { start: 3, end: 9 },
         },
+        color: 'orange',
       },
       T0,
     )
@@ -413,6 +415,7 @@ describe('exportJson', () => {
     const restored = parsed.annotations as unknown[]
     expect(restored.every(isAnnotation)).toBe(true)
     expect(restored).toEqual(annotations)
+    expect((restored[0] as { color: unknown }).color).toBe('orange')
     expect(text).not.toMatch(/blob|base64/i)
   })
 

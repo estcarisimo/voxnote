@@ -13,6 +13,7 @@ import {
   rangeForBlockAnchor,
 } from '../core/blockSelection'
 import type { MarkdownDocument } from '../core/markdown'
+import { highlightRgb, type HighlightColor } from '../core/palette'
 import type { AutoTranscribeState } from '../hooks/useTranscription'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import type { CleanUpFn } from './CleanUpDialog'
@@ -32,7 +33,10 @@ interface MarkdownViewerProps {
   document: MarkdownDocument
   annotations: readonly Annotation[]
   selectedId: string | null
-  onCreateHighlight: (anchor: BlockTextAnchor) => void
+  /** The color of the next highlight, shown as dots in the toolbar. */
+  highlightColor: HighlightColor
+  onHighlightColorChange: (color: HighlightColor) => void
+  onCreateHighlight: (anchor: BlockTextAnchor, color: HighlightColor) => void
   /** Rejecting keeps the composer open with the error shown. */
   onCreateNote: (request: NewNoteRequest) => Promise<void>
   /** Consent-gated transcription for a fresh recording; null if unavailable. */
@@ -64,6 +68,8 @@ export function MarkdownViewer({
   document: markdown,
   annotations,
   selectedId,
+  highlightColor,
+  onHighlightColorChange,
   onCreateHighlight,
   onCreateNote,
   transcribe,
@@ -133,7 +139,7 @@ export function MarkdownViewer({
 
   function highlight() {
     if (!pending) return
-    onCreateHighlight(pending.anchor)
+    onCreateHighlight(pending.anchor, highlightColor)
     clear()
   }
 
@@ -170,6 +176,8 @@ export function MarkdownViewer({
       {pending && !composer && (
         <SelectionToolbar
           placement={pending.placement}
+          color={highlightColor}
+          onColorChange={onHighlightColorChange}
           onHighlight={highlight}
           onComment={() => openComposer('typed')}
           onVoice={() => openComposer('voice')}
@@ -228,6 +236,8 @@ function readSelection(
 interface MarkRect {
   id: string
   kind: 'highlight' | 'comment' | 'suggestion' | 'pending'
+  /** A highlight's palette color, 0–255; the CSS mixes in the opacity. */
+  color: [number, number, number] | null
   selected: boolean
   left: number
   top: number
@@ -291,6 +301,7 @@ function Marks({
             className={`mark mark--${r.kind}${r.selected ? ' mark--selected' : ''}`}
             data-annotation-id={r.id}
             style={{
+              ...(r.color && { '--highlight-rgb': r.color.join(' ') }),
               left: r.left,
               top: r.top,
               width: r.width,
@@ -322,6 +333,7 @@ function measureMarks(
   const entries: {
     id: string
     kind: MarkRect['kind']
+    color: MarkRect['color']
     anchor: BlockTextAnchor
   }[] = []
   for (const a of annotations) {
@@ -331,12 +343,22 @@ function measureMarks(
       )
       continue
     }
-    entries.push({ id: a.id, kind: a.kind, anchor: a.anchor })
+    entries.push({
+      id: a.id,
+      kind: a.kind,
+      color: a.kind === 'highlight' ? highlightRgb(a.color) : null,
+      anchor: a.anchor,
+    })
   }
   if (pendingAnchor) {
-    entries.push({ id: 'pending', kind: 'pending', anchor: pendingAnchor })
+    entries.push({
+      id: 'pending',
+      kind: 'pending',
+      color: null,
+      anchor: pendingAnchor,
+    })
   }
-  for (const { id, kind, anchor } of entries) {
+  for (const { id, kind, color, anchor } of entries) {
     const block = paper.querySelector(`[${BLOCK_ATTRIBUTE}="${anchor.page}"]`)
     if (!block) {
       errors.push(
@@ -358,6 +380,7 @@ function measureMarks(
       rects.push({
         id,
         kind,
+        color,
         selected: id === selectedId,
         left: r.left - origin.left,
         top: r.top - origin.top,

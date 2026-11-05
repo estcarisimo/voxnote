@@ -87,6 +87,7 @@ const pdf = { numPages: 1 } as unknown as PDFDocumentProxy
 
 function setup(tool: 'select' | 'region' = 'region') {
   const onCreateHighlight = vi.fn()
+  const onHighlightColorChange = vi.fn()
   const onCreateNote = vi.fn<(r: NewNoteRequest) => Promise<void>>(
     async () => {},
   )
@@ -96,6 +97,8 @@ function setup(tool: 'select' | 'region' = 'region') {
       tool={tool}
       annotations={[]}
       selectedId={null}
+      highlightColor="green"
+      onHighlightColorChange={onHighlightColorChange}
       onCreateHighlight={onCreateHighlight}
       onCreateNote={onCreateNote}
       transcribe={null}
@@ -108,12 +111,19 @@ function setup(tool: 'select' | 'region' = 'region') {
         tool={nextTool}
         annotations={[]}
         selectedId={null}
+        highlightColor="green"
+        onHighlightColorChange={onHighlightColorChange}
         onCreateHighlight={onCreateHighlight}
         onCreateNote={onCreateNote}
         transcribe={null}
       />,
     )
-  return { onCreateHighlight, onCreateNote, rerenderWith }
+  return {
+    onCreateHighlight,
+    onHighlightColorChange,
+    onCreateNote,
+    rerenderWith,
+  }
 }
 
 describe('PdfViewer', () => {
@@ -125,12 +135,29 @@ describe('PdfViewer', () => {
     // Only text can be replaced: no Suggest for a region.
     expect(screen.queryByRole('button', { name: 'Suggest' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Highlight' }))
-    expect(onCreateHighlight).toHaveBeenCalledWith({
-      type: 'region',
-      page: 1,
-      rect: { x: 10, y: 20, width: 30, height: 40 },
-    })
+    expect(onCreateHighlight).toHaveBeenCalledWith(
+      {
+        type: 'region',
+        page: 1,
+        rect: { x: 10, y: 20, width: 30, height: 40 },
+      },
+      'green',
+    )
     expect(screen.queryByRole('toolbar')).toBeNull()
+  })
+
+  it('shows the current highlight color in the toolbar and reports a new pick', () => {
+    const { onHighlightColorChange, onCreateHighlight } = setup()
+    fireEvent.click(screen.getByText('drag region 1'))
+    expect(screen.getByRole('radio', { name: 'Green' })).toHaveProperty(
+      'ariaChecked',
+      'true',
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'Pink' }))
+    expect(onHighlightColorChange).toHaveBeenCalledWith('pink')
+    // Picking a color is not highlighting: the toolbar stays for the action.
+    expect(onCreateHighlight).not.toHaveBeenCalled()
+    expect(screen.getByRole('toolbar')).toBeTruthy()
   })
 
   it('saves a typed comment on the region and keeps the composer open on failure', async () => {
@@ -212,6 +239,8 @@ describe('PdfViewer', () => {
           tool="select"
           annotations={[a]}
           selectedId={null}
+          highlightColor="yellow"
+          onHighlightColorChange={vi.fn()}
           onCreateHighlight={vi.fn()}
           onCreateNote={vi.fn(async () => {})}
           transcribe={null}

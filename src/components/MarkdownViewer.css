@@ -35,7 +35,10 @@
 
 .markdown-marks .mark {
   position: absolute;
-  background: rgba(255, 220, 60, 0.55);
+  /* A highlight's mark sets --highlight-rgb from its palette color
+     (src/core/palette.ts); the default is the palette's yellow. */
+  --highlight-rgb: 255 220 60;
+  background: rgb(var(--highlight-rgb) / 0.55);
   border-radius: 2px;
 }
 
