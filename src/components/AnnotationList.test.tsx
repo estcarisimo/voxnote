@@ -4,12 +4,15 @@ import {
   createComment,
   createHighlight,
   createSuggestion,
+  withColor,
   withVisibility,
   type Annotation,
+  type Highlight,
   type Note,
   type TextAnchor,
   type Visibility,
 } from '../core/annotations'
+import type { HighlightColor } from '../core/palette'
 import { AnnotationList } from './AnnotationList'
 
 const anchor: TextAnchor = {
@@ -24,6 +27,7 @@ const noop = {
   onDelete: () => {},
   onUpdateBody: async () => {},
   onUpdateVisibility: async () => {},
+  onUpdateColor: async () => {},
   onLoadAudio: async () => null,
   onTranscribe: async () => {},
 }
@@ -425,6 +429,58 @@ describe('AnnotationList', () => {
     expect(onUpdateVisibility).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: h.id, visibility: 'author-facing' }),
       'private',
+    )
+  })
+
+  it("shows a highlight's color and recolors it through the callback", async () => {
+    const h = createHighlight({ documentId: 'd', anchor, color: 'green' })
+    const onUpdateColor = vi
+      .fn<(h: Highlight, color: HighlightColor) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('store closed'))
+      .mockResolvedValueOnce(undefined)
+    const { rerender } = render(
+      <AnnotationList
+        annotations={[h]}
+        selectedId={null}
+        {...noop}
+        onUpdateColor={onUpdateColor}
+      />,
+    )
+    expect(screen.getByText(/p\. 3 · green/)).toBeTruthy()
+    const group = screen.getByRole('radiogroup', {
+      name: 'Color of the highlight on page 3',
+    })
+    expect(group).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Green' })).toHaveProperty(
+      'ariaChecked',
+      'true',
+    )
+    fireEvent.click(screen.getByRole('radio', { name: 'Purple' }))
+    expect(onUpdateColor).toHaveBeenCalledWith(h, 'purple')
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'store closed',
+    )
+    // The failed write leaves the dots as they were.
+    expect(screen.getByRole('radio', { name: 'Green' })).toHaveProperty(
+      'ariaChecked',
+      'true',
+    )
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Purple' }))
+    await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    rerender(
+      <AnnotationList
+        annotations={[withColor(h, 'purple')]}
+        selectedId={null}
+        {...noop}
+        onUpdateColor={onUpdateColor}
+      />,
+    )
+    expect(screen.getByText(/p\. 3 · purple/)).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Purple' })).toHaveProperty(
+      'ariaChecked',
+      'true',
     )
   })
 

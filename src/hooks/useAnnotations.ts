@@ -5,11 +5,13 @@ import {
   createSuggestion,
   isNote,
   withBody,
+  withColor,
   withTranscript,
   withVisibility,
   type Anchor,
   type Annotation,
   type CleanUp,
+  type Highlight,
   type Note,
   type TextAnchor,
   type Transcript,
@@ -17,6 +19,7 @@ import {
   type VoiceNote,
 } from '../core/annotations'
 import { withCleanUp, type CleanUpProposal } from '../core/cleanUp'
+import type { HighlightColor } from '../core/palette'
 import { openAnnotationStore, type AnnotationStore } from '../core/store'
 
 export type NewNote =
@@ -44,11 +47,14 @@ interface AnnotationsState {
   /** False until the store for the current document has loaded. */
   ready: boolean
   error: string | null
-  addHighlight: (anchor: Anchor) => Promise<Annotation>
+  /** Omitting the color gives the palette's default. */
+  addHighlight: (anchor: Anchor, color?: HighlightColor) => Promise<Highlight>
   addNote: (input: NewNote) => Promise<Note>
   updateBody: (id: string, body: string) => Promise<Note>
   /** Marks an annotation private or for the author. */
   updateVisibility: (id: string, visibility: Visibility) => Promise<Annotation>
+  /** Recolors a highlight from the palette. */
+  updateColor: (id: string, color: HighlightColor) => Promise<Highlight>
   /** Attaches a transcript to a dictated note; fills an empty body. */
   setTranscript: (id: string, transcript: Transcript) => Promise<Note>
   /** Puts an accepted clean-up in the body; the raw transcript stays. */
@@ -151,12 +157,13 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
   )
 
   const addHighlight = useCallback(
-    async (anchor: Anchor) => {
+    async (anchor: Anchor, color?: HighlightColor) => {
       if (!current) throw new Error('Annotation store is not ready')
       return serialize(current.documentId, async (state) => {
         const annotation = createHighlight({
           documentId: state.documentId,
           anchor,
+          color,
         })
         await state.store.put(annotation)
         apply(state.documentId, (list) => [...list, annotation])
@@ -236,6 +243,25 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     [current, apply, serialize],
   )
 
+  const updateColor = useCallback(
+    async (id: string, color: HighlightColor) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      return serialize(current.documentId, async (state) => {
+        const existing = state.annotations.find((a) => a.id === id)
+        if (!existing || existing.kind !== 'highlight') {
+          throw new Error(`No highlight with id ${id}`)
+        }
+        const updated = withColor(existing, color)
+        await state.store.put(updated)
+        apply(state.documentId, (list) =>
+          list.map((a) => (a.id === id ? updated : a)),
+        )
+        return updated
+      })
+    },
+    [current, apply, serialize],
+  )
+
   const setTranscript = useCallback(
     async (id: string, transcript: Transcript) => {
       if (!current) throw new Error('Annotation store is not ready')
@@ -302,6 +328,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     addNote,
     updateBody,
     updateVisibility,
+    updateColor,
     setTranscript,
     applyCleanUp,
     getAudio,

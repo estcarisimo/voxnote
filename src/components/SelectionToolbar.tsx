@@ -1,3 +1,5 @@
+import type { HighlightColor } from '../core/palette'
+import { ColorDots } from './ColorDots'
 import './SelectionToolbar.css'
 
 export interface ToolbarPlacement {
@@ -11,6 +13,9 @@ export interface ToolbarPlacement {
 
 interface SelectionToolbarProps {
   placement: ToolbarPlacement
+  /** The color the next highlight will take; the dots show and change it. */
+  color: HighlightColor
+  onColorChange: (color: HighlightColor) => void
   onHighlight: () => void
   onComment: () => void
   onVoice: () => void
@@ -21,6 +26,8 @@ interface SelectionToolbarProps {
 /** Floating actions for the current selection or region. */
 export function SelectionToolbar({
   placement,
+  color,
+  onColorChange,
   onHighlight,
   onComment,
   onVoice,
@@ -35,6 +42,11 @@ export function SelectionToolbar({
       // Keep the selection: a pointerdown on the toolbar must not collapse it.
       onPointerDown={(e) => e.preventDefault()}
     >
+      <ColorDots
+        value={color}
+        onChange={onColorChange}
+        label="Highlight color"
+      />
       <button type="button" onClick={onHighlight}>
         Highlight
       </button>

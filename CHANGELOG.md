@@ -8,6 +8,32 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Highlight colors.** A fixed palette of six colors (yellow, green, blue,
+  pink, orange, purple; names and hex values in one place,
+  `src/core/palette.ts`) shown as a row of colored dots in the selection
+  toolbar, before **Highlight**. Tapping a dot picks the color of the next
+  highlight and nothing else; the pick is remembered across reloads in
+  `localStorage` (`voxnote.highlight.color`; a stored value outside the
+  palette fails loudly instead of being guessed, and a pick that cannot be
+  saved still applies, with the error shown). Each dot is a 44 px radio
+  button named after its color, with a ring on the chosen one. Highlights
+  draw on the page in their color, text runs and regions alike; the
+  annotations panel shows the color beside the page number and offers the
+  same dots to recolor a highlight afterwards, a failed write leaving the
+  dots as they were. The exported PDF writes the color into each
+  `/Highlight` and `/Square` annotation's `/C` array; the Markdown report
+  names it next to the visibility; the JSON carries the `color` field.
+  Annotation schema v3: `color` is required on highlights, and records
+  stored as v1 or v2 load with the default yellow, the one color every
+  highlight had before (unit tests for the migration in
+  `src/core/annotations.test.ts` and `src/core/store.test.ts`). Verified on
+  2026-11-05: 424 unit and component tests; a six-color export checked with
+  `qpdf --check` (no errors) and rendered by poppler 25 (`pdftoppm`) in the
+  six colors; and the production build driven in headless Chromium 155
+  over DevTools (pick pink, highlight a region and a text run, recolor one
+  to purple from the panel, reload: both colors back from IndexedDB, pink
+  still picked, no console errors). Not yet tried in Safari on an iPad, nor
+  in Preview, Acrobat or PDF Expert.
 - **Open a PDF from a link.** The landing has an "Or open a PDF from a
   link" field: paste an http(s) URL and tap **Open**, and the browser
   downloads the file straight from that site and opens it as if it had been

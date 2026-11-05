@@ -56,16 +56,28 @@ describe('IndexedDB annotation store', () => {
     store.close()
   })
 
-  it('reads schema v1 records as v2 without touching their content', async () => {
+  it('reads schema v1 and v2 records as v3, highlights in the default color', async () => {
     const factory = new IDBFactory()
     const store = await openAnnotationStore('test', factory)
-    const current = createHighlight({ documentId: 'doc', anchor: region(1) })
-    const v1 = { ...current, schemaVersion: 1 }
+    const highlight = createHighlight(
+      { documentId: 'doc', anchor: region(1) },
+      new Date('2026-01-01T00:00:01Z'),
+    )
+    const comment = createComment(
+      { documentId: 'doc', anchor: region(2), body: 'Why?' },
+      new Date('2026-01-01T00:00:02Z'),
+    )
+    // Stored before v3: no color on the highlight, old version numbers.
+    const { color: _color, ...colorless } = highlight
+    const stored = [
+      { ...colorless, schemaVersion: 1 },
+      { ...comment, schemaVersion: 2 },
+    ]
     await new Promise<void>((resolve, reject) => {
       const req = factory.open('test', 2)
       req.onsuccess = () => {
         const tx = req.result.transaction('annotations', 'readwrite')
-        tx.objectStore('annotations').put(v1)
+        for (const record of stored) tx.objectStore('annotations').put(record)
         tx.oncomplete = () => {
           req.result.close()
           resolve()
@@ -74,7 +86,10 @@ describe('IndexedDB annotation store', () => {
       }
       req.onerror = () => reject(req.error)
     })
-    expect(await store.list('doc')).toEqual([current])
+    expect(await store.list('doc')).toEqual([
+      { ...highlight, color: 'yellow' },
+      comment,
+    ])
     store.close()
   })
 

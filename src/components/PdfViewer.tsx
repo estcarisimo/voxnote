@@ -13,6 +13,7 @@ import type {
   RegionAnchor,
   TextAnchor,
 } from '../core/annotations'
+import type { HighlightColor } from '../core/palette'
 import type { PDFDocumentProxy } from '../core/pdf'
 import { textAnchorFromRange } from '../core/selection'
 import type { AutoTranscribeState } from '../hooks/useTranscription'
@@ -42,7 +43,10 @@ interface PdfViewerProps {
   tool: Tool
   annotations: readonly Annotation[]
   selectedId: string | null
-  onCreateHighlight: (anchor: Anchor) => void
+  /** The color of the next highlight, shown as dots in the toolbar. */
+  highlightColor: HighlightColor
+  onHighlightColorChange: (color: HighlightColor) => void
+  onCreateHighlight: (anchor: Anchor, color: HighlightColor) => void
   /** Rejecting keeps the composer open with the error shown. */
   onCreateNote: (request: NewNoteRequest) => Promise<void>
   /** Consent-gated transcription for a fresh recording; null if unavailable. */
@@ -81,6 +85,8 @@ export function PdfViewer({
   tool,
   annotations,
   selectedId,
+  highlightColor,
+  onHighlightColorChange,
   onCreateHighlight,
   onCreateNote,
   transcribe,
@@ -203,7 +209,7 @@ export function PdfViewer({
 
   function highlight() {
     if (!shown) return
-    onCreateHighlight(shown.anchor)
+    onCreateHighlight(shown.anchor, highlightColor)
     clear()
   }
 
@@ -283,6 +289,8 @@ export function PdfViewer({
       {shown && !composer && (
         <SelectionToolbar
           placement={shown.placement}
+          color={highlightColor}
+          onColorChange={onHighlightColorChange}
           onHighlight={highlight}
           onComment={() => openComposer('typed')}
           onVoice={() => openComposer('voice')}

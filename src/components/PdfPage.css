@@ -20,13 +20,18 @@
 
 .pdf-page .highlight {
   position: absolute;
-  background: rgba(255, 220, 60, 0.55);
+  /* A highlight's mark sets --highlight-rgb from its palette color
+     (src/core/palette.ts); the default is the palette's yellow. */
+  --highlight-rgb: 255 220 60;
+  background: rgb(var(--highlight-rgb) / 0.55);
   border-radius: 2px;
 }
 
 .pdf-page .highlight--region {
-  background: rgba(255, 220, 60, 0.18);
-  outline: 2px solid rgba(240, 170, 0, 0.9);
+  background: rgb(var(--highlight-rgb) / 0.18);
+  /* The outline is the color itself, darkened, so it holds on white. */
+  outline: 2px solid
+    color-mix(in srgb, rgb(var(--highlight-rgb)) 75%, rgb(90 60 0));
   outline-offset: -1px;
 }
 
@@ -50,8 +55,13 @@
 }
 
 .pdf-page .highlight--selected {
-  background: rgba(60, 140, 255, 0.4);
   outline: 2px solid rgba(40, 100, 220, 0.95);
+}
+
+/* A selected note turns blue; a selected highlight keeps its color and
+   gets the outline only, or the color could not be judged while picking. */
+.pdf-page .highlight--selected:not(.highlight--highlight) {
+  background: rgba(60, 140, 255, 0.4);
 }
 
 .pdf-page .highlight--pending {

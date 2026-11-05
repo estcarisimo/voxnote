@@ -3,7 +3,7 @@
  * (PDF 32000-1:2008, section 12.5.6). The original bytes are never modified.
  *
  * Text anchors become /Highlight annotations with one quadrilateral per line;
- * regions become /Square annotations; suggestions become /StrikeOut over the
+ * regions become /Square annotations, both in the highlight's palette color; suggestions become /StrikeOut over the
  * original text with the replacement in /Contents. A comment's body goes
  * into /Contents, which viewers show as the annotation's note; a body
  * cleaned up by a text model is marked as such and followed by the raw
@@ -25,8 +25,8 @@ import {
   type PdfRect,
 } from './annotations'
 import { cleanUpLabel } from './cleanUp'
+import { highlightPdfColor } from './palette'
 
-const HIGHLIGHT_COLOR = [1, 0.85, 0.2] as const
 const COMMENT_COLOR = [0.3, 0.55, 1] as const
 const SUGGESTION_COLOR = [0.85, 0.15, 0.15] as const
 const AUTHOR = 'VoxNote'
@@ -100,7 +100,7 @@ function annotationDict(
 function colorOf(annotation: Annotation): readonly [number, number, number] {
   switch (annotation.kind) {
     case 'highlight':
-      return HIGHLIGHT_COLOR
+      return highlightPdfColor(annotation.color)
     case 'comment':
       return COMMENT_COLOR
     case 'suggestion':
