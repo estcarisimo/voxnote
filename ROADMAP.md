@@ -307,8 +307,9 @@ were weighed on this date:
   Region anchors stay PDF-only (there are no figures to box in rendered
   text; an image is a placeholder). Rectangles are not stored for Markdown
   anchors: marks are drawn from DOM ranges at render time, so they follow
-  the window width. The annotation schema goes to v3; a v2 record is a valid
-  v3 record.
+  the window width. The annotation schema is v3, the same bump the highlight
+  palette made on this date: a v1 or v2 record migrates by version number
+  plus, for a highlight, the default color.
 - **Identity.** A Markdown document is keyed like a PDF, by the SHA-256 of
   its bytes, so reopening the same file finds its annotations, and a changed
   file is a new document. Re-anchoring onto an edited source is not

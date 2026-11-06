@@ -170,6 +170,12 @@ describe('parseMarkdown', () => {
     )
   })
 
+  it('drops a leading byte-order mark so the first heading is read as one', () => {
+    const { blocks } = parseMarkdown('\ufeff# Title\n\ntext\n')
+    expect(blocks[0]).toMatchObject({ type: 'heading', depth: 1 })
+    expect(blockPlainText(blocks[0]!)).toBe('Title')
+  })
+
   it('refuses a source with no blocks instead of opening an empty document', () => {
     expect(() => parseMarkdown('')).toThrow('no content')
     expect(() => parseMarkdown('\n\n')).toThrow('no content')
@@ -215,9 +221,15 @@ describe('safeHref', () => {
     expect(safeHref('MAILTO:x@y.z')).toBe('MAILTO:x@y.z')
     expect(safeHref('#section')).toBe('#section')
     expect(safeHref('../other.md')).toBe('../other.md')
-    // Protocol-relative: a third party dressed as a relative path.
+    // A third party dressed as a relative path, as browsers resolve them.
     expect(safeHref('//attacker.example/p')).toBeNull()
     expect(safeHref(' //attacker.example')).toBeNull()
+    expect(safeHref('/\\attacker.example/p')).toBeNull()
+    expect(safeHref('\\\\attacker.example/p')).toBeNull()
+    expect(safeHref('/\t/attacker.example/p')).toBeNull()
+    expect(safeHref('ht\ttps://attacker.example')).toBeNull()
+    expect(safeHref('java\tscript:alert(1)')).toBeNull()
+    expect(safeHref('https://[bad')).toBeNull()
     expect(safeHref('javascript:void(0)')).toBeNull()
     expect(safeHref('JavaScript:void(0)')).toBeNull()
     expect(safeHref('data:text/html,hi')).toBeNull()

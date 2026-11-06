@@ -57,8 +57,10 @@ All notable changes to this project are documented here. The format follows
   after each layout and follow the window width; an anchor that no longer
   fits its block is reported in an alert, never dropped. Selections across
   two top-level blocks get no toolbar, like selections across two PDF pages.
-  The annotation schema is now v3 (v1 and v2 records migrate by version
-  number only) and the notes-export envelope v2 (`document.kind`, with
+  The annotation schema is v3, shared with the highlight palette's bump:
+  `migrateAnnotation` rewrites a v1 or v2 record's version and gives a
+  highlight the default color, and rejects an old record that already
+  claims a color or a block-text anchor. The notes-export envelope is v2 (`document.kind`, with
   `blockCount` for Markdown where a PDF has `pageCount`). The sidebar and
   the Markdown report label a block anchor's position as "Block N" / "¶ N".
   The annotated-PDF export is hidden for Markdown documents, and

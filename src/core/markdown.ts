@@ -79,7 +79,9 @@ export function isMarkdownFile(file: File): boolean {
  * nothing to review, and an empty document cannot be exported either.
  */
 export function parseMarkdown(source: string): MarkdownDocument {
-  const tokens = Lexer.lex(source, { gfm: true, breaks: false })
+  // A byte-order mark would make the lexer read "# Title" as a paragraph.
+  const text = source.startsWith('\ufeff') ? source.slice(1) : source
+  const tokens = Lexer.lex(text, { gfm: true, breaks: false })
   const blocks = blocksOf(tokens)
   if (blocks.length === 0) {
     throw new Error('The Markdown file has no content to review')
@@ -236,19 +238,37 @@ function mergeText(nodes: readonly InlineNode[]): InlineNode[] {
 }
 
 /**
- * Returns `href` when a rendered link may point at it, null otherwise. Kept:
- * `http(s):` and `mailto:` targets, and relative ones (`#section`,
- * `../other.md`), which resolve against this site and need a tap anyway.
- * Dropped: every other scheme (`javascript:`, `data:`, `file:`…) and
- * protocol-relative `//host/path` targets, which would point at a third
- * party while looking relative.
+ * A base no document can name: a target that resolves to this origin is
+ * relative, whatever it looks like (`/\\host`, tabs, `//host`).
+ */
+const RELATIVE_BASE = 'https://voxnote-relative.invalid/'
+
+/**
+ * Returns `href` when a rendered link may point at it, null otherwise. The
+ * target is resolved the way the browser would, against a base no document
+ * can name: a result on that base is a relative target (`#section`,
+ * `../other.md`), kept because it resolves against this site and needs a
+ * tap anyway; otherwise only `http(s):` and `mailto:` targets are kept.
+ * Everything else, `javascript:`, `data:` and `file:` included, and every
+ * disguise for a third-party host (`//host`, `/\\host`, whitespace in the
+ * scheme) renders as plain text.
  */
 export function safeHref(href: string): string | null {
   const trimmed = href.trim()
-  if (trimmed === '' || trimmed.startsWith('//')) return null
-  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(trimmed)
-  if (!scheme) return trimmed
-  return SAFE_SCHEMES.includes(`${scheme[1]!.toLowerCase()}:`) ? trimmed : null
+  if (trimmed === '') return null
+  let url: URL
+  try {
+    url = new URL(trimmed, RELATIVE_BASE)
+  } catch {
+    return null
+  }
+  if (url.origin === new URL(RELATIVE_BASE).origin) return trimmed
+  // Absolute: the scheme must be written out, plainly, and be a safe one.
+  // `//host` and a scheme with whitespace inside resolve to https: without
+  // saying so; the browser would follow them, this renderer does not.
+  const written = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(trimmed)?.[1]
+  if (!written || `${written.toLowerCase()}:` !== url.protocol) return null
+  return SAFE_SCHEMES.includes(url.protocol) ? trimmed : null
 }
 
 /** How an image placeholder reads, in the document and in its text. */
