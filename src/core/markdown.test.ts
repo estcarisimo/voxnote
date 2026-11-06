@@ -170,9 +170,21 @@ describe('parseMarkdown', () => {
     )
   })
 
-  it('parses an empty source into no blocks', () => {
-    expect(parseMarkdown('').blocks).toEqual([])
-    expect(parseMarkdown('\n\n').blocks).toEqual([])
+  it('refuses a source with no blocks instead of opening an empty document', () => {
+    expect(() => parseMarkdown('')).toThrow('no content')
+    expect(() => parseMarkdown('\n\n')).toThrow('no content')
+    expect(() => parseMarkdown('[ref]: https://example.org')).toThrow(
+      'no content',
+    )
+  })
+
+  it('decodes character references in link and image titles', () => {
+    const p = parseMarkdown(
+      '[a](https://x.y "Tom &amp; Jerry") ![b](https://x.y/i.png "&copy; me")',
+    ).blocks[0]!
+    if (p.type !== 'paragraph') throw new Error('expected a paragraph')
+    expect(p.children[0]).toMatchObject({ type: 'link', title: 'Tom & Jerry' })
+    expect(p.children[2]).toMatchObject({ type: 'image', title: '© me' })
   })
 
   it('merges adjacent text so offsets do not depend on tokenization', () => {
@@ -197,12 +209,15 @@ describe('blockPlainText', () => {
 })
 
 describe('safeHref', () => {
-  it('allows http(s), mailto and relative targets only', () => {
+  it('allows http(s), mailto and relative targets, nothing else', () => {
     expect(safeHref('https://a.b/c')).toBe('https://a.b/c')
     expect(safeHref('  http://a.b ')).toBe('http://a.b')
     expect(safeHref('MAILTO:x@y.z')).toBe('MAILTO:x@y.z')
     expect(safeHref('#section')).toBe('#section')
     expect(safeHref('../other.md')).toBe('../other.md')
+    // Protocol-relative: a third party dressed as a relative path.
+    expect(safeHref('//attacker.example/p')).toBeNull()
+    expect(safeHref(' //attacker.example')).toBeNull()
     expect(safeHref('javascript:void(0)')).toBeNull()
     expect(safeHref('JavaScript:void(0)')).toBeNull()
     expect(safeHref('data:text/html,hi')).toBeNull()

@@ -41,8 +41,10 @@ yet (see [Status](#-status-and-caveats)).
   with a selectable text layer
 - 📝 **Read a Markdown file** (`.md`, `.markdown`): rendered in the browser
   from a restricted element tree, never as injected HTML; raw HTML shows as
-  text, only `http(s):` and `mailto:` links are live, and images are
-  placeholders that are never fetched. Highlight, comment, voice and
+  text, links keep only `http(s):`, `mailto:` and relative targets (any
+  other scheme, `javascript:` included, and protocol-relative `//host`
+  targets render as plain text), and images are placeholders that are
+  never fetched. Highlight, comment, voice and
   suggest work on the rendered text; the Region tool and the annotated-PDF
   export are PDF-only
 - ✍️ **Select with Pencil, touch or mouse**: pen drags build the text
@@ -357,6 +359,14 @@ npm run lint           # oxlint
 npm run format         # Prettier (also formats Markdown); format:check in CI
 npm run build          # typecheck + production build
 ```
+
+Two manual browser checks, not part of `npm test`, drive headless Chromium
+over the DevTools protocol against the production build
+(`npm run build && npm run preview`): `scripts/browser-e2e.mjs` for opening
+a PDF from a link and an Internet-Draft's XML, and
+`scripts/browser-markdown-e2e.mjs <file.md>` for the Markdown flow (open,
+highlight, comment, export, reload and find the annotations again). Each
+prints what it saw and every console error.
 
 Tests sit next to the code as `*.test.ts(x)`. CI runs lint, format,
 typecheck-and-build, tests and `npm audit` on every push and pull request;

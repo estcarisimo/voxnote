@@ -75,11 +75,16 @@ export function isMarkdownFile(file: File): boolean {
 /**
  * Parses GFM Markdown into the block tree. Throws on an unknown token, so an
  * upgrade of the lexer that adds a token kind shows up as an error, not as
- * silently dropped content.
+ * silently dropped content, and on a source with no blocks at all: there is
+ * nothing to review, and an empty document cannot be exported either.
  */
 export function parseMarkdown(source: string): MarkdownDocument {
   const tokens = Lexer.lex(source, { gfm: true, breaks: false })
-  return { blocks: blocksOf(tokens) }
+  const blocks = blocksOf(tokens)
+  if (blocks.length === 0) {
+    throw new Error('The Markdown file has no content to review')
+  }
+  return { blocks }
 }
 
 function blocksOf(tokens: readonly Token[]): BlockNode[] {
@@ -193,7 +198,7 @@ function inlineOf(token: Token): InlineNode {
       return {
         type: 'link',
         href: safeHref(t.href),
-        title: t.title ?? null,
+        title: t.title ? decodeEntities(t.title) : null,
         children: inlinesOf(t.tokens),
       }
     }
@@ -203,7 +208,7 @@ function inlineOf(token: Token): InlineNode {
         type: 'image',
         alt: inlinePlainText(inlinesOf(t.tokens)),
         src: t.href,
-        title: t.title ?? null,
+        title: t.title ? decodeEntities(t.title) : null,
       }
     }
     case 'br':
@@ -231,13 +236,16 @@ function mergeText(nodes: readonly InlineNode[]): InlineNode[] {
 }
 
 /**
- * Returns `href` when a rendered link may point at it, null otherwise.
- * Relative links are kept: they resolve against this site, not a third party,
- * and the user has to tap them. `javascript:` and `data:` never pass.
+ * Returns `href` when a rendered link may point at it, null otherwise. Kept:
+ * `http(s):` and `mailto:` targets, and relative ones (`#section`,
+ * `../other.md`), which resolve against this site and need a tap anyway.
+ * Dropped: every other scheme (`javascript:`, `data:`, `file:`…) and
+ * protocol-relative `//host/path` targets, which would point at a third
+ * party while looking relative.
  */
 export function safeHref(href: string): string | null {
   const trimmed = href.trim()
-  if (trimmed === '') return null
+  if (trimmed === '' || trimmed.startsWith('//')) return null
   const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(trimmed)
   if (!scheme) return trimmed
   return SAFE_SCHEMES.includes(`${scheme[1]!.toLowerCase()}:`) ? trimmed : null

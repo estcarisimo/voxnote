@@ -290,8 +290,9 @@ were weighed on this date:
   this date) is used as a _lexer only_: its tokens are turned into a
   restricted block tree (`src/core/markdown.ts`) that React renders itself.
   No HTML string is ever injected: raw HTML in the source is shown verbatim
-  as text, links keep only `http(s):` and `mailto:` targets (anything else,
-  `javascript:` included, renders as plain text), and **images are never
+  as text, links keep `http(s):`, `mailto:` and relative targets (any other
+  scheme, `javascript:` included, and protocol-relative `//host` targets
+  render as plain text), and **images are never
   fetched**: an image becomes a visible placeholder with its alt text and
   address, because loading it would send a request to a third party the
   reviewer never agreed to. Local-first, by construction.

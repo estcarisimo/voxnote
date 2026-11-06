@@ -45,8 +45,10 @@ All notable changes to this project are documented here. The format follows
   How it is built: `marked` (18.1.3) is used as a lexer only and its tokens
   become a restricted block tree (`src/core/markdown.ts`) that React
   renders itself, so no HTML from the file is ever injected: raw HTML shows
-  as text, link targets other than `http(s):` and `mailto:` render as plain
-  text, and images are placeholders that are never fetched (loading one
+  as text, links keep `http(s):`, `mailto:` and relative targets while any
+  other scheme (`javascript:` included) and protocol-relative `//host`
+  targets render as plain text, and images are placeholders that are never
+  fetched (loading one
   would call a third party without consent). A new anchor type,
   `block-text`, records the top-level block's ordinal, character offsets
   into the block's plain text and the quote; the renderer guarantees the
