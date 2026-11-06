@@ -257,9 +257,9 @@ describe('fetchDocument', () => {
       }),
     )
     await expect(
-      fetchDocument(new URL('https://h/page.html'), fetchFn),
+      fetchDocument(new URL('https://h/archive.zip'), fetchFn),
     ).rejects.toThrow(
-      'The file at h is neither a PDF nor a Markdown file (text/html; charset=utf-8).',
+      'The file at h is neither a PDF nor a Markdown file (application/zip).',
     )
   })
 
