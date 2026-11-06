@@ -1,8 +1,8 @@
 # VoxNote roadmap
 
 > **Your voice, in the margins.** An open-source, AI-native document reviewer
-> for reading, highlighting, commenting and suggesting on PDFs — never editing
-> them.
+> for reading, highlighting, commenting and suggesting on PDFs and Markdown
+> documents — never editing them.
 
 Source of truth for the concept: the Notion page
 [VoxNote — AI-native PDF reviewing](https://app.notion.com/p/40837c171b0181c290bfc4baef7d8de8).
@@ -262,6 +262,79 @@ Not done, and why:
 - **Text-only drafts.** author-tools converts text to XML before rendering,
   and that conversion failed on `draft-ietf-quic-bit-grease-04.txt` on
   2026-11-05 (`Expected <dl> attribute "indent"…`). XML only, for now.
+
+## Design note — Markdown documents (2026-11-05)
+
+VoxNote reviews PDFs, and the landing had grown around one source of them
+(IETF documents). The product is about reviewing documents without editing
+them, whatever their format, and the first non-PDF format worth having is
+Markdown: READMEs, specs, drafts written in an editor, LLM output. Two routes
+were weighed on this date:
+
+1. **Convert the Markdown to PDF in the browser and reuse everything.**
+   Cheapest, but it needs an HTML-to-PDF step the browser does not offer
+   (`window.print()` is a dialog, not an API), so it means shipping a layout
+   engine or a canvas renderer, whose output has no reliable text layer. The
+   IETF design note above already recorded that cost. It also throws the
+   structure away: an annotation would point at a page and a rectangle of a
+   PDF nobody has, and no annotated copy of the _source_ could ever be
+   written.
+2. **Render the Markdown in the browser and anchor to the rendered text.**
+   More model work, since the app is built around pdf.js pages, but the
+   anchors stay meaningful (a passage of a block of the source) and the
+   notes can later go back into a copy of the source as inline review marks.
+
+**Decision: route 2.** What it changes, and what it deliberately keeps:
+
+- **Parsing.** `marked` (zero dependencies, GFM, maintained; 18.1.3 on
+  this date) is used as a _lexer only_: its tokens are turned into a
+  restricted block tree (`src/core/markdown.ts`) that React renders itself.
+  No HTML string is ever injected: raw HTML in the source is shown verbatim
+  as text, links keep `http(s):`, `mailto:` and relative targets (any other
+  scheme, `javascript:` included, and protocol-relative `//host` targets
+  render as plain text), and **images are never
+  fetched**: an image becomes a visible placeholder with its alt text and
+  address, because loading it would send a request to a third party the
+  reviewer never agreed to. Local-first, by construction.
+- **Anchors.** A third anchor type, `block-text`: the 1-based ordinal of
+  the top-level block, character offsets into that block's plain text (which
+  the renderer guarantees equals the rendered element's `textContent`, so
+  the anchor can be resolved from the stored data alone) and the quote.
+  Selections across two top-level blocks are not offered a toolbar, like
+  selections across two PDF pages. The anchor's `page` field is the
+  position of its container in the document: a page in a PDF, a top-level
+  block in Markdown; the sidebar and the reports label it accordingly.
+  Region anchors stay PDF-only (there are no figures to box in rendered
+  text; an image is a placeholder). Rectangles are not stored for Markdown
+  anchors: marks are drawn from DOM ranges at render time, so they follow
+  the window width. The annotation schema is v3, the same bump the highlight
+  palette made on this date: a v1 or v2 record migrates by version number
+  plus, for a highlight, the default color.
+- **Identity.** A Markdown document is keyed like a PDF, by the SHA-256 of
+  its bytes, so reopening the same file finds its annotations, and a changed
+  file is a new document. Re-anchoring onto an edited source is not
+  attempted; it would be the natural next step once an annotated copy exists.
+- **Exports.** The Markdown report and the JSON carry a `kind` and the
+  block count where a PDF has a page count (export envelope v2). The
+  annotated PDF is a PDF-only export and the button is hidden for Markdown
+  documents; writing it would need route 1. An annotated copy of the
+  _source_ with CriticMarkup marks (`{==passage==}{>>comment<<}`,
+  `{~~old~>new~~}`) is the planned third export for Markdown: it needs each
+  quote mapped back to source offsets through inline syntax, and is recorded
+  as pending below.
+- **Everything else is shared**: the store, the sidebar, voice comments,
+  transcription and polish, the consent dialogs, the export of notes.
+
+What a user can do after this slice: open a `.md` or `.markdown` file (file
+picker or drop), read it rendered, select a passage, highlight, comment
+(typed or by voice), suggest a replacement, review it all in the sidebar,
+export the notes as Markdown or JSON, and find the annotations again when
+the same file is reopened. Verified on 2026-11-05 with unit and component
+tests (see the changelog entry for the evidence); not yet tried on an iPad.
+
+Pending from this note: the CriticMarkup copy of the source; opening a
+Markdown file from a link (the same CORS rule as PDFs applies); re-anchoring
+after the source changes.
 
 ## Non-goals
 

@@ -2,11 +2,12 @@
 
 > **Your voice, in the margins.**
 
-An open-source, AI-native PDF reviewer for iPad and the browser. Select a
-passage with the Apple Pencil, a finger or the mouse, then highlight it,
-comment on it, record a voice note or suggest a rewording — the PDF itself is
-never edited. Annotations live beside the document in your browser and are
-exported into a copy (annotated PDF, Markdown report or JSON). There is no
+An open-source, AI-native document reviewer for iPad and the browser, for
+PDFs and Markdown files. Select a passage with the Apple Pencil, a finger or
+the mouse, then highlight it, comment on it, record a voice note or suggest a
+rewording — the document itself is never edited. Annotations live beside the
+document in your browser and are exported into a copy (annotated PDF,
+Markdown report or JSON). There is no
 backend: VoxNote is a static web app, local-first by default, and audio or
 transcript text leaves the device only when you confirm a transcription or a
 polish with your own provider key.
@@ -38,6 +39,14 @@ yet (see [Status](#-status-and-caveats)).
 
 - 📄 **Read any local PDF**: file picker or drag-and-drop, rendered by pdf.js
   with a selectable text layer
+- 📝 **Read a Markdown file** (`.md`, `.markdown`): rendered in the browser
+  from a restricted element tree, never as injected HTML; raw HTML shows as
+  text, links keep only `http(s):`, `mailto:` and relative targets (any
+  other scheme, `javascript:` included, and protocol-relative `//host`
+  targets render as plain text), and images are placeholders that are
+  never fetched. Highlight, comment, voice and
+  suggest work on the rendered text; the Region tool and the annotated-PDF
+  export are PDF-only
 - ✍️ **Select with Pencil, touch or mouse**: pen drags build the text
   selection in the app (Apple Pencil on iPad does not select natively); a
   **Region** tool drags a box over figures, charts and equations
@@ -62,9 +71,9 @@ yet (see [Status](#-status-and-caveats)).
   annotations (`/Highlight`, `/Square`, `/StrikeOut`, with comment text in
   the note); **Markdown** writes a page-by-page review report; **JSON** a
   machine-readable copy of the annotations (no audio)
-- 💾 **Local-first**: PDFs, annotations and recordings stay in your browser
-  (IndexedDB), keyed by the document's SHA-256, and come back when you reopen
-  the same file
+- 💾 **Local-first**: documents, annotations and recordings stay in your
+  browser (IndexedDB), keyed by the document's SHA-256, and come back when
+  you reopen the same file
 - 📲 **Installable PWA**: works offline once loaded; a new version waits
   until you tap **Reload**
 
@@ -91,14 +100,19 @@ Everything above works on `main` today, with these limits, all tracked in
   Expert and Chrome are still to check.
 - **Private** / **For author** is a label for your own triage: no export
   filters on it yet.
+- **Markdown review is new (2026-11-05)** and verified with unit and
+  component tests only: not yet tried on an iPad. There is no annotated
+  copy of the Markdown source yet (the notes export as Markdown report and
+  JSON), and a Markdown file cannot be opened from a link yet.
 
 ## 🚀 Quick Start
 
 ### In the browser
 
-Open **<https://estcarisimo.github.io/voxnote/>**, then **Open a PDF** (or drop
-a file on the page). Nothing is uploaded: the site is a static build
-published from `main` by [`pages.yml`](.github/workflows/pages.yml).
+Open **<https://estcarisimo.github.io/voxnote/>**, then **Open a document**
+(a PDF or a Markdown file; or drop one on the page). Nothing is uploaded:
+the site is a static build published from `main` by
+[`pages.yml`](.github/workflows/pages.yml).
 
 ### From source
 
@@ -118,8 +132,12 @@ Then open the printed URL. To try it on an iPad on the same network, run
 
 The review flow is select, act, export:
 
-1. **Open a PDF** with the file picker or by dropping it on the page. Or
-   paste a link under **Or open a PDF from a link**: the browser downloads
+1. **Open a document**, a PDF or a Markdown file, with the file picker or by
+   dropping it on the page. A Markdown file is rendered on a page-like
+   sheet; its top-level blocks (paragraphs, headings, lists, tables, code)
+   are what annotations point at, so a selection must stay within one
+   block, like within one PDF page. For a PDF, you can also paste a link
+   under **Or open a PDF from a link**: the browser downloads
    it from that site, which must allow cross-origin downloads (RFCs from
    rfc-editor.org do). For an IETF Internet-Draft, which is not published
    as PDF, use **Open an Internet-Draft (XML)** with the draft's `.xml`:
@@ -142,6 +160,8 @@ The review flow is select, act, export:
      **Accept** or **Discard**.
    - **Suggest** (text selections only) — edit the passage in place; saving
      needs an actual change.
+     On a Markdown document there is no **Region** tool: every annotation
+     is on a passage of text.
 4. **Review** in the **Annotations** panel: group, filter, edit bodies, set
    visibility, transcribe or polish stored voice notes, delete, or tap an
    entry to scroll to its marks.
@@ -150,20 +170,23 @@ The review flow is select, act, export:
    **Save**. The row then shows what the key is used for; the trash button
    removes it after a confirmation.
 6. **Export** from the header:
-   - **Export PDF** → a copy of the document with native annotations. The
-     original file is never modified.
-   - **Markdown** → `<name>.voxnote.md`, a page-by-page report with quotes,
+   - **Export PDF** (PDF documents only) → a copy of the document with
+     native annotations. The original file is never modified.
+   - **Markdown** → `<name>.voxnote.md`, a page-by-page (for a Markdown
+     document, block-by-block) report with quotes,
      comments, suggestions (original and replacement) and voice notes with
      their raw transcripts; a polished body is labeled with its provider and
      model, export time labeled UTC.
-   - **JSON** → `<name>.voxnote.json`, the document name, SHA-256 id, page
-     count and the annotations as stored, without audio.
+   - **JSON** → `<name>.voxnote.json`, the document name, kind, SHA-256 id,
+     page count (block count for a Markdown document) and the annotations as
+     stored, without audio.
 
 ## 🔐 Privacy and keys
 
-- **Local-first by default.** PDFs, annotations and recordings are stored in
-  your browser's IndexedDB on this origin. The site has no server, and
-  documents never leave the browser.
+- **Local-first by default.** Documents, annotations and recordings are
+  stored in your browser's IndexedDB on this origin. The site has no server,
+  and documents never leave the browser. A Markdown file's images are never
+  loaded, so opening one makes no request to any host it names.
 - **Visit counting.** The live site counts visits with Google Analytics 4,
   without cookies: the build reads the measurement id from the repository
   variable `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only,
@@ -259,7 +282,9 @@ no analytics. The id is never committed.
 
 A static single-page app: Vite, React 19 and TypeScript (strict). pdf.js
 (`pdfjs-dist`) renders pages and the text layer; pdf-lib writes the annotated
-copy; `vite-plugin-pwa` (Workbox) precaches the app shell. Provider calls go
+copy; `marked` lexes Markdown into tokens that `src/core/markdown.ts` turns
+into a restricted block tree for React to render (no HTML strings);
+`vite-plugin-pwa` (Workbox) precaches the app shell. Provider calls go
 straight from the browser to the provider and are never cached.
 
 ```
@@ -335,6 +360,14 @@ npm run format         # Prettier (also formats Markdown); format:check in CI
 npm run build          # typecheck + production build
 ```
 
+Two manual browser checks, not part of `npm test`, drive headless Chromium
+over the DevTools protocol against the production build
+(`npm run build && npm run preview`): `scripts/browser-e2e.mjs` for opening
+a PDF from a link and an Internet-Draft's XML, and
+`scripts/browser-markdown-e2e.mjs <file.md>` for the Markdown flow (open,
+highlight, comment, export, reload and find the annotations again). Each
+prints what it saw and every console error.
+
 Tests sit next to the code as `*.test.ts(x)`. CI runs lint, format,
 typecheck-and-build, tests and `npm audit` on every push and pull request;
 [CodeQL](.github/workflows/codeql.yml) scans the sources and workflows, and
@@ -381,6 +414,7 @@ renders it under "Cite this repository").
 - [pdf.js](https://mozilla.github.io/pdf.js/): PDF rendering and the text
   layer
 - [pdf-lib](https://pdf-lib.js.org/): writing the annotated copy
+- [marked](https://marked.js.org/): the Markdown lexer behind the block tree
 - [ISO 32000-2 (PDF 2.0)](https://pdfa.org/resource/iso-32000-2/): the
   annotation types the export uses
 - [OpenAI speech to text](https://platform.openai.com/docs/guides/speech-to-text):
@@ -400,6 +434,7 @@ renders it under "Cite this repository").
 
 VoxNote stands on [pdf.js](https://github.com/mozilla/pdf.js) by Mozilla,
 [pdf-lib](https://github.com/Hopding/pdf-lib) by Andrew Dillon,
+[marked](https://github.com/markedjs/marked),
 [Vite](https://vite.dev/), [React](https://react.dev/),
 [Workbox](https://developer.chrome.com/docs/workbox) and
 [vite-plugin-pwa](https://vite-pwa-org.netlify.app/), and on

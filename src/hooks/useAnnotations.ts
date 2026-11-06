@@ -13,7 +13,7 @@ import {
   type CleanUp,
   type Highlight,
   type Note,
-  type TextAnchor,
+  type QuoteAnchor,
   type Transcript,
   type Visibility,
   type VoiceNote,
@@ -34,7 +34,7 @@ export type NewNote =
     }
   | {
       kind: 'suggestion'
-      anchor: TextAnchor
+      anchor: QuoteAnchor
       /** The replacement text; may be empty with a voice note. */
       body: string
       voice?: VoiceNote

@@ -39,6 +39,11 @@ export async function exportAnnotatedPdf(
   const pages = pdf.getPages()
 
   for (const annotation of annotations) {
+    if (annotation.anchor.type === 'block-text') {
+      throw new Error(
+        `Annotation ${annotation.id} belongs to a Markdown document and cannot be written into a PDF`,
+      )
+    }
     const page = pages[annotation.anchor.page - 1]
     if (!page) {
       throw new Error(
@@ -60,6 +65,9 @@ function annotationDict(
   annotation: Annotation,
 ): Record<string, string | number | PDFObject> {
   const { anchor } = annotation
+  if (anchor.type === 'block-text') {
+    throw new Error(`Annotation ${annotation.id} has no PDF geometry`)
+  }
   const common = {
     Type: 'Annot',
     T: PDFString.of(AUTHOR),
@@ -74,11 +82,14 @@ function annotationDict(
   }
 
   if (annotation.kind === 'suggestion') {
+    if (anchor.type !== 'text') {
+      throw new Error(`Suggestion ${annotation.id} has no text to strike out`)
+    }
     return {
       ...common,
       Subtype: 'StrikeOut',
-      Rect: rectArray(pdf, unionRects(annotation.anchor.rects)),
-      QuadPoints: quadPoints(pdf, annotation.anchor.rects),
+      Rect: rectArray(pdf, unionRects(anchor.rects)),
+      QuadPoints: quadPoints(pdf, anchor.rects),
     }
   }
   if (anchor.type === 'text') {

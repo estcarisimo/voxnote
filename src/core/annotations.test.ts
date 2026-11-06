@@ -9,6 +9,8 @@ import {
   isVoiceNote,
   migrateAnnotation,
   isAnchor,
+  isQuoteAnchor,
+  quoteOf,
   mergeLineRects,
   rectFromCorners,
   unionRects,
@@ -584,7 +586,58 @@ describe('clean-up records and schema v2', () => {
     const colored = { ...h, schemaVersion: 2 }
     expect(migrateAnnotation(colored)).toBe(colored)
     expect(isAnnotation(colored)).toBe(false)
+    // v2 had no block-text anchors: a record claiming both is not a v2 one.
+    const blockAnchor = {
+      type: 'block-text',
+      page: 1,
+      quote: 'q',
+      start: 0,
+      end: 1,
+    }
+    const impostor = { ...v3, schemaVersion: 2, anchor: blockAnchor }
+    expect(migrateAnnotation(impostor)).toBe(impostor)
     expect(migrateAnnotation(null)).toBeNull()
     expect(migrateAnnotation('x')).toBe('x')
+  })
+
+  describe('block-text anchors', () => {
+    const block = {
+      type: 'block-text',
+      page: 2,
+      quote: 'the claim',
+      start: 4,
+      end: 13,
+    } as const
+
+    it('are valid anchors with a non-empty range', () => {
+      expect(isAnchor(block)).toBe(true)
+      expect(isAnchor({ ...block, end: 4 })).toBe(false)
+      expect(isAnchor({ ...block, start: -1 })).toBe(false)
+      expect(isAnchor({ ...block, start: 1.5 })).toBe(false)
+      expect(isAnchor({ ...block, page: 0 })).toBe(false)
+      expect(isAnchor({ ...block, quote: 7 })).toBe(false)
+    })
+
+    it('carry a quote and can be suggested on', () => {
+      expect(quoteOf(block)).toBe('the claim')
+      expect(isQuoteAnchor(block)).toBe(true)
+      expect(
+        quoteOf({
+          type: 'region',
+          page: 1,
+          rect: { x: 0, y: 0, width: 1, height: 1 },
+        }),
+      ).toBeNull()
+      const s = createSuggestion({
+        documentId: 'doc',
+        anchor: block,
+        body: 'the result',
+      })
+      expect(s.original).toBe('the claim')
+      expect(isAnnotation(s)).toBe(true)
+      expect(
+        isAnnotation(createHighlight({ documentId: 'doc', anchor: block })),
+      ).toBe(true)
+    })
   })
 })

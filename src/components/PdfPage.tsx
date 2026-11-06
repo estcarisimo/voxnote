@@ -380,6 +380,9 @@ function Marks({
   color?: [number, number, number] | null
   selected?: boolean
 }) {
+  if (anchor.type === 'block-text') {
+    throw new Error(`Annotation ${id} belongs to a Markdown document`)
+  }
   const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]
   const className = `highlight highlight--${anchor.type} highlight--${kind}${selected ? ' highlight--selected' : ''}`
   const tint = color ? { '--highlight-rgb': color.join(' ') } : null

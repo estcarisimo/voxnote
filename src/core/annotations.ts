@@ -14,8 +14,9 @@ export const ANNOTATION_SCHEMA_VERSION = 3
 // Schema history. v1: highlights, comments, suggestions, voice notes. v2:
 // the optional `cleanUp` record on notes; a v1 record is a valid v2 record
 // without `cleanUp`. v3: the required `color` on highlights, from the fixed
-// palette in ./palette; an older highlight gets the default (yellow), which
-// is the one color every highlight had before.
+// palette in ./palette (an older highlight gets the default, yellow, the one
+// color every highlight had before), and the `block-text` anchor for
+// Markdown documents, which no older record can carry.
 
 /**
  * A rectangle in PDF user space: points, origin at the bottom-left of the
@@ -29,7 +30,11 @@ export interface PdfRect {
   height: number
 }
 
-/** A run of selected text on one page. */
+/**
+ * A run of selected text on one page of a PDF. `page` is the position of the
+ * anchor's container in the document: a page in a PDF, a top-level block in
+ * a Markdown document (see BlockTextAnchor). Every anchor has one.
+ */
 export interface TextAnchor {
   type: 'text'
   page: number
@@ -51,7 +56,37 @@ export interface RegionAnchor {
   rect: PdfRect
 }
 
-export type Anchor = TextAnchor | RegionAnchor
+/**
+ * A run of selected text in a rendered Markdown document: the top-level
+ * block it sits in, by 1-based ordinal (in `page`, see TextAnchor), and
+ * character offsets into that block's plain text (`blockPlainText` in
+ * markdown.ts, equal to the rendered element's `textContent`). No
+ * rectangles: marks are drawn from the DOM at render time.
+ */
+export interface BlockTextAnchor {
+  type: 'block-text'
+  /** 1-based ordinal of the top-level block. */
+  page: number
+  /** The selected text, whitespace-normalized. */
+  quote: string
+  /** Offsets into the block's plain text; `end` is exclusive. */
+  start: number
+  end: number
+}
+
+export type Anchor = TextAnchor | RegionAnchor | BlockTextAnchor
+
+/** The anchors that carry a quote and so can be commented on by passage. */
+export type QuoteAnchor = TextAnchor | BlockTextAnchor
+
+/** The selected passage, or null for a region. */
+export function quoteOf(anchor: Anchor): string | null {
+  return anchor.type === 'region' ? null : anchor.quote
+}
+
+export function isQuoteAnchor(anchor: Anchor): anchor is QuoteAnchor {
+  return anchor.type === 'text' || anchor.type === 'block-text'
+}
 
 export type AnnotationKind = 'highlight' | 'comment' | 'suggestion'
 
@@ -135,7 +170,7 @@ export interface Comment extends AnnotationBase {
  */
 export interface Suggestion extends AnnotationBase {
   kind: 'suggestion'
-  anchor: TextAnchor
+  anchor: QuoteAnchor
   /**
    * The selected text at the time of the suggestion. Authoritative for
    * display and export even if quote extraction changes later; it is not
@@ -210,7 +245,7 @@ export function createComment(
 }
 
 export interface CreateSuggestionInput extends CreateNoteInput {
-  anchor: TextAnchor
+  anchor: QuoteAnchor
   /** The replacement text; may be empty when a voice note is attached. */
   body: string
   voice?: VoiceNote
@@ -226,7 +261,7 @@ export function createSuggestion(
   input: CreateSuggestionInput,
   now: Date = new Date(),
 ): Suggestion {
-  if (input.anchor.type !== 'text' || input.anchor.quote.trim() === '') {
+  if (!isQuoteAnchor(input.anchor) || input.anchor.quote.trim() === '') {
     throw new Error('A suggestion needs selected text to replace')
   }
   if (input.voice && !isVoiceNote(input.voice)) {
@@ -477,6 +512,15 @@ export function isAnchor(value: unknown): value is Anchor {
   const a = value as Record<string, unknown>
   if (!Number.isInteger(a.page) || (a.page as number) < 1) return false
   if (a.type === 'region') return isPdfRect(a.rect)
+  if (a.type === 'block-text') {
+    return (
+      typeof a.quote === 'string' &&
+      Number.isInteger(a.start) &&
+      Number.isInteger(a.end) &&
+      (a.start as number) >= 0 &&
+      (a.end as number) > (a.start as number)
+    )
+  }
   if (a.type === 'text') {
     if (typeof a.quote !== 'string') return false
     if (!Array.isArray(a.rects) || a.rects.length === 0) return false
@@ -571,6 +615,9 @@ export function migrateAnnotation(value: unknown): unknown {
   if (a.schemaVersion === 1 && 'cleanUp' in a) return value
   // Neither had a color; a highlight that names one is not one of them.
   if ('color' in a) return value
+  // Neither had block-text anchors; a record with one is not one of them.
+  const anchor = a.anchor as Record<string, unknown> | null | undefined
+  if (anchor?.type === 'block-text') return value
   const migrated: Record<string, unknown> = {
     ...a,
     schemaVersion: ANNOTATION_SCHEMA_VERSION,
@@ -605,7 +652,7 @@ export function isAnnotation(value: unknown): value is Annotation {
     return a.body.trim() !== '' || a.voice !== undefined
   }
   if (a.kind === 'suggestion') {
-    if ((a.anchor as Anchor).type !== 'text') return false
+    if (!isQuoteAnchor(a.anchor as Anchor)) return false
     if (typeof a.original !== 'string' || a.original.trim() === '') return false
     if (typeof a.body !== 'string') return false
     if (a.voice !== undefined && !isVoiceNote(a.voice)) return false

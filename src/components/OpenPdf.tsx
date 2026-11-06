@@ -54,7 +54,10 @@ function isStandalone(): boolean {
   return window.matchMedia('(display-mode: standalone)').matches
 }
 
-/** Landing view: pick a PDF with the file dialog or drop one onto the page. */
+/**
+ * Landing view: pick a PDF or a Markdown file with the file dialog, or drop
+ * one onto the page.
+ */
 export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const xmlInputRef = useRef<HTMLInputElement>(null)
@@ -118,8 +121,8 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
         <h1>VoxNote</h1>
         <p className="open-pdf-tagline">Your voice, in the margins.</p>
         <p className="open-pdf-lead">
-          Review a PDF by highlighting, commenting and suggesting, by voice,
-          without ever editing it.
+          Review a PDF or a Markdown document by highlighting, commenting and
+          suggesting, by voice, without ever editing it.
         </p>
 
         <div className="open-pdf-action">
@@ -128,13 +131,15 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
             className="open-pdf-button"
             onClick={() => inputRef.current?.click()}
           >
-            Open a PDF
+            Open a document
           </button>
-          <p className="open-pdf-hint">or drop one anywhere on this page</p>
+          <p className="open-pdf-hint">
+            A PDF or a Markdown file (.md); or drop one anywhere on this page
+          </p>
           <input
             ref={inputRef}
             type="file"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,.pdf,text/markdown,.md,.markdown"
             hidden
             onChange={(e) => accept(e.target.files)}
           />
@@ -204,18 +209,18 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
           <li>
             <strong>Suggest a replacement</strong>
             <span>
-              Propose how a passage should read. The PDF stays as it is.
+              Propose how a passage should read. The document stays as it is.
             </span>
           </li>
         </ul>
 
         <p className="open-pdf-privacy">
-          Your PDF, notes and recordings stay in this browser; audio goes out
-          only when you confirm a transcription with your own provider key, and
-          an Internet-Draft's XML only when you confirm sending it to the IETF's
-          author tools. That key lives only in this browser, client side: there
-          is no VoxNote server. Nothing is published. Visits are counted with
-          Google Analytics for statistical purposes, without cookies.
+          Your documents, notes and recordings stay in this browser; audio goes
+          out only when you confirm a transcription with your own provider key,
+          and an Internet-Draft's XML only when you confirm sending it to the
+          IETF's author tools. That key lives only in this browser, client side:
+          there is no VoxNote server. Nothing is published. Visits are counted
+          with Google Analytics for statistical purposes, without cookies.
         </p>
 
         <section className="open-pdf-start" aria-labelledby="get-started">

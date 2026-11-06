@@ -13,6 +13,9 @@ import {
   isFilterActive,
   isGroupBy,
   matchesFilter,
+  placeAbbreviation,
+  placeLabel,
+  searchableText,
   sortAnnotations,
 } from './review'
 
@@ -221,5 +224,29 @@ describe('groupAnnotations', () => {
     expect(isGroupBy('kind')).toBe(true)
     expect(isGroupBy('colour')).toBe(false)
     expect(isGroupBy(null)).toBe(false)
+  })
+})
+
+describe('block-text anchors', () => {
+  const block = (page: number, start: number) =>
+    ({ type: 'block-text', page, quote: 'q', start, end: start + 1 }) as const
+
+  it('sort by block, then by offset', () => {
+    const b = createHighlight({ documentId: 'd', anchor: block(2, 40) })
+    const a = createHighlight({ documentId: 'd', anchor: block(2, 3) })
+    const c = createHighlight({ documentId: 'd', anchor: block(3, 0) })
+    expect(sortAnnotations([c, b, a]).map((x) => x.id)).toEqual([
+      a.id,
+      b.id,
+      c.id,
+    ])
+  })
+
+  it('are labeled as blocks, not pages, and searched by quote', () => {
+    const a = createHighlight({ documentId: 'd', anchor: block(2, 0) })
+    expect(placeLabel(a.anchor)).toBe('Block 2')
+    expect(placeAbbreviation(a.anchor)).toBe('¶ 2')
+    expect(groupAnnotations([a], 'page')[0]?.label).toBe('Block 2')
+    expect(searchableText(a)).toBe('q')
   })
 })

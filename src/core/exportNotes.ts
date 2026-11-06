@@ -9,6 +9,7 @@
  */
 import {
   isAnnotation,
+  quoteOf,
   unionRects,
   type Anchor,
   type Annotation,
@@ -17,17 +18,47 @@ import {
 } from './annotations'
 import { cleanUpLabel } from './cleanUp'
 import { HIGHLIGHT_PALETTE } from './palette'
+import { placeLabel } from './review'
 
-/** Version of the JSON export envelope, independent of the annotation schema. */
-export const NOTES_EXPORT_SCHEMA_VERSION = 1
+/**
+ * Version of the JSON export envelope, independent of the annotation schema.
+ * v1: PDF documents only (`pageCount`). v2: `kind`, with `blockCount` for a
+ * Markdown document.
+ */
+export const NOTES_EXPORT_SCHEMA_VERSION = 2
 
-/** What the export needs to know about the document, not the pdf.js object. */
-export interface ExportDocument {
-  /** File name as opened, e.g. "paper.pdf". */
-  name: string
-  /** SHA-256 of the PDF bytes; see computeDocumentId. */
-  id: string
-  pageCount: number
+/**
+ * What the export needs to know about the document, not the pdf.js object
+ * or the block tree. `id` is the SHA-256 of the file's bytes; see
+ * computeDocumentId.
+ */
+export type ExportDocument =
+  | {
+      kind: 'pdf'
+      /** File name as opened, e.g. "paper.pdf". */
+      name: string
+      id: string
+      pageCount: number
+    }
+  | {
+      kind: 'markdown'
+      name: string
+      id: string
+      /** Top-level blocks; anchors count them like pages. */
+      blockCount: number
+    }
+
+/** The document fields the JSON carries, and nothing a caller added. */
+function describeDocument(document: ExportDocument): ExportDocument {
+  const { name, id } = document
+  return document.kind === 'pdf'
+    ? { kind: 'pdf', name, id, pageCount: document.pageCount }
+    : { kind: 'markdown', name, id, blockCount: document.blockCount }
+}
+
+/** How many containers (pages or top-level blocks) the document has. */
+export function containerCount(document: ExportDocument): number {
+  return document.kind === 'pdf' ? document.pageCount : document.blockCount
 }
 
 export interface NotesExport {
@@ -47,11 +78,7 @@ export function exportJson(
   const payload: NotesExport = {
     schemaVersion: NOTES_EXPORT_SCHEMA_VERSION,
     exportedAt: now.toISOString(),
-    document: {
-      name: document.name,
-      id: document.id,
-      pageCount: document.pageCount,
-    },
+    document: describeDocument(document),
     annotations: sorted,
   }
   return JSON.stringify(payload, null, 2) + '\n'
@@ -68,7 +95,7 @@ export function exportMarkdown(
     '',
     `- Exported: ${now.toISOString()} (UTC)`,
     `- Document id (SHA-256): \`${document.id}\``,
-    `- Pages: ${document.pageCount}`,
+    `- ${document.kind === 'pdf' ? 'Pages' : 'Blocks'}: ${containerCount(document)}`,
     `- Annotations: ${sorted.length}`,
   ]
   if (sorted.length === 0) {
@@ -78,7 +105,7 @@ export function exportMarkdown(
   for (const annotation of sorted) {
     if (annotation.anchor.page !== page) {
       page = annotation.anchor.page
-      lines.push('', `## Page ${page}`, '')
+      lines.push('', `## ${placeLabel(annotation.anchor)}`, '')
     }
     lines.push(...itemLines(annotation))
   }
@@ -87,7 +114,8 @@ export function exportMarkdown(
 
 /**
  * Fails loudly on anything the export would misrepresent: a malformed
- * record, one from another document, or one past the last page. Returns the
+ * record, one from another document, one past the last page or block, or a
+ * PDF anchor in a Markdown document and the reverse. Returns the
  * annotations in reading order: page, then top to bottom, then createdAt,
  * then id so equal positions still sort the same way every time.
  */
@@ -95,8 +123,10 @@ function validatedAndSorted(
   document: ExportDocument,
   annotations: readonly Annotation[],
 ): Annotation[] {
-  if (!Number.isInteger(document.pageCount) || document.pageCount < 1) {
-    throw new Error(`Invalid page count: ${document.pageCount}`)
+  const count = containerCount(document)
+  const unit = document.kind === 'pdf' ? 'page' : 'block'
+  if (!Number.isInteger(count) || count < 1) {
+    throw new Error(`Invalid ${unit} count: ${count}`)
   }
   for (const annotation of annotations) {
     if (!isAnnotation(annotation)) {
@@ -107,9 +137,15 @@ function validatedAndSorted(
         `Annotation ${annotation.id} belongs to document ${annotation.documentId}, not ${document.id}`,
       )
     }
-    if (annotation.anchor.page > document.pageCount) {
+    const isBlockAnchor = annotation.anchor.type === 'block-text'
+    if (isBlockAnchor !== (document.kind === 'markdown')) {
       throw new Error(
-        `Annotation ${annotation.id} points at page ${annotation.anchor.page}, but the document has ${document.pageCount}`,
+        `Annotation ${annotation.id} has a ${annotation.anchor.type} anchor, which does not belong in a ${document.kind} document`,
+      )
+    }
+    if (annotation.anchor.page > count) {
+      throw new Error(
+        `Annotation ${annotation.id} points at ${unit} ${annotation.anchor.page}, but the document has ${count}`,
       )
     }
   }
@@ -122,8 +158,9 @@ function validatedAndSorted(
   )
 }
 
-/** Top edge in PDF user space, where y grows upwards. */
+/** Top edge in PDF user space, where y grows upwards; see review.topOf. */
 function topOf(anchor: Anchor): number {
+  if (anchor.type === 'block-text') return -anchor.start
   const r = anchor.type === 'text' ? unionRects(anchor.rects) : anchor.rect
   return r.y + r.height
 }
@@ -161,8 +198,9 @@ function itemLines(annotation: Annotation): string[] {
       )
     }
   } else {
-    if (anchor.type === 'text') {
-      lines.push(...field('Passage', anchor.quote))
+    const quote = quoteOf(anchor)
+    if (quote !== null) {
+      lines.push(...field('Passage', quote))
     } else {
       lines.push(`  - Region on page ${anchor.page}`)
     }
