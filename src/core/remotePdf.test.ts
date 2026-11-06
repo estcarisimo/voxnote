@@ -71,6 +71,9 @@ describe('fileNameFromUrl', () => {
     expect(fileNameFromUrl(new URL('https://h/README.md'), '.md')).toBe(
       'README.md',
     )
+    expect(fileNameFromUrl(new URL('https://h/README.markdown'), '.md')).toBe(
+      'README.markdown',
+    )
   })
 })
 
@@ -87,6 +90,21 @@ describe('looksLikeMarkdown', () => {
     expect(looksLikeMarkdown(new URL('https://h/a.txt'), 'text/plain')).toBe(
       false,
     )
+    expect(
+      looksLikeMarkdown(new URL('https://h/a.md'), 'text/x-markdown'),
+    ).toBe(true)
+  })
+
+  it('never passes an HTML page as Markdown, whatever the path says', () => {
+    expect(
+      looksLikeMarkdown(
+        new URL('https://h/blob/main/README.md'),
+        'text/html; charset=utf-8',
+      ),
+    ).toBe(false)
+    expect(
+      looksLikeMarkdown(new URL('https://h/a.md'), 'application/xhtml+xml'),
+    ).toBe(false)
   })
 })
 
@@ -193,11 +211,49 @@ describe('fetchDocument', () => {
     expect(file.type).toBe('text/markdown')
   })
 
-  it('rejects anything else with its content type', async () => {
+  it('refuses an HTML page at a .md path and points at the raw file', async () => {
     const fetchFn = vi.fn<FetchFn>().mockResolvedValue(
-      new Response('<html>', {
+      new Response('<!DOCTYPE html><title>README.md · repo</title>', {
         status: 200,
         headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    )
+    await expect(
+      fetchDocument(
+        new URL('https://forge.example/repo/blob/main/README.md'),
+        fetchFn,
+      ),
+    ).rejects.toThrow(
+      'forge.example sent a web page (text/html; charset=utf-8), not the file. Use the link to the raw file (on GitHub, the "Raw" button).',
+    )
+  })
+
+  it('accepts a .markdown path and keeps its name', async () => {
+    const fetchFn = vi.fn<FetchFn>().mockResolvedValue(
+      new Response('# T', {
+        status: 200,
+        headers: { 'content-type': 'text/plain' },
+      }),
+    )
+    const file = await fetchDocument(
+      new URL('https://h/notes.markdown'),
+      fetchFn,
+    )
+    expect(file.name).toBe('notes.markdown')
+    expect(file.type).toBe('text/markdown')
+  })
+
+  it('follows redirects for user links', async () => {
+    const fetchFn = vi.fn<FetchFn>().mockResolvedValue(pdfResponse())
+    await fetchDocument(new URL('https://h/a.pdf'), fetchFn)
+    expect(fetchFn.mock.calls[0][1]).toMatchObject({ redirect: 'follow' })
+  })
+
+  it('rejects anything else with its content type', async () => {
+    const fetchFn = vi.fn<FetchFn>().mockResolvedValue(
+      new Response('PK..', {
+        status: 200,
+        headers: { 'content-type': 'application/zip' },
       }),
     )
     await expect(

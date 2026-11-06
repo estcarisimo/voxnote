@@ -42,22 +42,35 @@ export function fileNameFromUrl(url: URL, extension = '.pdf'): string {
     name = segment
   }
   if (!name) return `document${extension}`
-  return name.toLowerCase().endsWith(extension) ? name : `${name}${extension}`
+  const lower = name.toLowerCase()
+  if (extension === '.md' && lower.endsWith('.markdown')) return name
+  return lower.endsWith(extension) ? name : `${name}${extension}`
+}
+
+/** True for `text/html` and XHTML, which a `.md` path must never pass as. */
+export function isHtmlContentType(contentType: string | null): boolean {
+  const type = (contentType ?? '').toLowerCase()
+  return type.startsWith('text/html') || type.startsWith('application/xhtml')
 }
 
 /**
  * True when the URL or the response says the body is Markdown: a `.md` or
- * `.markdown` path, or a `text/markdown` content type. Markdown has no magic
- * bytes, so this is the only check there is.
+ * `.markdown` path, or a `text/markdown` or `text/x-markdown` content type.
+ * Markdown has no magic bytes, so this is the only check there is; an HTML
+ * content type wins over the path, since a forge's "blob" page or a site
+ * that answers every path with its index.html is not the file.
  */
 export function looksLikeMarkdown(
   url: URL,
   contentType: string | null,
 ): boolean {
+  if (isHtmlContentType(contentType)) return false
+  const type = (contentType ?? '').toLowerCase()
   const path = url.pathname.toLowerCase()
   return (
     path.endsWith('.md') ||
     path.endsWith('.markdown') ||
+    type.startsWith('text/x-markdown') ||
     (contentType ?? '').toLowerCase().startsWith('text/markdown')
   )
 }
@@ -149,6 +162,11 @@ export async function fetchDocument(
     return new File([bytes as BlobPart], fileNameFromUrl(url, '.md'), {
       type: 'text/markdown',
     })
+  }
+  if (isHtmlContentType(contentType)) {
+    throw new Error(
+      `${url.host} sent a web page (${contentType}), not the file. Use the link to the raw file (on GitHub, the "Raw" button).`,
+    )
   }
   throw new Error(
     `The file at ${url.host} is neither a PDF nor a Markdown file (${contentType ?? 'unknown type'}).`,

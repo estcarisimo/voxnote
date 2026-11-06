@@ -12,9 +12,11 @@ All notable changes to this project are documented here. The format follows
   field is now **Or open from a link** and accepts a PDF or a Markdown file
   (a PDF by its `%PDF-` bytes whatever the path says; Markdown by a `.md` or
   `.markdown` path or a `text/markdown` content type, since Markdown has no
-  magic bytes); the placeholder and hint no longer mention RFCs, and the
-  error for anything else names the content type without pointing at the
-  IETF. The Internet-Draft flow moves from its own card to one sentence
+  magic bytes; an HTML content type is refused even at a `.md` path, with a
+  message pointing at the raw file, so a forge's "blob" page is never
+  reviewed as if it were the file); the placeholder and hint no longer
+  mention RFCs, and the error for anything else names the content type
+  without pointing at the IETF. The Internet-Draft flow moves from its own card to one sentence
   under the link field ("Reviewing an IETF Internet-Draft? Drop its .xml or
   pick it"), the first of what can become one line per source-specific
   converter; the consent dialog and its behavior are unchanged. The privacy
