@@ -140,6 +140,38 @@ try {
     await waitFor(errorText, 30000, 'txt error'),
   )
 
+  // Flow 1c: a Markdown file by link (raw GitHub serves it with CORS *).
+  await evaluate(`(() => {
+    const input = document.getElementById('open-pdf-url')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+    setter.call(input, 'https://raw.githubusercontent.com/estcarisimo/voxnote/main/README.md')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.form.requestSubmit()
+    return true
+  })()`)
+  const mdTitle = await waitFor(
+    `(${titleText}) || ((${errorText}) ? 'ERROR: ' + (${errorText}) : '')`,
+    60000,
+    'Markdown to open',
+  )
+  console.log(
+    'markdown by link:',
+    mdTitle,
+    '| headings rendered:',
+    await evaluate(
+      `document.querySelectorAll('.app-body h1, .app-body h2').length`,
+    ),
+  )
+  if (mdTitle.startsWith('ERROR')) throw new Error(mdTitle)
+  await evaluate(
+    `[...document.querySelectorAll('button')].find(b => b.textContent.includes('Close')).click()`,
+  )
+  await waitFor(
+    `!!document.getElementById('open-pdf-url')`,
+    15000,
+    'landing after Markdown',
+  )
+
   // Flow 2: Internet-Draft XML through author-tools.
   const { root } = await send('DOM.getDocument')
   const { nodeId } = await send('DOM.querySelector', {

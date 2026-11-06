@@ -1,6 +1,7 @@
 /**
- * Opening a PDF that is not on this device: by URL, or by having the IETF's
- * author tools compile an Internet-Draft's XML source into a PDF.
+ * Opening a document that is not on this device: a PDF or a Markdown file by
+ * URL, or a PDF compiled by the IETF's author tools from an Internet-Draft's
+ * XML source.
  *
  * Framework-free. `fetch` is injected so the tests stay deterministic and so
  * the rest of the app never guesses which host a request went to.
@@ -29,10 +30,10 @@ export function parseHttpUrl(text: string): URL | null {
 
 /**
  * A file name for a document downloaded from `url`: the last path segment,
- * decoded, with `.pdf` appended when missing; `document.pdf` for an empty
- * path.
+ * decoded, with `extension` (`.pdf` by default) appended when missing;
+ * `document<extension>` for an empty path.
  */
-export function fileNameFromUrl(url: URL): string {
+export function fileNameFromUrl(url: URL, extension = '.pdf'): string {
   const segment = url.pathname.split('/').filter(Boolean).pop() ?? ''
   let name: string
   try {
@@ -40,8 +41,38 @@ export function fileNameFromUrl(url: URL): string {
   } catch {
     name = segment
   }
-  if (!name) return 'document.pdf'
-  return name.toLowerCase().endsWith('.pdf') ? name : `${name}.pdf`
+  if (!name) return `document${extension}`
+  const lower = name.toLowerCase()
+  if (extension === '.md' && lower.endsWith('.markdown')) return name
+  return lower.endsWith(extension) ? name : `${name}${extension}`
+}
+
+/** True for `text/html` and XHTML, which a `.md` path must never pass as. */
+export function isHtmlContentType(contentType: string | null): boolean {
+  const type = (contentType ?? '').toLowerCase()
+  return type.startsWith('text/html') || type.startsWith('application/xhtml')
+}
+
+/**
+ * True when the URL or the response says the body is Markdown: a `.md` or
+ * `.markdown` path, or a `text/markdown` or `text/x-markdown` content type.
+ * Markdown has no magic bytes, so this is the only check there is; an HTML
+ * content type wins over the path, since a forge's "blob" page or a site
+ * that answers every path with its index.html is not the file.
+ */
+export function looksLikeMarkdown(
+  url: URL,
+  contentType: string | null,
+): boolean {
+  if (isHtmlContentType(contentType)) return false
+  const type = (contentType ?? '').toLowerCase()
+  const path = url.pathname.toLowerCase()
+  return (
+    path.endsWith('.md') ||
+    path.endsWith('.markdown') ||
+    type.startsWith('text/x-markdown') ||
+    (contentType ?? '').toLowerCase().startsWith('text/markdown')
+  )
 }
 
 /** True when the bytes start with the `%PDF-` magic. */
@@ -79,23 +110,21 @@ function describeFetchFailure(host: string, err: unknown, advice = ''): string {
 
 const DOWNLOAD_ADVICE = '; in that case, download the file yourself and open it'
 
-/**
- * Downloads the PDF at `url` into a File. The request goes straight from the
- * browser to that host; nothing else is sent. Rejects when the server fails,
- * the body is not a PDF or the server does not allow the download.
- */
-export async function fetchPdf(
+interface Downloaded {
+  bytes: Uint8Array
+  contentType: string | null
+}
+
+/** GETs `url` from the browser; rejects on a failed request or a non-2xx. */
+async function download(
   url: URL,
   fetchFn: FetchFn,
-  signal?: AbortSignal,
-  options: { redirect?: RequestRedirect } = {},
-): Promise<File> {
+  signal: AbortSignal | undefined,
+  redirect: RequestRedirect,
+): Promise<Downloaded> {
   let response: Response
   try {
-    response = await fetchFn(url.href, {
-      signal,
-      redirect: options.redirect ?? 'follow',
-    })
+    response = await fetchFn(url.href, { signal, redirect })
   } catch (err: unknown) {
     if (isAbort(err)) throw err
     throw new Error(describeFetchFailure(url.host, err, DOWNLOAD_ADVICE))
@@ -105,11 +134,64 @@ export async function fetchPdf(
       `${url.host} answered ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`,
     )
   }
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  if (!looksLikePdf(bytes)) {
-    const type = response.headers.get('content-type') ?? 'unknown type'
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    contentType: response.headers.get('content-type'),
+  }
+}
+
+/**
+ * Downloads the document at `url` into a File: a PDF (by its `%PDF-` magic)
+ * or a Markdown file (by its path or content type). The request goes straight
+ * from the browser to that host; nothing else is sent. Rejects when the
+ * server fails, the body is neither, or the server does not allow the
+ * download.
+ */
+export async function fetchDocument(
+  url: URL,
+  fetchFn: FetchFn,
+  signal?: AbortSignal,
+): Promise<File> {
+  const { bytes, contentType } = await download(url, fetchFn, signal, 'follow')
+  if (looksLikePdf(bytes)) {
+    return new File([bytes as BlobPart], fileNameFromUrl(url), {
+      type: 'application/pdf',
+    })
+  }
+  if (looksLikeMarkdown(url, contentType)) {
+    return new File([bytes as BlobPart], fileNameFromUrl(url, '.md'), {
+      type: 'text/markdown',
+    })
+  }
+  if (isHtmlContentType(contentType)) {
     throw new Error(
-      `The file at ${url.host} is not a PDF (${type}). Internet-Drafts are published as text, HTML and XML; open the XML with "Open an Internet-Draft" instead.`,
+      `${url.host} sent a web page (${contentType}), not the file. Use the link to the raw file (on GitHub, the "Raw" button).`,
+    )
+  }
+  throw new Error(
+    `The file at ${url.host} is neither a PDF nor a Markdown file (${contentType ?? 'unknown type'}).`,
+  )
+}
+
+/**
+ * Downloads the PDF at `url` into a File; anything else is refused. Used for
+ * links a service returned, where the kind is known in advance.
+ */
+export async function fetchPdf(
+  url: URL,
+  fetchFn: FetchFn,
+  signal?: AbortSignal,
+  options: { redirect?: RequestRedirect } = {},
+): Promise<File> {
+  const { bytes, contentType } = await download(
+    url,
+    fetchFn,
+    signal,
+    options.redirect ?? 'follow',
+  )
+  if (!looksLikePdf(bytes)) {
+    throw new Error(
+      `The file at ${url.host} is not a PDF (${contentType ?? 'unknown type'}).`,
     )
   }
   return new File([bytes as BlobPart], fileNameFromUrl(url), {

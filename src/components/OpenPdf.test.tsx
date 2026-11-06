@@ -218,27 +218,27 @@ describe('OpenPdf', () => {
   it('sends a parsed http(s) link to onUrl', () => {
     const onUrl = vi.fn()
     render(<OpenPdf {...props} onUrl={onUrl} />)
-    const input = screen.getByLabelText('Or open a PDF from a link')
+    const input = screen.getByLabelText('Or open from a link')
     fireEvent.change(input, {
-      target: { value: ' https://www.rfc-editor.org/rfc/rfc9000.pdf ' },
+      target: { value: ' https://example.org/paper.pdf ' },
     })
     fireEvent.submit(input.closest('form')!)
     expect(onUrl).toHaveBeenCalledTimes(1)
     expect(onUrl.mock.calls[0][0]).toBeInstanceOf(URL)
     expect((onUrl.mock.calls[0][0] as URL).href).toBe(
-      'https://www.rfc-editor.org/rfc/rfc9000.pdf',
+      'https://example.org/paper.pdf',
     )
   })
 
   it('refuses a link that is not http(s) without calling onUrl', () => {
     const onUrl = vi.fn()
     render(<OpenPdf {...props} onUrl={onUrl} />)
-    const input = screen.getByLabelText('Or open a PDF from a link')
+    const input = screen.getByLabelText('Or open from a link')
     fireEvent.change(input, { target: { value: 'rfc9000.pdf' } })
     fireEvent.submit(input.closest('form')!)
     expect(onUrl).not.toHaveBeenCalled()
     expect(screen.getByRole('alert').textContent).toContain(
-      'Paste a full http(s) link to a PDF.',
+      'Paste a full http(s) link to a PDF or Markdown file.',
     )
   })
 

@@ -12,7 +12,7 @@ import './OpenPdf.css'
 
 interface OpenPdfProps {
   onFile: (file: File) => void
-  /** A PDF to download from that URL, straight from the browser. */
+  /** A PDF or Markdown file to download from that URL, straight from the browser. */
   onUrl: (url: URL) => void
   /** An Internet-Draft's XML source, to compile into a PDF after consent. */
   onDraftXml: (file: File) => void
@@ -90,7 +90,7 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
     event.preventDefault()
     const url = parseHttpUrl(urlText)
     if (!url) {
-      setUrlError('Paste a full http(s) link to a PDF.')
+      setUrlError('Paste a full http(s) link to a PDF or Markdown file.')
       return
     }
     setUrlError(null)
@@ -150,48 +150,45 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
           )}
         </div>
 
-        <div className="open-pdf-remote">
-          <form className="open-pdf-url" onSubmit={submitUrl}>
-            <label htmlFor="open-pdf-url">Or open a PDF from a link</label>
-            <div className="open-pdf-url-row">
-              <input
-                id="open-pdf-url"
-                type="url"
-                inputMode="url"
-                placeholder="https://www.rfc-editor.org/rfc/rfc9000.pdf"
-                value={urlText}
-                onChange={(e) => setUrlText(e.target.value)}
-              />
-              <button type="submit">Open</button>
-            </div>
-            <p className="open-pdf-hint">
-              Downloaded by your browser from that site, which must allow it
-              (CORS). RFCs from rfc-editor.org work.
-            </p>
-            {urlError && (
-              <p role="alert" className="open-pdf-error">
-                {urlError}
-              </p>
-            )}
-          </form>
-          <div className="open-pdf-draft">
-            <button type="button" onClick={() => xmlInputRef.current?.click()}>
-              Open an Internet-Draft (XML)
-            </button>
-            <p className="open-pdf-hint">
-              The XML is compiled into a PDF by the IETF's author tools, after
-              you confirm.
-            </p>
+        <form className="open-pdf-url" onSubmit={submitUrl}>
+          <label htmlFor="open-pdf-url">Or open from a link</label>
+          <div className="open-pdf-url-row">
             <input
-              ref={xmlInputRef}
-              type="file"
-              accept="text/xml,application/xml,.xml"
-              hidden
-              aria-label="Internet-Draft XML"
-              onChange={(e) => accept(e.target.files)}
+              id="open-pdf-url"
+              type="url"
+              inputMode="url"
+              placeholder="https://example.org/paper.pdf"
+              value={urlText}
+              onChange={(e) => setUrlText(e.target.value)}
             />
+            <button type="submit">Open</button>
           </div>
-        </div>
+          <p className="open-pdf-hint">
+            A PDF or a Markdown file, downloaded by your browser from that site,
+            which must allow it (CORS).
+          </p>
+          {urlError && (
+            <p role="alert" className="open-pdf-error">
+              {urlError}
+            </p>
+          )}
+        </form>
+
+        <p className="open-pdf-converters">
+          Reviewing an IETF Internet-Draft? Drop its <code>.xml</code> or{' '}
+          <button type="button" onClick={() => xmlInputRef.current?.click()}>
+            pick it
+          </button>
+          : after you confirm, the IETF's author tools compile it into a PDF.
+          <input
+            ref={xmlInputRef}
+            type="file"
+            accept="text/xml,application/xml,.xml"
+            hidden
+            aria-label="Internet-Draft XML"
+            onChange={(e) => accept(e.target.files)}
+          />
+        </p>
 
         <ul className="open-pdf-features" aria-label="What you can do">
           <li>
@@ -217,10 +214,11 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
         <p className="open-pdf-privacy">
           Your documents, notes and recordings stay in this browser; audio goes
           out only when you confirm a transcription with your own provider key,
-          and an Internet-Draft's XML only when you confirm sending it to the
-          IETF's author tools. That key lives only in this browser, client side:
-          there is no VoxNote server. Nothing is published. Visits are counted
-          with Google Analytics for statistical purposes, without cookies.
+          and a file goes to a converter only when you confirm it in a dialog
+          that names the service. That key lives only in this browser, client
+          side: there is no VoxNote server. Nothing is published. Visits are
+          counted with Google Analytics for statistical purposes, without
+          cookies.
         </p>
 
         <section className="open-pdf-start" aria-labelledby="get-started">

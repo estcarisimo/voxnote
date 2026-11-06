@@ -6,6 +6,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The landing is generic about where a document comes from.** The link
+  field is now **Or open from a link** and accepts a PDF or a Markdown file
+  (a PDF by its `%PDF-` bytes whatever the path says; Markdown by a `.md` or
+  `.markdown` path or a `text/markdown` content type, since Markdown has no
+  magic bytes; an HTML content type is refused even at a `.md` path, with a
+  message pointing at the raw file, so a forge's "blob" page is never
+  reviewed as if it were the file); the placeholder and hint no longer
+  mention RFCs, and the error for anything else names the content type
+  without pointing at the IETF. The Internet-Draft flow moves from its own card to one sentence
+  under the link field ("Reviewing an IETF Internet-Draft? Drop its .xml or
+  pick it"), the first of what can become one line per source-specific
+  converter; the consent dialog and its behavior are unchanged. The privacy
+  note says that a file goes to a converter only when you confirm it in a
+  dialog that names the service, instead of naming the IETF. Domain:
+  `fetchDocument` in `src/core/remotePdf.ts` replaces `fetchPdf` for user
+  links (`fetchPdf` stays for links a service returns, where the kind is
+  known), `fileNameFromUrl` takes the extension, `looksLikeMarkdown` is new;
+  all unit tested. README usage updated. `scripts/browser-e2e.mjs` gains a
+  Markdown-by-link step; on 2026-11-05 it ran in headless Chromium 155
+  against the live hosts: `rfc9000.pdf` opened (151 pages), the draft's
+  `.txt` was refused with the no-CORS message, the repository's README
+  opened from raw.githubusercontent.com as Markdown (15 headings), and the
+  draft's XML compiled and opened (7 pages) after the consent dialog.
+
 ### Added
 
 - **Highlight colors.** A fixed palette of six colors (yellow, green, blue,
