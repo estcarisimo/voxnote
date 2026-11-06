@@ -136,12 +136,12 @@ The review flow is select, act, export:
    dropping it on the page. A Markdown file is rendered on a page-like
    sheet; its top-level blocks (paragraphs, headings, lists, tables, code)
    are what annotations point at, so a selection must stay within one
-   block, like within one PDF page. For a PDF, you can also paste a link
-   under **Or open a PDF from a link**: the browser downloads
-   it from that site, which must allow cross-origin downloads (RFCs from
-   rfc-editor.org do). For an IETF Internet-Draft, which is not published
-   as PDF, use **Open an Internet-Draft (XML)** with the draft's `.xml`:
-   after you confirm, the file is uploaded to the IETF's
+   block, like within one PDF page. You can also paste a link to a PDF or a
+   Markdown file under **Or open from a link**: the browser downloads it
+   from that site, which must allow cross-origin downloads (CORS). Below
+   that, one line per source-specific converter; today there is one, for
+   IETF Internet-Drafts, which are not published as PDF: drop or pick the
+   draft's `.xml` and, after you confirm, it is uploaded to the IETF's
    author-tools.ietf.org, compiled with xml2rfc and opened here as a PDF.
 2. **Select** a passage: drag with the Apple Pencil or the mouse, or use
    touch selection (on an iPad, a finger needs a long press). For a figure with no text, switch to the **Region** tool

@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   AUTHOR_TOOLS_HOST,
   describeDraftUpload,
+  fetchDocument,
   fetchPdf,
   fileNameFromUrl,
   isDraftXmlFile,
+  looksLikeMarkdown,
   looksLikePdf,
   parseHttpUrl,
   renderDraftPdf,
@@ -61,6 +63,30 @@ describe('fileNameFromUrl', () => {
 
   it('falls back for an empty path', () => {
     expect(fileNameFromUrl(new URL('https://h/'))).toBe('document.pdf')
+    expect(fileNameFromUrl(new URL('https://h/'), '.md')).toBe('document.md')
+  })
+
+  it('appends another extension when asked', () => {
+    expect(fileNameFromUrl(new URL('https://h/notes'), '.md')).toBe('notes.md')
+    expect(fileNameFromUrl(new URL('https://h/README.md'), '.md')).toBe(
+      'README.md',
+    )
+  })
+})
+
+describe('looksLikeMarkdown', () => {
+  it('goes by the path or the content type', () => {
+    expect(looksLikeMarkdown(new URL('https://h/a/README.md'), null)).toBe(true)
+    expect(looksLikeMarkdown(new URL('https://h/a.markdown'), null)).toBe(true)
+    expect(
+      looksLikeMarkdown(
+        new URL('https://h/raw/notes'),
+        'text/markdown; charset=utf-8',
+      ),
+    ).toBe(true)
+    expect(looksLikeMarkdown(new URL('https://h/a.txt'), 'text/plain')).toBe(
+      false,
+    )
   })
 })
 
@@ -118,7 +144,7 @@ describe('fetchPdf', () => {
     )
   })
 
-  it('rejects a body that is not a PDF and points at the draft flow', async () => {
+  it('rejects a body that is not a PDF with its content type', async () => {
     const fetchFn = vi.fn<FetchFn>().mockResolvedValue(
       new Response('<html>', {
         status: 200,
@@ -126,10 +152,68 @@ describe('fetchPdf', () => {
       }),
     )
     await expect(
-      fetchPdf(new URL('https://www.ietf.org/archive/id/d.html'), fetchFn),
-    ).rejects.toThrow(
-      /not a PDF \(text\/html; charset=utf-8\).*Open an Internet-Draft/,
+      fetchPdf(new URL('https://h/d.html'), fetchFn),
+    ).rejects.toThrow('The file at h is not a PDF (text/html; charset=utf-8).')
+  })
+})
+
+describe('fetchDocument', () => {
+  it('returns a PDF by its magic bytes whatever the path says', async () => {
+    const fetchFn = vi.fn<FetchFn>().mockResolvedValue(pdfResponse())
+    const file = await fetchDocument(new URL('https://h/doc/pdf/x'), fetchFn)
+    expect(file.name).toBe('x.pdf')
+    expect(file.type).toBe('application/pdf')
+  })
+
+  it('returns Markdown by its path, keeping the name', async () => {
+    const fetchFn = vi.fn<FetchFn>().mockResolvedValue(
+      new Response('# Title\n\nBody', {
+        status: 200,
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+      }),
     )
+    const file = await fetchDocument(
+      new URL('https://raw.example/repo/main/README.md'),
+      fetchFn,
+    )
+    expect(file.name).toBe('README.md')
+    expect(file.type).toBe('text/markdown')
+    expect(await file.text()).toBe('# Title\n\nBody')
+  })
+
+  it('returns Markdown by its content type when the path has no extension', async () => {
+    const fetchFn = vi.fn<FetchFn>().mockResolvedValue(
+      new Response('# T', {
+        status: 200,
+        headers: { 'content-type': 'text/markdown; charset=utf-8' },
+      }),
+    )
+    const file = await fetchDocument(new URL('https://h/notes'), fetchFn)
+    expect(file.name).toBe('notes.md')
+    expect(file.type).toBe('text/markdown')
+  })
+
+  it('rejects anything else with its content type', async () => {
+    const fetchFn = vi.fn<FetchFn>().mockResolvedValue(
+      new Response('<html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    )
+    await expect(
+      fetchDocument(new URL('https://h/page.html'), fetchFn),
+    ).rejects.toThrow(
+      'The file at h is neither a PDF nor a Markdown file (text/html; charset=utf-8).',
+    )
+  })
+
+  it('explains a rejected fetch as network or missing CORS', async () => {
+    const fetchFn = vi
+      .fn<FetchFn>()
+      .mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(
+      fetchDocument(new URL('https://h/a.md'), fetchFn),
+    ).rejects.toThrow(/h did not answer.*no CORS.*download the file yourself/)
   })
 })
 

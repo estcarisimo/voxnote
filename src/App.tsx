@@ -50,7 +50,7 @@ import {
   loadDocument,
   type PDFDocumentProxy,
 } from './core/pdf'
-import { fetchPdf } from './core/remotePdf'
+import { fetchDocument } from './core/remotePdf'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
@@ -198,13 +198,13 @@ function App() {
     }
   }
 
-  /** Downloads the PDF at `url` into the browser, then opens it. */
+  /** Downloads the PDF or Markdown file at `url` into the browser, then opens it. */
   async function openUrl(url: URL) {
     if (loading) return
     setError(null)
     setLoading(true)
     try {
-      const file = await fetchPdf(url, (input, init) => fetch(input, init))
+      const file = await fetchDocument(url, (input, init) => fetch(input, init))
       setLoading(false)
       await openFile(file)
     } catch (err: unknown) {
