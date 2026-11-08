@@ -6,12 +6,17 @@ describe('ExportMenu', () => {
   it('offers PDF, Markdown and JSON and reports which one was chosen', () => {
     const onExport = vi.fn()
     render(
-      <ExportMenu disabled={false} pdfDisabled={false} onExport={onExport} />,
+      <ExportMenu
+        disabled={false}
+        pdfDisabled={false}
+        onExport={onExport}
+        onImport={() => {}}
+      />,
     )
-    const group = screen.getByRole('group', { name: 'Export' })
+    const group = screen.getByRole('group', { name: 'Export and import' })
     expect(
       Array.from(group.querySelectorAll('button')).map((b) => b.textContent),
-    ).toEqual(['Export PDF', 'Markdown', 'JSON'])
+    ).toEqual(['Export PDF', 'Markdown', 'JSON', 'Import notes…'])
     fireEvent.click(screen.getByRole('button', { name: 'Markdown' }))
     fireEvent.click(screen.getByRole('button', { name: 'JSON' }))
     fireEvent.click(screen.getByRole('button', { name: 'Export PDF' }))
@@ -19,7 +24,14 @@ describe('ExportMenu', () => {
   })
 
   it('disables everything while the store is not ready', () => {
-    render(<ExportMenu disabled pdfDisabled={false} onExport={() => {}} />)
+    render(
+      <ExportMenu
+        disabled
+        pdfDisabled={false}
+        onExport={() => {}}
+        onImport={() => {}}
+      />,
+    )
     for (const name of ['Export PDF', 'Markdown', 'JSON']) {
       expect(screen.getByRole('button', { name })).toHaveProperty(
         'disabled',
@@ -30,7 +42,12 @@ describe('ExportMenu', () => {
 
   it('hides the PDF export for a document that is not a PDF', () => {
     render(
-      <ExportMenu disabled={false} pdfDisabled="hidden" onExport={() => {}} />,
+      <ExportMenu
+        disabled={false}
+        pdfDisabled="hidden"
+        onExport={() => {}}
+        onImport={() => {}}
+      />,
     )
     expect(screen.queryByRole('button', { name: 'Export PDF' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Markdown' })).toBeTruthy()
@@ -38,7 +55,14 @@ describe('ExportMenu', () => {
   })
 
   it('can disable only the PDF export', () => {
-    render(<ExportMenu disabled={false} pdfDisabled onExport={() => {}} />)
+    render(
+      <ExportMenu
+        disabled={false}
+        pdfDisabled
+        onExport={() => {}}
+        onImport={() => {}}
+      />,
+    )
     expect(screen.getByRole('button', { name: 'Export PDF' })).toHaveProperty(
       'disabled',
       true,

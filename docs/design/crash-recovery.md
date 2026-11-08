@@ -22,10 +22,14 @@ must never make a reviewer start from zero.
 | UI prefs (tool, panel open, highlight color)                  | Color: `localStorage`; the rest: memory            | **Accept the loss** for tool and panel: one tap each to restore, and restoring a panel the user never wanted open is noise. The color was already persisted.                                               |
 | A selection with only the toolbar showing (no composer)       | DOM selection                                      | **Accept the loss.** Nothing has been typed or recorded yet.                                                                                                                                               |
 
-## 2. Schema (IndexedDB `voxnote`, version 3)
+## 2. Schema (IndexedDB `voxnote`, version 4)
 
-The upgrade only creates stores that are missing, so it is idempotent and keeps
-v1/v2 data. `src/core/store.ts` exports the types; tests in `store.test.ts`.
+Version 3 added `documentMeta` (resume a review, PR #30); version 4 adds the
+three stores below. Every store has its own creation guard, so the upgrade is
+idempotent and reaches the same schema from v1, v2, the released v3, or an
+unreleased v3 built from this branch that already had these stores (tests in
+`recoveryStore.test.ts` cover both v3 orders). `src/core/recoveryStore.ts`
+exports the types.
 
 - `documents`, keyPath `id`:
   `{ id: string /* SHA-256 hex of the bytes */, name: string, mimeType: string,
@@ -50,7 +54,10 @@ document stays usable, and the message says what will not be recoverable.
 ## 3. Behavior
 
 - **Resume, on a tap.** On startup, if `session` names a stored document, the
-  landing shows **Resume _name_** (and **Forget**). The app does not reopen it
+  landing lists it first under **Continue a review** (the recent-documents list
+  from PR #30) as **Resume _name_**, with its page and **Forget its copy**;
+  the same file is not listed twice. Other rows reopen from a kept copy
+  (**Reopen**) through the `StoredDocuments` seam, or ask for the file. The app does not reopen it
   by itself: if that document is what crashed the tab (a pathological PDF, a
   render bug), an automatic reopen would crash again on every launch, with no
   way out short of clearing site data. One tap is the price of never looping.

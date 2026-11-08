@@ -59,25 +59,29 @@ function draft(overrides: Partial<Draft> = {}): Draft {
 }
 
 describe('database upgrade', () => {
-  it('upgrades a v2 database to v3 without touching its annotations', async () => {
-    const factory = new IDBFactory()
-    // A v2 database as the previous release created it.
+  /** Creates `stores` at `version`, as an older build did, and writes `seed`. */
+  async function legacyDatabase(
+    factory: IDBFactory,
+    version: number,
+    stores: string[],
+    seed: (tx: IDBTransaction) => void,
+  ) {
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 2)
+      const req = factory.open('test', version)
       req.onupgradeneeded = () => {
-        const store = req.result.createObjectStore('annotations', {
-          keyPath: 'id',
-        })
-        store.createIndex('documentId', 'documentId', { unique: false })
-        req.result.createObjectStore('audio', { keyPath: 'id' })
+        const db = req.result
+        for (const name of stores) {
+          const keyPath =
+            name === 'session' ? 'key' : name === 'drafts' ? 'documentId' : 'id'
+          const store = db.createObjectStore(name, { keyPath })
+          if (name === 'annotations') {
+            store.createIndex('documentId', 'documentId', { unique: false })
+          }
+        }
       }
       req.onsuccess = () => {
-        const highlight = createHighlight({
-          documentId: ID_A,
-          anchor: regionAnchor,
-        })
-        const tx = req.result.transaction('annotations', 'readwrite')
-        tx.objectStore('annotations').put(highlight)
+        const tx = req.result.transaction(stores, 'readwrite')
+        seed(tx)
         tx.oncomplete = () => {
           req.result.close()
           resolve()
@@ -86,23 +90,102 @@ describe('database upgrade', () => {
       }
       req.onerror = () => reject(req.error)
     })
+  }
 
+  const ALL_STORES = [
+    'annotations',
+    'audio',
+    'documentMeta',
+    'documents',
+    'drafts',
+    'session',
+  ]
+
+  it('upgrades a v2 database to v4 without touching its annotations', async () => {
+    const factory = new IDBFactory()
+    const highlight = createHighlight({
+      documentId: ID_A,
+      anchor: regionAnchor,
+    })
+    await legacyDatabase(factory, 2, ['annotations', 'audio'], (tx) =>
+      tx.objectStore('annotations').put(highlight),
+    )
     const db = await openDatabase('test', factory)
     expect(db.version).toBe(DB_VERSION)
-    expect([...db.objectStoreNames].sort()).toEqual([
-      'annotations',
-      'audio',
-      'documents',
-      'drafts',
-      'session',
-    ])
+    expect(DB_VERSION).toBe(4)
+    expect([...db.objectStoreNames].sort()).toEqual(ALL_STORES)
     db.close()
     const annotations = await openAnnotationStore('test', factory)
     expect(await annotations.list(ID_A)).toHaveLength(1)
+    // documentMeta was backfilled from the annotations.
+    expect((await annotations.listDocuments()).map((d) => d.id)).toEqual([ID_A])
     annotations.close()
   })
 
-  it('opens an existing v3 database again without changes', async () => {
+  it('upgrades a released v3 database (resume a review) by adding the crash-recovery stores', async () => {
+    const factory = new IDBFactory()
+    const highlight = createHighlight({
+      documentId: ID_A,
+      anchor: regionAnchor,
+    })
+    await legacyDatabase(
+      factory,
+      3,
+      ['annotations', 'audio', 'documentMeta'],
+      (tx) => {
+        tx.objectStore('annotations').put(highlight)
+        tx.objectStore('documentMeta').put({
+          id: ID_A,
+          name: 'paper.pdf',
+          kind: 'pdf',
+          lastAnnotatedAt: '2026-11-07T10:00:00.000Z',
+        })
+      },
+    )
+    const db = await openDatabase('test', factory)
+    expect([...db.objectStoreNames].sort()).toEqual(ALL_STORES)
+    db.close()
+    const annotations = await openAnnotationStore('test', factory)
+    expect(await annotations.listDocuments()).toMatchObject([
+      { id: ID_A, name: 'paper.pdf', count: 1 },
+    ])
+    annotations.close()
+    const recovery = await openRecoveryStore('test', factory)
+    expect(await recovery.getSession()).toBeNull()
+    recovery.close()
+  })
+
+  it('upgrades an unreleased crash-recovery v3 database by adding documentMeta, keeping its draft and document', async () => {
+    const factory = new IDBFactory()
+    const highlight = createHighlight({
+      documentId: ID_A,
+      anchor: regionAnchor,
+    })
+    const kept = draft({ mode: 'typed', anchor: regionAnchor })
+    const stored = document(ID_A, '2026-11-07T09:00:00Z', 'aaaa')
+    await legacyDatabase(
+      factory,
+      3,
+      ['annotations', 'audio', 'documents', 'session', 'drafts'],
+      (tx) => {
+        tx.objectStore('annotations').put(highlight)
+        tx.objectStore('drafts').put(kept)
+        tx.objectStore('documents').put(stored)
+      },
+    )
+    const db = await openDatabase('test', factory)
+    expect([...db.objectStoreNames].sort()).toEqual(ALL_STORES)
+    db.close()
+    const recovery = await openRecoveryStore('test', factory)
+    expect((await recovery.getDraft(ID_A))?.body).toBe(kept.body)
+    expect(await (await recovery.getDocument(ID_A))?.blob.text()).toBe('aaaa')
+    recovery.close()
+    const annotations = await openAnnotationStore('test', factory)
+    expect((await annotations.listDocuments()).map((d) => d.id)).toEqual([ID_A])
+    annotations.close()
+  })
+
+  it('opens an existing v4 database again without changes', async () => {
     const factory = new IDBFactory()
     const first = await openRecoveryStore('test', factory)
     await first.putSession({

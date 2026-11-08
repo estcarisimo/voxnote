@@ -40,7 +40,7 @@ export interface StoredDocument {
 }
 
 /** A stored document without its bytes, for lists. */
-export type DocumentSummary = Omit<StoredDocument, 'blob'>
+export type StoredDocumentSummary = Omit<StoredDocument, 'blob'>
 
 /** The document open when the page last went away. */
 export interface SessionRecord {
@@ -96,7 +96,7 @@ export interface RecoveryStore {
   putDocument(document: StoredDocument): Promise<void>
   getDocument(id: string): Promise<StoredDocument | null>
   /** Metadata of every stored document, most recently opened first. */
-  listDocuments(): Promise<DocumentSummary[]>
+  listDocuments(): Promise<StoredDocumentSummary[]>
   /** Forgets the bytes; annotations and drafts for that id stay. */
   deleteDocument(id: string): Promise<void>
   getSession(): Promise<SessionRecord | null>

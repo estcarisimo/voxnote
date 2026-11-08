@@ -115,7 +115,7 @@ the success criterion on real iPad hardware.
 - [x] Crash recovery (2026-11-08, design note `docs/design/crash-recovery.md`):
       the opened document, the session (document and page) and the open
       composer's draft, recording included, are kept in IndexedDB; **Resume**
-      on the landing after an unclean exit, **Draft restored** in the
+      first in **Continue a review** after an unclean exit, **Draft restored** in the
       composer; an error boundary with **Reload**; window errors shown.
       Verified with `Page.crash` in headless Chromium 155; not yet on a real
       iPad (MediaRecorder timeslices on iOS Safari untested).

@@ -5,35 +5,41 @@ import {
   type DragEvent,
   type FormEvent,
 } from 'react'
+import { isNotesFile } from '../core/importNotes'
 import { isDraftXmlFile, parseHttpUrl } from '../core/remotePdf'
 import { formatBytes, type StorageStatus } from '../core/storagePersistence'
 import { loadAnalytics } from './analytics'
 import { GitHubLink, REPOSITORY_URL } from './GitHubLink'
+import {
+  RecentDocuments,
+  type RecentDocument,
+  type Resumable,
+} from './RecentDocuments'
 import './OpenPdf.css'
 
-/** A document kept on this device that was open when the page went away. */
-export interface Resumable {
-  documentId: string
-  name: string
-  /** The PDF page that was in view; null for Markdown. */
-  page: number | null
-  /** UTC ISO 8601, when the session was last recorded. */
-  openedAt: string
-}
+export type { Resumable } from './RecentDocuments'
 
 interface OpenPdfProps {
   onFile: (file: File) => void
-  /** Offered as one tap to reopen; never reopened without that tap. */
-  resumable?: Resumable | null
-  onResume?: (target: Resumable) => void
-  /** Drops the kept copy and the session; annotations stay. */
-  onForget?: (target: Resumable) => void
   /** Whether the browser may evict local data, and how much is used. */
   storage?: StorageStatus | null
   /** A PDF or Markdown file to download from that URL, straight from the browser. */
   onUrl: (url: URL) => void
   /** An Internet-Draft's XML source, to compile into a PDF after consent. */
   onDraftXml: (file: File) => void
+  /** A notes export (.voxnote.json) to merge into this browser's notes. */
+  onImportNotes: (file: File) => void
+  /** Documents with notes in this browser, most recent first. */
+  recentDocuments: readonly RecentDocument[]
+  onResume: (document: RecentDocument) => void
+  /**
+   * The document open when the page last went away (a crash, a killed tab),
+   * shown first under Continue a review; reopened only on a tap.
+   */
+  interrupted?: Resumable | null
+  onResumeInterrupted?: (target: Resumable) => void
+  /** Drops its kept copy and the session; annotations stay. */
+  onForgetInterrupted?: (target: Resumable) => void
   error: string | null
 }
 
@@ -104,16 +110,20 @@ function isStandalone(): boolean {
  */
 export function OpenPdf({
   onFile,
-  resumable = null,
-  onResume,
-  onForget,
-  storage = null,
   onUrl,
   onDraftXml,
+  onImportNotes,
+  recentDocuments,
+  onResume,
+  interrupted = null,
+  onResumeInterrupted,
+  onForgetInterrupted,
+  storage = null,
   error,
 }: OpenPdfProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const xmlInputRef = useRef<HTMLInputElement>(null)
+  const notesInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [urlText, setUrlText] = useState('')
   const [urlError, setUrlError] = useState<string | null>(null)
@@ -125,11 +135,15 @@ export function OpenPdf({
     loadAnalytics(import.meta.env.VITE_GA_MEASUREMENT_ID)
   }, [])
 
-  /** A dropped or picked XML file is a draft to compile; anything else, a PDF. */
+  /**
+   * A dropped or picked XML file is a draft to compile, a JSON file a notes
+   * export to import; anything else, a document to open.
+   */
   function accept(fileList: FileList | null) {
     const file = fileList?.[0]
     if (!file) return
     if (isDraftXmlFile(file)) onDraftXml(file)
+    else if (isNotesFile(file)) onImportNotes(file)
     else onFile(file)
   }
 
@@ -178,36 +192,6 @@ export function OpenPdf({
           suggesting, by voice, without ever editing it.
         </p>
 
-        {resumable && onResume && (
-          <section className="open-pdf-resume" aria-label="Resume">
-            <button
-              type="button"
-              className="open-pdf-button"
-              onClick={() => onResume(resumable)}
-            >
-              Resume {resumable.name}
-            </button>
-            <p className="open-pdf-hint">
-              Open when this page last closed
-              {resumable.page !== null ? `, at page ${resumable.page}` : ''} (
-              {resumable.openedAt.slice(0, 10)}{' '}
-              {resumable.openedAt.slice(11, 16)} UTC). Kept in this browser.
-              {onForget && (
-                <>
-                  {' '}
-                  <button
-                    type="button"
-                    className="open-pdf-forget"
-                    onClick={() => onForget(resumable)}
-                  >
-                    Forget it
-                  </button>
-                </>
-              )}
-            </p>
-          </section>
-        )}
-
         <div className="open-pdf-action">
           <button
             type="button"
@@ -232,6 +216,36 @@ export function OpenPdf({
             </p>
           )}
         </div>
+
+        <RecentDocuments
+          documents={recentDocuments}
+          onResume={onResume}
+          interrupted={interrupted}
+          onResumeInterrupted={onResumeInterrupted}
+          onForgetInterrupted={onForgetInterrupted}
+        />
+
+        <p className="open-pdf-converters">
+          Continuing a review from another browser or device?{' '}
+          <button type="button" onClick={() => notesInputRef.current?.click()}>
+            Import notes…
+          </button>{' '}
+          from its <code>.voxnote.json</code> export, then open the same file.
+          <input
+            ref={notesInputRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            aria-label="Notes file to import"
+            onChange={(e) => {
+              // Straight to the import, whatever was picked: a PDF chosen
+              // here is refused as not a notes file, never opened.
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (file) onImportNotes(file)
+            }}
+          />
+        </p>
 
         <form className="open-pdf-url" onSubmit={submitUrl}>
           <label htmlFor="open-pdf-url">Or open from a link</label>
