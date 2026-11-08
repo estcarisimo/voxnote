@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Crash recovery: a crashed or killed tab no longer means starting from
+  zero.** Design note: `docs/design/crash-recovery.md` (what can be lost,
+  and the decision for each). IndexedDB moves to version 3 with an
+  idempotent upgrade and three new stores (`src/core/recoveryStore.ts`, unit
+  tested with fake-indexeddb): `documents` keeps the bytes of every opened PDF
+  or Markdown file (id = SHA-256, name, MIME type, Blob, size, `openedAt`
+  UTC; a recent-documents list can build on `listDocuments()`), `session`
+  records the open document and the PDF page in view, and `drafts` keeps the
+  open composer (kind, anchor, placement, body, the recording, its raw
+  transcript and an accepted polish). On the landing, **Resume _name_**
+  reopens the kept document after an unclean exit, on a tap only (an
+  automatic reopen of the document that crashed the tab would crash it
+  again), with **Forget it** to drop the copy; **Close** clears the session.
+  The composer is written 400 ms after each change and at once when the page
+  is hidden; the recorder now emits audio every second, so a recording
+  survives even a crash mid-sentence, before Stop and before any
+  transcription. Reopening the document brings the composer back with
+  **Draft restored (saved … UTC)** and **Discard draft**. A failed write
+  (quota) is shown in the error banner. An error boundary around the viewer
+  (and one around the whole app) shows the error and **Reload** instead of a
+  blank page, and never touches local storage; uncaught errors and unhandled
+  promise rejections on `window` are shown in the error banner. Verified end
+  to end with `scripts/browser-crash-e2e.mjs` (headless Chromium 155,
+  `Page.crash` twice). README privacy section: what is kept and how to clear
+  it.
+
 ### Changed
 
 - **The landing is generic about where a document comes from.** The link

@@ -187,6 +187,19 @@ The review flow is select, act, export:
   stored in your browser's IndexedDB on this origin. The site has no server,
   and documents never leave the browser. A Markdown file's images are never
   loaded, so opening one makes no request to any host it names.
+- **What is kept in this browser, and how to clear it.** Besides the
+  annotations and their recordings, VoxNote keeps, for crash recovery
+  ([design note](docs/design/crash-recovery.md)): a copy of each document you
+  open (its bytes, name, type, size and when it was opened, UTC), a one-record
+  session naming the document open when the page last closed and the page in
+  view, and the draft of an unsaved comment or suggestion, including its
+  recording while you are still speaking (written every second). **Close**
+  clears the session; **Save**, **Cancel** or **Discard draft** delete the
+  draft; **Forget it** under **Resume** deletes the kept copy of that
+  document. To remove everything, clear this site's data in the browser
+  (site settings → delete data/storage for the site); that also deletes your
+  annotations and saved API keys. A failed write, such as a full quota, is
+  shown on screen, never skipped silently.
 - **Visit counting.** The live site counts visits with Google Analytics 4,
   without cookies: the build reads the measurement id from the repository
   variable `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only,

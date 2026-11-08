@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.tsx'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { UpdateBar } from './components/UpdateBar'
 
 const root = createRoot(document.getElementById('root')!)
@@ -10,7 +11,9 @@ const root = createRoot(document.getElementById('root')!)
 function render(applyUpdate?: () => Promise<void>) {
   root.render(
     <StrictMode>
-      <App />
+      <ErrorBoundary label="VoxNote">
+        <App />
+      </ErrorBoundary>
       {applyUpdate && <UpdateBar onReload={applyUpdate} />}
     </StrictMode>,
   )

@@ -4,6 +4,7 @@ import {
   type TranscriptArrival,
 } from './components/AnnotationList'
 import { CleanUpDialog } from './components/CleanUpDialog'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
@@ -12,7 +13,7 @@ import {
   MarkdownViewer,
   type MarkdownViewerHandle,
 } from './components/MarkdownViewer'
-import { OpenPdf } from './components/OpenPdf'
+import { OpenPdf, type Resumable } from './components/OpenPdf'
 import {
   PdfViewer,
   type NewNoteRequest,
@@ -50,12 +51,17 @@ import {
   loadDocument,
   type PDFDocumentProxy,
 } from './core/pdf'
+import type { RecoveryStore } from './core/recoveryStore'
 import { fetchDocument } from './core/remotePdf'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
+import { useDraft } from './hooks/useDraft'
 import { useHighlightColor } from './hooks/useHighlightColor'
 import { useProviders } from './hooks/useProviders'
+import { useRecoveryStore } from './hooks/useRecoveryStore'
+import { useSessionPage } from './hooks/useSessionPage'
+import { useWindowErrors } from './hooks/useWindowErrors'
 import { AiKeysButton } from './components/AiKeysButton'
 import { useTranscription } from './hooks/useTranscription'
 import './App.css'
@@ -96,6 +102,12 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   // An Internet-Draft's XML waiting for consent to be compiled into a PDF.
   const [draftXml, setDraftXml] = useState<File | null>(null)
+  const recovery = useRecoveryStore()
+  const drafts = useDraft(doc?.id ?? null, recovery)
+  // The document that was open when the page last went away, if kept.
+  const [resumable, setResumable] = useState<Resumable | null>(null)
+  useWindowErrors(setError)
+  useSessionPage(recovery.store, doc?.kind === 'pdf' ? doc.id : null, setError)
   const viewerRef = useRef<PdfViewerHandle>(null)
   const markdownViewerRef = useRef<MarkdownViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
@@ -119,6 +131,100 @@ function App() {
     docIdRef.current = doc?.id ?? null
     storeRef.current = store
   })
+
+  // On the landing, offer the document of an unclean exit. Close clears the
+  // session, so this only finds one after a crash, a kill or a reload.
+  const landing = doc === null
+  useEffect(() => {
+    const store = recovery.store
+    if (!store || !landing) return
+    let live = true
+    findResumable(store).then(
+      (found) => live && setResumable(found),
+      (err: unknown) =>
+        live && setError(`Could not read the last session: ${messageOf(err)}`),
+    )
+    return () => {
+      live = false
+    }
+  }, [recovery.store, landing])
+
+  // A restored draft on a region reopens with the Region tool, so its
+  // composer is not dropped as belonging to another tool.
+  const [toolSetFor, setToolSetFor] = useState<string | null>(null)
+  if (doc && drafts.ready && toolSetFor !== doc.id) {
+    setToolSetFor(doc.id)
+    if (drafts.restored?.anchor.type === 'region') setTool('region')
+  }
+
+  /** Keeps the bytes and the session so a crash can be resumed. */
+  async function keepDocument(
+    opened: OpenDocument,
+    bytes: Uint8Array,
+    mimeType: string,
+    page: number | null,
+  ) {
+    const store = recovery.store
+    if (!store) return
+    const blob = new Blob([bytes as BlobPart], { type: mimeType })
+    try {
+      await store.putDocument({
+        id: opened.id,
+        name: opened.name,
+        mimeType,
+        blob,
+        size: blob.size,
+        openedAt: new Date().toISOString(),
+      })
+    } catch (err: unknown) {
+      let message = `"${opened.name}" is open, but a copy could not be kept on this device (${messageOf(err)}). If this tab crashes you will need to open the file again; your annotations are saved separately.`
+      // Resume must not offer the previous document instead.
+      try {
+        await store.clearSession()
+      } catch (clearErr: unknown) {
+        message += ` The previous session could not be cleared either (${messageOf(clearErr)}), so Resume may offer the document opened before this one.`
+      }
+      setError(message)
+      return
+    }
+    try {
+      await store.putSession({
+        documentId: opened.id,
+        page,
+        updatedAt: new Date().toISOString(),
+      })
+    } catch (err: unknown) {
+      setError(`Could not record the open document: ${messageOf(err)}`)
+    }
+  }
+
+  async function resume(target: Resumable) {
+    const store = recovery.store
+    if (!store || loading) return
+    setError(null)
+    try {
+      const stored = await store.getDocument(target.documentId)
+      if (!stored) throw new Error('it is no longer kept on this device')
+      const file = new File([stored.blob], stored.name, {
+        type: stored.mimeType,
+      })
+      await openFile(file, target.page)
+    } catch (err: unknown) {
+      setError(`Could not resume "${target.name}": ${messageOf(err)}`)
+    }
+  }
+
+  async function forget(target: Resumable) {
+    const store = recovery.store
+    if (!store) return
+    try {
+      await store.clearSession()
+      await store.deleteDocument(target.documentId)
+      setResumable(null)
+    } catch (err: unknown) {
+      setError(`Could not forget "${target.name}": ${messageOf(err)}`)
+    }
+  }
 
   async function transcribeStored(comment: Note) {
     if (!comment.voice) throw new Error('This comment has no recording')
@@ -152,7 +258,7 @@ function App() {
     await store.applyCleanUp(note.id, proposal)
   }
 
-  async function openFile(file: File) {
+  async function openFile(file: File, resumePage: number | null = null) {
     if (loading) return
     setError(null)
     const markdown = isMarkdownFile(file)
@@ -189,6 +295,16 @@ function App() {
       setArrivals({})
       setDoc(opened)
       setSelectedId(null)
+      setResumable(null)
+      if (resumePage !== null && opened.kind === 'pdf') {
+        scrollToPageWhenLaidOut(resumePage)
+      }
+      void keepDocument(
+        opened,
+        bytes,
+        file.type || (markdown ? 'text/markdown' : 'application/pdf'),
+        opened.kind === 'pdf' ? (resumePage ?? 1) : null,
+      )
     } catch (err: unknown) {
       setError(
         `Could not open "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
@@ -214,6 +330,10 @@ function App() {
   }
 
   function closeDocument() {
+    // A deliberate close is not a crash: nothing to resume next time.
+    recovery.store?.clearSession().catch((err: unknown) => {
+      setError(`Could not clear the session: ${messageOf(err)}`)
+    })
     release(doc)
     transcription.finish(null)
     cleanUpFlow.finish(null)
@@ -322,13 +442,16 @@ function App() {
     return (
       <main className="app">
         <OpenPdf
-          onFile={openFile}
+          onFile={(file) => void openFile(file)}
+          resumable={resumable}
+          onResume={(target) => void resume(target)}
+          onForget={(target) => void forget(target)}
           onUrl={(url) => void openUrl(url)}
           onDraftXml={(file) => {
             setError(null)
             setDraftXml(file)
           }}
-          error={error}
+          error={error ?? recovery.error}
         />
         {loading && <p className="app-status">Opening…</p>}
         {draftXml && (
@@ -399,45 +522,61 @@ function App() {
         />
         <GitHubLink className="app-bar-github" />
       </header>
-      {(error || store.error || autoConsents.error || highlightColor.error) && (
+      {(error ||
+        store.error ||
+        autoConsents.error ||
+        highlightColor.error ||
+        recovery.error ||
+        drafts.error) && (
         <p role="alert" className="app-error">
-          {error ?? store.error ?? autoConsents.error ?? highlightColor.error}
+          {error ??
+            store.error ??
+            autoConsents.error ??
+            highlightColor.error ??
+            recovery.error ??
+            drafts.error}
         </p>
       )}
       <div className="app-body">
-        {doc.kind === 'pdf' ? (
-          <PdfViewer
-            // A new document starts with no pending anchor or open composer.
-            key={doc.id}
-            ref={viewerRef}
-            document={doc.pdf}
-            tool={tool}
-            annotations={store.annotations}
-            selectedId={selectedId}
-            highlightColor={highlightColor.color}
-            onHighlightColorChange={highlightColor.setColor}
-            onCreateHighlight={createHighlight}
-            onCreateNote={createNote}
-            transcribe={transcription.request}
-            cleanUp={cleanUpFlow.request}
-            autoTranscribe={transcription.auto}
-          />
-        ) : (
-          <MarkdownViewer
-            key={doc.id}
-            ref={markdownViewerRef}
-            document={doc.markdown}
-            annotations={store.annotations}
-            selectedId={selectedId}
-            highlightColor={highlightColor.color}
-            onHighlightColorChange={highlightColor.setColor}
-            onCreateHighlight={createHighlight}
-            onCreateNote={createNote}
-            transcribe={transcription.request}
-            cleanUp={cleanUpFlow.request}
-            autoTranscribe={transcription.auto}
-          />
-        )}
+        <ErrorBoundary label="The viewer">
+          {!drafts.ready ? (
+            <p className="app-status">Opening…</p>
+          ) : doc.kind === 'pdf' ? (
+            <PdfViewer
+              // A new document starts with no pending anchor or open composer.
+              key={doc.id}
+              ref={viewerRef}
+              document={doc.pdf}
+              tool={tool}
+              annotations={store.annotations}
+              selectedId={selectedId}
+              highlightColor={highlightColor.color}
+              onHighlightColorChange={highlightColor.setColor}
+              onCreateHighlight={createHighlight}
+              onCreateNote={createNote}
+              transcribe={transcription.request}
+              cleanUp={cleanUpFlow.request}
+              autoTranscribe={transcription.auto}
+              drafts={drafts}
+            />
+          ) : (
+            <MarkdownViewer
+              key={doc.id}
+              ref={markdownViewerRef}
+              document={doc.markdown}
+              annotations={store.annotations}
+              selectedId={selectedId}
+              highlightColor={highlightColor.color}
+              onHighlightColorChange={highlightColor.setColor}
+              onCreateHighlight={createHighlight}
+              onCreateNote={createNote}
+              transcribe={transcription.request}
+              cleanUp={cleanUpFlow.request}
+              autoTranscribe={transcription.auto}
+              drafts={drafts}
+            />
+          )}
+        </ErrorBoundary>
         {listOpen && (
           <AnnotationList
             annotations={store.annotations}
@@ -498,6 +637,39 @@ function App() {
       )}
     </main>
   )
+}
+
+/** The kept document of the last unclean exit, if there is one. */
+async function findResumable(store: RecoveryStore): Promise<Resumable | null> {
+  const session = await store.getSession()
+  if (!session) return null
+  const stored = await store.getDocument(session.documentId)
+  if (!stored) {
+    throw new Error(
+      'the document that was open is no longer kept on this device; open its file again',
+    )
+  }
+  return {
+    documentId: stored.id,
+    name: stored.name,
+    page: session.page,
+    openedAt: session.updatedAt,
+  }
+}
+
+/**
+ * Brings a page into view once the viewer has laid it out: pages exist as
+ * sized placeholders before they render, so this waits only for the mount.
+ */
+function scrollToPageWhenLaidOut(page: number, framesLeft = 120) {
+  const element = document.querySelector(`[data-page-number="${page}"]`)
+  if (element) {
+    element.scrollIntoView({ block: 'start' })
+    return
+  }
+  if (framesLeft > 0) {
+    requestAnimationFrame(() => scrollToPageWhenLaidOut(page, framesLeft - 1))
+  }
 }
 
 function messageOf(err: unknown): string {

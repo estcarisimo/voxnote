@@ -13,6 +13,7 @@ function recorderWith(state: VoiceRecorder['state']): VoiceRecorder {
     start: vi.fn(async () => {}),
     stop: vi.fn(),
     discard: vi.fn(),
+    restore: vi.fn(),
   }
 }
 
@@ -807,6 +808,113 @@ describe('CommentComposer', () => {
         'OpenAI responded 401: invalid key',
       )
       expect(screen.getByRole('button', { name: 'Transcribe…' })).toBeTruthy()
+    })
+  })
+
+  describe('draft keeping', () => {
+    const transcript = {
+      raw: 'um the figure is wrong',
+      provider: 'openai/gpt-4o-transcribe',
+      transcribedAt: '2026-11-07T10:00:00.000Z',
+    }
+
+    it('reports its body as it changes', () => {
+      const onDraftChange = vi.fn()
+      render(
+        <CommentComposer
+          placement={placement}
+          mode="comment"
+          quote={null}
+          recorder={null}
+          transcribe={null}
+          onSave={async () => {}}
+          onCancel={() => {}}
+          onDraftChange={onDraftChange}
+        />,
+      )
+      expect(onDraftChange).toHaveBeenLastCalledWith({ body: '' })
+      fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+        target: { value: 'Check this' },
+      })
+      expect(onDraftChange).toHaveBeenLastCalledWith({ body: 'Check this' })
+    })
+
+    it('reopens with a restored draft, its notice and a way to discard it', () => {
+      const onDiscardDraft = vi.fn()
+      render(
+        <CommentComposer
+          placement={placement}
+          mode="comment"
+          quote={null}
+          recorder={null}
+          transcribe={null}
+          onSave={async () => {}}
+          onCancel={() => {}}
+          restored={{
+            body: 'Typed before the crash',
+            savedAt: '2026-11-07T09:58:12.000Z',
+          }}
+          onDraftChange={() => {}}
+          onDiscardDraft={onDiscardDraft}
+        />,
+      )
+      expect(screen.getByRole('textbox', { name: 'Comment' })).toHaveProperty(
+        'value',
+        'Typed before the crash',
+      )
+      expect(screen.getByRole('status').textContent).toContain(
+        'Draft restored (saved 2026-11-07 09:58 UTC)',
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+      expect(onDiscardDraft).toHaveBeenCalledTimes(1)
+    })
+
+    it('puts a restored transcript back on the restored recording', () => {
+      const onDraftChange = vi.fn()
+      const recording = {
+        blob: new Blob(['a']),
+        mimeType: 'audio/webm',
+        durationMs: 3000,
+        recordedAt: '2026-11-07T09:59:00.000Z',
+        url: 'blob:restored',
+      }
+      const props = {
+        placement,
+        mode: 'comment' as const,
+        quote: null,
+        transcribe: null,
+        onSave: async () => {},
+        onCancel: () => {},
+        restored: {
+          body: 'um the figure is wrong',
+          transcript,
+          savedAt: '2026-11-07T10:00:01.000Z',
+        },
+        onDraftChange,
+        onDiscardDraft: () => {},
+      }
+      const { rerender } = render(
+        <CommentComposer
+          {...props}
+          recorder={recorderWith({ status: 'idle' })}
+        />,
+      )
+      // The recording is not back yet: the stored transcript is not
+      // overwritten with "none".
+      expect(onDraftChange).not.toHaveBeenCalled()
+      rerender(
+        <CommentComposer
+          {...props}
+          recorder={recorderWith({ status: 'recorded', recording })}
+        />,
+      )
+      expect(
+        screen.getByText('Raw transcript (openai/gpt-4o-transcribe)'),
+      ).toBeTruthy()
+      expect(onDraftChange).toHaveBeenLastCalledWith({
+        body: 'um the figure is wrong',
+        transcript,
+      })
     })
   })
 })

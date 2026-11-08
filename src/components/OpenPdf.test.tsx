@@ -267,4 +267,39 @@ describe('OpenPdf', () => {
     expect(onDraftXml).toHaveBeenCalledWith(xml)
     expect(onFile).not.toHaveBeenCalled()
   })
+
+  it('offers Resume for a kept document, only on a tap', () => {
+    const onResume = vi.fn()
+    const onForget = vi.fn()
+    const onFile = vi.fn()
+    const resumable = {
+      documentId: 'a'.repeat(64),
+      name: 'thesis.pdf',
+      page: 12,
+      openedAt: '2026-11-07T09:41:00.000Z',
+    }
+    render(
+      <OpenPdf
+        {...props}
+        onFile={onFile}
+        resumable={resumable}
+        onResume={onResume}
+        onForget={onForget}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Resume' })
+    expect(section.textContent).toContain('at page 12')
+    expect(section.textContent).toContain('2026-11-07 09:41 UTC')
+    expect(onResume).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Resume thesis.pdf' }))
+    expect(onResume).toHaveBeenCalledWith(resumable)
+    fireEvent.click(screen.getByRole('button', { name: 'Forget it' }))
+    expect(onForget).toHaveBeenCalledWith(resumable)
+    expect(onFile).not.toHaveBeenCalled()
+  })
+
+  it('shows no Resume without a kept document', () => {
+    render(<OpenPdf {...props} resumable={null} onResume={vi.fn()} />)
+    expect(screen.queryByRole('region', { name: 'Resume' })).toBeNull()
+  })
 })

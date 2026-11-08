@@ -24,6 +24,21 @@ export interface CommentDraft {
 
 export type ComposerMode = 'comment' | 'suggestion'
 
+/** What the composer holds that a crash must not lose, besides the audio. */
+export interface ComposerSnapshot {
+  body: string
+  /** The raw transcript of the current recording. */
+  transcript?: Transcript
+  /** An accepted polish of that transcript. */
+  cleanUp?: CleanUpProposal
+}
+
+/** A draft kept from before the page went away, to show again. */
+export interface RestoredComposer extends ComposerSnapshot {
+  /** UTC ISO 8601, when the draft was last written. */
+  savedAt: string
+}
+
 interface CommentComposerProps {
   placement: ToolbarPlacement
   /** A comment says something about the passage; a suggestion replaces it. */
@@ -40,6 +55,12 @@ interface CommentComposerProps {
   autoTranscribe?: AutoTranscribeState | null
   onSave: (draft: CommentDraft) => Promise<void>
   onCancel: () => void
+  /** A draft from before a crash: the composer reopens with it. */
+  restored?: RestoredComposer | null
+  /** Called with the body, transcript and polish whenever they change. */
+  onDraftChange?: (snapshot: ComposerSnapshot) => void
+  /** Drops the restored draft and closes the composer. */
+  onDiscardDraft?: () => void
 }
 
 /** A transcription request for one recording, while it runs. */
@@ -83,10 +104,13 @@ export function CommentComposer({
   autoTranscribe = null,
   onSave,
   onCancel,
+  restored = null,
+  onDraftChange,
+  onDiscardDraft,
 }: CommentComposerProps) {
   const original = mode === 'suggestion' ? (quote ?? '') : null
   // A suggestion edits the original in place, Google Docs style.
-  const [body, setBody] = useState(original ?? '')
+  const [body, setBody] = useState(restored?.body ?? original ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [transcribed, setTranscribed] = useState<Transcribed | null>(null)
@@ -106,6 +130,29 @@ export function CommentComposer({
     transcript && recording && cleaned?.url === recording.url
       ? cleaned.proposal
       : null
+
+  // A restored transcript (and polish) belongs to the restored recording,
+  // which reaches the recorder after the first render: attach it to the
+  // first recording seen. Until then nothing is reported, so the stored
+  // transcript is not overwritten by "none yet".
+  const [pendingRestore, setPendingRestore] = useState(
+    restored?.transcript !== undefined,
+  )
+  if (pendingRestore && recording && restored?.transcript) {
+    setPendingRestore(false)
+    setTranscribed({ url: recording.url, transcript: restored.transcript })
+    if (restored.cleanUp) {
+      setCleaned({ url: recording.url, proposal: restored.cleanUp })
+    }
+  }
+
+  useEffect(() => {
+    if (pendingRestore || !onDraftChange) return
+    const snapshot: ComposerSnapshot = { body }
+    if (transcript) snapshot.transcript = transcript
+    if (accepted) snapshot.cleanUp = accepted
+    onDraftChange(snapshot)
+  }, [pendingRestore, onDraftChange, body, transcript, accepted])
 
   async function runCleanUp(current: Recording, raw: Transcript) {
     if (!cleanUp) return
@@ -248,6 +295,18 @@ export function CommentComposer({
       style={{ left: placement.left, top: placement.bottom }}
       onSubmit={submit}
     >
+      {restored && onDiscardDraft && (
+        <p className="comment-composer-restored" role="status">
+          <span>Draft restored (saved {formatUtc(restored.savedAt)}).</span>
+          <button
+            type="button"
+            onClick={onDiscardDraft}
+            disabled={saving || transcribing || cleaningUp}
+          >
+            Discard draft
+          </button>
+        </p>
+      )}
       {quote && (
         <blockquote
           className={`comment-composer-quote${mode === 'suggestion' ? ' is-original' : ''}`}
@@ -319,6 +378,11 @@ export function CommentComposer({
       </div>
     </form>
   )
+}
+
+/** "2026-11-07 10:00 UTC" from an ISO 8601 UTC timestamp. */
+function formatUtc(iso: string): string {
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`
 }
 
 function placeholderFor(mode: ComposerMode, hasRecorder: boolean): string {

@@ -74,7 +74,7 @@ describe('IndexedDB annotation store', () => {
       { ...comment, schemaVersion: 2 },
     ]
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 2)
+      const req = factory.open('test')
       req.onsuccess = () => {
         const tx = req.result.transaction('annotations', 'readwrite')
         for (const record of stored) tx.objectStore('annotations').put(record)
@@ -98,7 +98,7 @@ describe('IndexedDB annotation store', () => {
     const store = await openAnnotationStore('test', factory)
     // Write a bad record behind the store's back.
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 2)
+      const req = factory.open('test')
       req.onsuccess = () => {
         const tx = req.result.transaction('annotations', 'readwrite')
         tx.objectStore('annotations').put({
@@ -326,7 +326,7 @@ describe('IndexedDB write atomicity with audio', () => {
     const factory = new IDBFactory()
     const store = await openAnnotationStore('test', factory)
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 2)
+      const req = factory.open('test')
       req.onsuccess = () => {
         const tx = req.result.transaction('audio', 'readwrite')
         tx.objectStore('audio').put({ id: 'x', blob: 'not a blob' })

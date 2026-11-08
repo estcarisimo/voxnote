@@ -37,10 +37,14 @@ export interface AnnotationStore {
   close(): void
 }
 
-const DB_VERSION = 2
+export const DB_VERSION = 3
 const ANNOTATIONS = 'annotations'
 const AUDIO = 'audio'
 const BY_DOCUMENT = 'documentId'
+/** v3: crash recovery. See docs/design/crash-recovery.md. */
+export const DOCUMENTS = 'documents'
+export const SESSION = 'session'
+export const DRAFTS = 'drafts'
 
 export function openDatabase(
   dbName = 'voxnote',
@@ -57,6 +61,16 @@ export function openDatabase(
       }
       if (!db.objectStoreNames.contains(AUDIO)) {
         db.createObjectStore(AUDIO, { keyPath: 'id' })
+      }
+      // v3: crash recovery (documents, session, drafts).
+      if (!db.objectStoreNames.contains(DOCUMENTS)) {
+        db.createObjectStore(DOCUMENTS, { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains(SESSION)) {
+        db.createObjectStore(SESSION, { keyPath: 'key' })
+      }
+      if (!db.objectStoreNames.contains(DRAFTS)) {
+        db.createObjectStore(DRAFTS, { keyPath: 'documentId' })
       }
     }
     let settled = false
@@ -103,7 +117,7 @@ class IndexedDbAnnotationStore implements AnnotationStore {
   }
 
   list(documentId: string): Promise<Annotation[]> {
-    return this.run([ANNOTATIONS], 'readonly', (tx) =>
+    return runTransaction(this.db, [ANNOTATIONS], 'readonly', (tx) =>
       tx.objectStore(ANNOTATIONS).index(BY_DOCUMENT).getAll(documentId),
     ).then((stored: unknown[]) => {
       // Older records are upgraded in memory; the next write stores them in
@@ -151,14 +165,14 @@ class IndexedDbAnnotationStore implements AnnotationStore {
         return Promise.reject(new Error('Refusing to store empty audio'))
       }
     }
-    return this.run([ANNOTATIONS, AUDIO], 'readwrite', (tx) => {
+    return runTransaction(this.db, [ANNOTATIONS, AUDIO], 'readwrite', (tx) => {
       if (audio) tx.objectStore(AUDIO).put(audio)
       return tx.objectStore(ANNOTATIONS).put(annotation)
     }).then(() => undefined)
   }
 
   getAudio(id: string): Promise<AudioRecord | null> {
-    return this.run([AUDIO], 'readonly', (tx) =>
+    return runTransaction(this.db, [AUDIO], 'readonly', (tx) =>
       tx.objectStore(AUDIO).get(id),
     ).then((record: unknown) => {
       if (record === undefined) return null
@@ -170,7 +184,7 @@ class IndexedDbAnnotationStore implements AnnotationStore {
   }
 
   delete(id: string): Promise<void> {
-    return this.run([ANNOTATIONS, AUDIO], 'readwrite', (tx) => {
+    return runTransaction(this.db, [ANNOTATIONS, AUDIO], 'readwrite', (tx) => {
       tx.objectStore(AUDIO).delete(id)
       return tx.objectStore(ANNOTATIONS).delete(id)
     }).then(() => undefined)
@@ -179,54 +193,55 @@ class IndexedDbAnnotationStore implements AnnotationStore {
   close(): void {
     this.db.close()
   }
+}
 
-  /**
-   * Runs requests in one transaction; settles when it commits with the result
-   * of the request `operation` returned. Any request error aborts the
-   * transaction, so a multi-store write is all or nothing.
-   */
-  private run<T>(
-    stores: string[],
-    mode: IDBTransactionMode,
-    operation: (tx: IDBTransaction) => IDBRequest<T>,
-  ): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction(stores, mode)
-      let result: T | undefined
-      let settled = false
-      const fail = (error: Error) => {
-        if (settled) return
-        settled = true
-        reject(error)
-      }
-      let request: IDBRequest<T>
-      try {
-        request = operation(transaction)
-      } catch (err: unknown) {
-        // A request that throws synchronously (DataError, DataCloneError)
-        // leaves the earlier requests queued; without this the transaction
-        // would commit them alone.
-        transaction.abort()
-        fail(
-          new Error(
-            `IndexedDB ${mode} failed: ${err instanceof Error ? err.message : String(err)}`,
-          ),
-        )
-        return
-      }
-      request.onsuccess = () => {
-        result = request.result
-      }
-      request.onerror = () => fail(toError(request.error, mode))
-      transaction.onabort = () => fail(toError(transaction.error, 'abort'))
-      transaction.onerror = () => fail(toError(transaction.error, mode))
-      transaction.oncomplete = () => {
-        if (settled) return
-        settled = true
-        resolve(result as T)
-      }
-    })
-  }
+/**
+ * Runs requests in one transaction; settles when it commits with the result
+ * of the request `operation` returned. Any request error aborts the
+ * transaction, so a multi-store write is all or nothing.
+ */
+export function runTransaction<T>(
+  db: IDBDatabase,
+  stores: string[],
+  mode: IDBTransactionMode,
+  operation: (tx: IDBTransaction) => IDBRequest<T>,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(stores, mode)
+    let result: T | undefined
+    let settled = false
+    const fail = (error: Error) => {
+      if (settled) return
+      settled = true
+      reject(error)
+    }
+    let request: IDBRequest<T>
+    try {
+      request = operation(transaction)
+    } catch (err: unknown) {
+      // A request that throws synchronously (DataError, DataCloneError)
+      // leaves the earlier requests queued; without this the transaction
+      // would commit them alone.
+      transaction.abort()
+      fail(
+        new Error(
+          `IndexedDB ${mode} failed: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      )
+      return
+    }
+    request.onsuccess = () => {
+      result = request.result
+    }
+    request.onerror = () => fail(toError(request.error, mode))
+    transaction.onabort = () => fail(toError(transaction.error, 'abort'))
+    transaction.onerror = () => fail(toError(transaction.error, mode))
+    transaction.oncomplete = () => {
+      if (settled) return
+      settled = true
+      resolve(result as T)
+    }
+  })
 }
 
 function isAudioRecord(value: unknown): value is AudioRecord {

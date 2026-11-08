@@ -10,8 +10,23 @@ import { loadAnalytics } from './analytics'
 import { GitHubLink, REPOSITORY_URL } from './GitHubLink'
 import './OpenPdf.css'
 
+/** A document kept on this device that was open when the page went away. */
+export interface Resumable {
+  documentId: string
+  name: string
+  /** The PDF page that was in view; null for Markdown. */
+  page: number | null
+  /** UTC ISO 8601, when the session was last recorded. */
+  openedAt: string
+}
+
 interface OpenPdfProps {
   onFile: (file: File) => void
+  /** Offered as one tap to reopen; never reopened without that tap. */
+  resumable?: Resumable | null
+  onResume?: (target: Resumable) => void
+  /** Drops the kept copy and the session; annotations stay. */
+  onForget?: (target: Resumable) => void
   /** A PDF or Markdown file to download from that URL, straight from the browser. */
   onUrl: (url: URL) => void
   /** An Internet-Draft's XML source, to compile into a PDF after consent. */
@@ -58,7 +73,15 @@ function isStandalone(): boolean {
  * Landing view: pick a PDF or a Markdown file with the file dialog, or drop
  * one onto the page.
  */
-export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
+export function OpenPdf({
+  onFile,
+  resumable = null,
+  onResume,
+  onForget,
+  onUrl,
+  onDraftXml,
+  error,
+}: OpenPdfProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const xmlInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -124,6 +147,36 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
           Review a PDF or a Markdown document by highlighting, commenting and
           suggesting, by voice, without ever editing it.
         </p>
+
+        {resumable && onResume && (
+          <section className="open-pdf-resume" aria-label="Resume">
+            <button
+              type="button"
+              className="open-pdf-button"
+              onClick={() => onResume(resumable)}
+            >
+              Resume {resumable.name}
+            </button>
+            <p className="open-pdf-hint">
+              Open when this page last closed
+              {resumable.page !== null ? `, at page ${resumable.page}` : ''} (
+              {resumable.openedAt.slice(0, 10)}{' '}
+              {resumable.openedAt.slice(11, 16)} UTC). Kept in this browser.
+              {onForget && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="open-pdf-forget"
+                    onClick={() => onForget(resumable)}
+                  >
+                    Forget it
+                  </button>
+                </>
+              )}
+            </p>
+          </section>
+        )}
 
         <div className="open-pdf-action">
           <button
