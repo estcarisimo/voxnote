@@ -207,7 +207,11 @@ The review flow is select, act, export:
   read 2026-11-08 UTC). On the first save of each visit VoxNote asks the
   browser for persistent storage (`navigator.storage.persist()`); WebKit
   grants it by heuristics such as running as a Home Screen web app
-  ([WebKit, 2023-08-10](https://webkit.org/blog/14403/updates-to-storage-policy/)).
+  ([WebKit, 2023-08-10](https://webkit.org/blog/14403/updates-to-storage-policy/)),
+  Chromium decides from your history with the site without asking, and
+  Firefox shows a permission prompt
+  ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria), read 2026-11-08 UTC).
+  VoxNote asks once per visit and never waits on the answer.
   The landing shows whether storage is persistent and how much is used; a
   browser without the API is reported as such. On an iPad, add VoxNote to
   the Home Screen and export your notes from time to time.

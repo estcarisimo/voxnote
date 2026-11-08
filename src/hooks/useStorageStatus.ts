@@ -49,6 +49,11 @@ export function useStorageStatus(
       setStatus(outcome)
       return outcome
     })()
+    // A failed request is tried again on the next write. The caller still
+    // gets the rejection and reports it; this only drops the cached promise.
+    asked.current.catch(() => {
+      asked.current = null
+    })
     return asked.current
   }, [])
 

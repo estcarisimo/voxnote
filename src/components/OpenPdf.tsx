@@ -58,7 +58,7 @@ function StorageLine({ status }: { status: StorageStatus }) {
     : ''
   const mode =
     status.persistence === 'granted'
-      ? `Storage: persistent${asked}. This browser will not delete VoxNote's data on its own.`
+      ? `Storage: persistent${asked}. This browser has marked VoxNote's data as persistent, so it should not evict it to free space.`
       : status.persistence === 'denied'
         ? `Storage: best-effort${status.requested ? `, persistence refused${asked}` : ''}. The browser may delete VoxNote's data to free space; Safari deletes it after seven days of use without opening VoxNote, unless VoxNote is added to the Home Screen.`
         : "Storage: this browser offers no way to request persistent storage, so it may delete VoxNote's data; Safari does after seven days of use without opening VoxNote, unless VoxNote is added to the Home Screen."

@@ -316,7 +316,7 @@ describe('OpenPdf', () => {
       />,
     )
     expect(document.querySelector('.open-pdf-storage')?.textContent).toBe(
-      "Storage: persistent (asked 2026-11-08 01:02 UTC). This browser will not delete VoxNote's data on its own. Using 1.2 MB of about 10.0 GB.",
+      "Storage: persistent (asked 2026-11-08 01:02 UTC). This browser has marked VoxNote's data as persistent, so it should not evict it to free space. Using 1.2 MB of about 10.0 GB.",
     )
     rerender(
       <OpenPdf

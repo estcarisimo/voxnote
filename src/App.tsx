@@ -51,6 +51,7 @@ import {
   loadDocument,
   type PDFDocumentProxy,
 } from './core/pdf'
+import { keepOpenedDocument } from './core/keepDocument'
 import type { RecoveryStore } from './core/recoveryStore'
 import { fetchDocument } from './core/remotePdf'
 import { useAnnotations } from './hooks/useAnnotations'
@@ -111,6 +112,9 @@ function App() {
   const storage = useStorageStatus()
   // The document whose copy is kept: only it may be named by the session.
   const [keptId, setKeptId] = useState<string | null>(null)
+  // The open document's id, set in the same tick as open and close, for
+  // writes that finish after either.
+  const openIdRef = useRef<string | null>(null)
   useSessionPage(
     recovery.store,
     doc?.kind === 'pdf' && doc.id === keptId ? doc.id : null,
@@ -171,7 +175,7 @@ function App() {
   }
 
   /** Keeps the bytes and the session so a crash can be resumed. */
-  async function keepDocument(
+  function keepDocument(
     opened: OpenDocument,
     bytes: Uint8Array,
     mimeType: string,
@@ -179,48 +183,16 @@ function App() {
   ) {
     const store = recovery.store
     if (!store) return
-    const blob = new Blob([bytes as BlobPart], { type: mimeType })
-    try {
-      await store.putDocument({
-        id: opened.id,
-        name: opened.name,
-        mimeType,
-        blob,
-        size: blob.size,
-        openedAt: new Date().toISOString(),
-      })
-    } catch (err: unknown) {
-      let message = `"${opened.name}" is open, but a copy could not be kept on this device (${messageOf(err)}). If this tab crashes you will need to open the file again; your annotations are saved separately.`
-      // Resume must not offer the previous document instead.
-      try {
-        await store.clearSession()
-      } catch (clearErr: unknown) {
-        message += ` The previous session could not be cleared either (${messageOf(clearErr)}), so Resume may offer the document opened before this one.`
-      }
-      setError(message)
-      return
-    }
-    setKeptId(opened.id)
-    // The first write asks the browser not to evict what it just stored.
-    try {
-      const outcome = await storage.ensurePersistent()
-      if (outcome.persistence === 'unavailable') {
-        setError(
-          'This browser offers no way to request persistent storage (navigator.storage.persist is missing), so it may delete your annotations, recordings and kept documents. Safari does so after seven days of use without opening VoxNote, unless VoxNote is added to the Home Screen. Export your notes to keep a copy.',
-        )
-      }
-    } catch (err: unknown) {
-      setError(`Could not request persistent storage: ${messageOf(err)}`)
-    }
-    try {
-      await store.putSession({
-        documentId: opened.id,
-        page,
-        updatedAt: new Date().toISOString(),
-      })
-    } catch (err: unknown) {
-      setError(`Could not record the open document: ${messageOf(err)}`)
-    }
+    void keepOpenedDocument(
+      { id: opened.id, name: opened.name, mimeType, bytes, page },
+      {
+        store,
+        isStillOpen: () => openIdRef.current === opened.id,
+        ensurePersistent: storage.ensurePersistent,
+        onKept: setKeptId,
+        onError: setError,
+      },
+    )
   }
 
   async function resume(target: Resumable) {
@@ -318,13 +290,14 @@ function App() {
       transcription.finish(null)
       cleanUpFlow.finish(null)
       setArrivals({})
+      openIdRef.current = opened.id
       setDoc(opened)
       setSelectedId(null)
       setResumable(null)
       if (resumePage !== null && opened.kind === 'pdf') {
         scrollToPageWhenLaidOut(resumePage)
       }
-      void keepDocument(
+      keepDocument(
         opened,
         bytes,
         file.type || (markdown ? 'text/markdown' : 'application/pdf'),
@@ -355,6 +328,7 @@ function App() {
   }
 
   function closeDocument() {
+    openIdRef.current = null
     // Reopening the same document looks at its draft again.
     setToolSetFor(null)
     // A deliberate close is not a crash: nothing to resume next time.

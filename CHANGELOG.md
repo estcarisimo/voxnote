@@ -35,7 +35,8 @@ All notable changes to this project are documented here. The format follows
   it.
 - **Persistent storage.** The first write of each visit asks the browser not
   to evict VoxNote's data (`navigator.storage.persist()`, skipped when
-  already persistent); the landing shows the outcome and the usage from
+  already persistent, never awaited before the session is written since
+  Firefox may show a permission prompt; `src/core/keepDocument.ts`); the landing shows the outcome and the usage from
   `navigator.storage.estimate()` (`src/core/storagePersistence.ts`). A
   browser without the API is reported in the error banner instead of being
   treated as safe. The design note and README state Safari's seven-day

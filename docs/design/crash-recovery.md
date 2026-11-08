@@ -84,10 +84,17 @@ browsers keep in a _best-effort_ mode by default: they may delete it.
   like whether the website is opened as a Home Screen Web App"; without it
   an origin is in best-effort mode, where data can be evicted when the site
   has not been used for some time, under storage pressure or above quota
-  ([WebKit, 2023-08-10][wk-storage]). Read on 2026-11-08 (UTC). Chromium and
-  Firefox have their own heuristics; none is measured here.
+  ([WebKit, 2023-08-10][wk-storage]). Read on 2026-11-08 (UTC). Per MDN, "Safari and most
+  Chromium-based browsers … automatically approve or deny the request based
+  on the user's history of interaction with the site and do not show any
+  prompts", while in Firefox "the user is notified with a UI popup that their
+  permission is requested" ([MDN][mdn-quota], read 2026-11-08 UTC). None of
+  this is measured here.
 - **What VoxNote does.** The first write of a page load (keeping the opened
-  document) calls `persist()` unless `persisted()` is already true. The
+  document) calls `persist()` unless `persisted()` is already true, once per
+  page load (again only if the call failed). The session is written before
+  the request and never waits for it, since Firefox's prompt may stay
+  unanswered. The
   landing shows the outcome (persistent; best-effort with "persistence
   refused" and the UTC time it was asked; or no API) and the usage from
   `estimate()`, or says the browser gives no estimate. A browser without
@@ -96,6 +103,7 @@ browsers keep in a _best-effort_ mode by default: they may delete it.
 
 [wk-itp]: https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/
 [wk-storage]: https://webkit.org/blog/14403/updates-to-storage-policy/
+[mdn-quota]: https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria
 
 ## 5. Limits
 
