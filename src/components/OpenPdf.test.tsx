@@ -81,6 +81,18 @@ describe('OpenPdf', () => {
     expect(screen.getByRole('button', { name: 'Import notes…' })).toBeTruthy()
   })
 
+  it('sends whatever is picked in the notes picker to the import, never to open', () => {
+    const onFile = vi.fn()
+    const onImportNotes = vi.fn()
+    render(<OpenPdf {...props} onFile={onFile} onImportNotes={onImportNotes} />)
+    const pdf = pdfFile()
+    fireEvent.change(screen.getByLabelText('Notes file to import'), {
+      target: { files: [pdf] },
+    })
+    expect(onImportNotes).toHaveBeenCalledWith(pdf)
+    expect(onFile).not.toHaveBeenCalled()
+  })
+
   it('lists recent documents with UTC times and resumes the one tapped', () => {
     const onResume = vi.fn()
     const documents = [
@@ -108,8 +120,8 @@ describe('OpenPdf', () => {
       .getByRole('heading', { name: 'Continue a review' })
       .parentElement!.querySelectorAll('li')
     expect([...items].map((li) => li.textContent)).toEqual([
-      'paper.pdf3 annotations · last annotated 2026-11-07 18:04 UTCChoose file…',
-      'Unnamed document bbbbbbbb…1 annotation · last annotated 2026-10-01 00:00 UTCReopen',
+      'paper.pdf3 annotations · notes saved 2026-11-07 18:04 UTCChoose file…',
+      'Unnamed document bbbbbbbb…1 annotation · notes saved 2026-10-01 00:00 UTCReopen',
     ])
     fireEvent.click(screen.getByRole('button', { name: /paper\.pdf/ }))
     expect(onResume).toHaveBeenCalledWith(documents[0])

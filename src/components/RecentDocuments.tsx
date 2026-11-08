@@ -35,7 +35,7 @@ export function RecentDocuments({ documents, onResume }: RecentDocumentsProps) {
                 <span className="recent-documents-name">{name}</span>
                 <span className="recent-documents-meta">
                   {d.count} {d.count === 1 ? 'annotation' : 'annotations'} ·
-                  last annotated {formatUtc(d.lastAnnotatedAt)} UTC
+                  notes saved {formatUtc(d.lastAnnotatedAt)} UTC
                 </span>
                 <span className="recent-documents-action">
                   {d.stored ? 'Reopen' : 'Choose file…'}

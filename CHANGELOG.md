@@ -50,7 +50,7 @@ All notable changes to this project are documented here. The format follows
   this browser). Notes for a document that is not open are stored for it,
   and the summary offers to open that file. The landing lists the documents
   with notes in this browser (**Continue a review**: name, count, last
-  annotated time in UTC); tapping one asks for the file and says so if the
+  saved time in UTC); tapping one asks for the file and says so if the
   picked file's content differs. Domain: `src/core/importNotes.ts`
   (parse, validate, plan, merge), a `documentMeta` object store in
   `src/core/store.ts` (IndexedDB version 3; existing annotations are

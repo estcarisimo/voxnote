@@ -7,7 +7,7 @@
  * Three object stores: `annotations` (JSON records, indexed by document),
  * `audio` (one Blob per voice note, keyed by the annotation id) and
  * `documentMeta` (one small record per annotated document: its file name and
- * when it was last annotated, so the landing can say which file to reopen).
+ * when its notes were last written, so the landing can say which file to reopen).
  * A comment and its recording are written in one transaction so neither can
  * exist alone; every annotation write updates the document's meta record in
  * that same transaction.
@@ -322,7 +322,7 @@ class IndexedDbAnnotationStore implements AnnotationStore {
         const existing: unknown = request.result
         if (existing === undefined) return
         if (!isDocumentMeta(existing)) {
-          tx.abort()
+          abortBecause(tx, corruptMeta(existing))
           return
         }
         if (
@@ -412,6 +412,8 @@ class IndexedDbAnnotationStore implements AnnotationStore {
       let settled = false
       const fail = (error: Error) => {
         if (settled) return
+        // An abort on purpose says why, whichever event reports it first.
+        error = abortReasons.get(transaction) ?? error
         settled = true
         reject(error)
       }
@@ -434,7 +436,10 @@ class IndexedDbAnnotationStore implements AnnotationStore {
         result = request.result
       }
       request.onerror = () => fail(toError(request.error, mode))
-      transaction.onabort = () => fail(toError(transaction.error, 'abort'))
+      transaction.onabort = () =>
+        fail(
+          abortReasons.get(transaction) ?? toError(transaction.error, 'abort'),
+        )
       transaction.onerror = () => fail(toError(transaction.error, mode))
       transaction.oncomplete = () => {
         if (settled) return
@@ -443,6 +448,20 @@ class IndexedDbAnnotationStore implements AnnotationStore {
       }
     })
   }
+}
+
+/** Why a transaction was aborted on purpose; tx.error stays null then. */
+const abortReasons = new WeakMap<IDBTransaction, Error>()
+
+function abortBecause(tx: IDBTransaction, reason: Error) {
+  abortReasons.set(tx, reason)
+  tx.abort()
+}
+
+function corruptMeta(record: unknown): Error {
+  return new Error(
+    `Corrupt document record in IndexedDB: ${JSON.stringify(record)}`,
+  )
 }
 
 /**
@@ -468,7 +487,7 @@ function touchMeta(
     const stored: unknown = request.result
     if (stored !== undefined && !isDocumentMeta(stored)) {
       // Abort the whole write rather than overwrite a record we cannot read.
-      tx.abort()
+      abortBecause(tx, corruptMeta(stored))
       return
     }
     const existing = stored as DocumentMeta | undefined

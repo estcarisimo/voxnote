@@ -210,7 +210,8 @@ transcripts. Why JSON and not the annotated PDF, and what a future
 
 - **Local-first by default.** Annotations and recordings are stored in
   your browser's IndexedDB on this origin, with, for each document you
-  annotated, its file name, kind and the UTC time of its last annotation (for
+  annotated, its file name, kind and the UTC time its notes were last saved
+  (an edit or an import; for
   **Continue a review**). An imported notes file is merged there and not
   kept. The site has no server,
   and documents never leave the browser. A Markdown file's images are never

@@ -43,7 +43,8 @@ What this slice builds:
   version. Name, id, kind, page or block count and the UTC export time were
   already there. The reader accepts v1 and v2 files.
 - **Recent documents** on the landing: the documents with annotations in
-  this browser (name, last annotated time in UTC, count), so the user knows
+  this browser (name, count, and when its notes were last saved, in UTC: an edit or
+  an import), so the user knows
   which file to reopen. The name comes from a small `documentMeta` record
   (id, name, kind, lastAnnotatedAt) written in the same transaction as each
   annotation. Tapping an entry asks for the file; once crash recovery stores

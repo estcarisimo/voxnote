@@ -37,6 +37,7 @@ import type { HighlightColor } from './core/palette'
 import {
   exportJson,
   exportMarkdown,
+  validatedAndSorted,
   type ExportDocument,
 } from './core/exportNotes'
 import { exportAnnotatedPdf } from './core/exportPdf'
@@ -362,6 +363,7 @@ function App() {
         )
       }
       const notes = parseNotesFile(await file.text())
+      checkAgainstOpenDocument(notes)
       const existing = await storedAnnotationsOf(notes.document.id)
       setPendingImport({
         fileName: file.name,
@@ -370,6 +372,22 @@ function App() {
       })
     } catch (err: unknown) {
       setError(`Could not import "${file.name}": ${messageOf(err)}`)
+    }
+  }
+
+  /**
+   * The file is checked against the shape it declares; when its document is
+   * the open one, against the real page or block count and kind too, so a
+   * hand-edited file cannot store anchors the document does not have.
+   */
+  function checkAgainstOpenDocument(notes: NotesFile) {
+    if (!doc || doc.id !== notes.document.id) return
+    try {
+      validatedAndSorted(exportInfo(doc), notes.annotations)
+    } catch (err: unknown) {
+      throw new Error(
+        `the notes do not fit the open "${doc.name}": ${messageOf(err)}`,
+      )
     }
   }
 
@@ -399,6 +417,7 @@ function App() {
   ): Promise<ImportSummary> {
     const id = notes.document.id
     const open = docIdRef.current === id
+    if (open) checkAgainstOpenDocument(notes)
     const label = open && docLabel ? docLabel : labelOf(notes.document)
     const write = async (target: AnnotationStore) => {
       const plan = planMerge(await target.list(id), notes.annotations)

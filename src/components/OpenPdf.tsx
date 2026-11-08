@@ -185,8 +185,11 @@ export function OpenPdf({
             hidden
             aria-label="Notes file to import"
             onChange={(e) => {
-              accept(e.target.files)
+              // Straight to the import, whatever was picked: a PDF chosen
+              // here is refused as not a notes file, never opened.
+              const file = e.target.files?.[0]
               e.target.value = ''
+              if (file) onImportNotes(file)
             }}
           />
         </p>

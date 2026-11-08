@@ -492,9 +492,13 @@ describe('IndexedDB document meta', () => {
     )
     // A write for that document refuses to overwrite what it cannot read.
     const h = createHighlight({ documentId: 'x', anchor: region(1) })
-    await expect(store.put(h, undefined, pdf)).rejects.toThrow(/abort/)
+    await expect(store.put(h, undefined, pdf)).rejects.toThrow(
+      /Corrupt document record/,
+    )
     expect(await store.list('x')).toEqual([])
-    await expect(store.nameDocument('x', pdf)).rejects.toThrow(/abort/)
+    await expect(store.nameDocument('x', pdf)).rejects.toThrow(
+      /Corrupt document record/,
+    )
     store.close()
   })
 
