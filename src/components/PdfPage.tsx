@@ -38,6 +38,8 @@ interface PdfPageProps {
 }
 
 const MIN_REGION_PX = 6
+/** US Letter, 11 in over 8.5 in: the shape a page takes until measured. */
+const LETTER_ASPECT = 11 / 8.5
 /**
  * A page starts rendering only after it has stayed near the screen this
  * long, so a fast scroll does not paint every page it flies past.
@@ -84,7 +86,11 @@ export function PdfPage({
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textLayerRef = useRef<HTMLDivElement>(null)
-  const [height, setHeight] = useState<number>(Math.round(width * 1.294))
+  // Height over width of the page, Letter-shaped until measured. Kept as a
+  // ratio so a new width (a resize, a zoom) gives the new height in the
+  // same render, and the viewer can hold the scroll position in place.
+  const [aspect, setAspect] = useState(LETTER_ASPECT)
+  const height = Math.round(width * aspect)
   // False while the height is still the Letter-shaped estimate.
   const [sized, setSized] = useState(false)
   const [geometry, setGeometry] = useState<PageGeometry | null>(null)
@@ -102,7 +108,7 @@ export function PdfPage({
       .then((page) => {
         if (cancelled) return
         const unscaled = page.getViewport({ scale: 1 })
-        setHeight(Math.round((unscaled.height * width) / unscaled.width))
+        setAspect(unscaled.height / unscaled.width)
         setSized(true)
       })
       .catch((err: unknown) => {
@@ -112,7 +118,7 @@ export function PdfPage({
     return () => {
       cancelled = true
     }
-  }, [document, pageNumber, width])
+  }, [document, pageNumber])
 
   useEffect(() => {
     if (!active) return
