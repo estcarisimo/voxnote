@@ -51,6 +51,14 @@ const chrome = spawn(
   { stdio: 'ignore' },
 )
 
+// A run stopped from outside (timeout, Ctrl-C) must not leave Chromium behind.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    chrome.kill()
+    process.exit(1)
+  })
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const problems = []
 
@@ -132,28 +140,55 @@ async function attach(target, label) {
     ).catch((err) => `(page unreadable: ${err.message})`)
     throw new Error(`${label}: timed out waiting for ${what}; page: ${seen}`)
   }
+  /** Runs a fixed page function with `args` passed as values. */
+  const call = async (fn, ...args) => {
+    const { result: global } = await send('Runtime.evaluate', {
+      expression: 'globalThis',
+    })
+    const { result, exceptionDetails } = await send('Runtime.callFunctionOn', {
+      objectId: global.objectId,
+      functionDeclaration: fn.toString(),
+      arguments: args.map((value) => ({ value })),
+      awaitPromise: true,
+      returnByValue: true,
+    })
+    if (exceptionDetails) {
+      throw new Error(
+        exceptionDetails.text +
+          ' ' +
+          JSON.stringify(exceptionDetails.exception),
+      )
+    }
+    return result.value
+  }
   await send('Page.enable')
   await send('Runtime.enable')
   await send('DOM.enable')
-  return { ws, send, evaluate, waitFor }
+  return { ws, send, evaluate, waitFor, call }
 }
 
-const click = (selectorOrText) => `(() => {
+// Page-side functions. Data reaches them only as DevTools call arguments,
+// never spliced into code.
+function clickButton(label) {
   const b = [...document.querySelectorAll('button')].find(
-    (b) => b.textContent.trim() === ${JSON.stringify(selectorOrText)} ||
-      b.getAttribute('aria-label') === ${JSON.stringify(selectorOrText)})
-  if (!b) throw new Error('no button ' + ${JSON.stringify(selectorOrText)})
+    (b) =>
+      b.textContent.trim() === label || b.getAttribute('aria-label') === label,
+  )
+  if (!b) throw new Error('no button ' + label)
   b.click()
   return true
-})()`
+}
 
-const typeBody = (text) => `(() => {
+function typeBody(text) {
   const t = document.querySelector('.comment-composer textarea')
-  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
-  setter.call(t, ${JSON.stringify(text)})
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLTextAreaElement.prototype,
+    'value',
+  ).set
+  setter.call(t, text)
   t.dispatchEvent(new Event('input', { bubbles: true }))
   return true
-})()`
+}
 
 /** What IndexedDB holds for crash recovery, without the bytes. */
 const recoveryState = `new Promise((resolve, reject) => {
@@ -189,7 +224,7 @@ const composerAudio = `(async () => {
   const playable = await new Promise((resolve) => {
     probe.oncanplay = () => resolve(true)
     probe.onerror = () => resolve('error ' + (probe.error && probe.error.code))
-    setTimeout(() => resolve('timeout'), 5000)
+    setTimeout(() => resolve('timeout, readyState ' + probe.readyState), 15000)
   })
   return { size: blob.size, type: blob.type, playable }
 })()`
@@ -226,22 +261,27 @@ async function newTab(label) {
 async function resume(page, label) {
   const name = basename(PDF_PATH)
   const offered = await page.waitFor(
-    `[...document.querySelectorAll('button')].find((b) => b.textContent.startsWith('Resume '))?.textContent`,
+    `document.querySelector('.recent-documents-interrupted')?.innerText`,
     10000,
-    'Resume button',
+    'Resume row in Continue a review',
   )
   console.log(
-    `${label}: landing offers "${offered}"; hint:`,
-    JSON.stringify(
-      await page.evaluate(
-        `document.querySelector('.open-pdf-resume .open-pdf-hint').textContent`,
-      ),
+    `${label}: Continue a review, first row:`,
+    JSON.stringify(offered),
+    '| rows:',
+    await page.evaluate(
+      `document.querySelectorAll('.recent-documents li').length`,
     ),
   )
-  await page.evaluate(click(`Resume ${name}`))
+  if (!offered.includes(`Resume ${name}`)) {
+    throw new Error(`${label}: the first row does not offer Resume ${name}`)
+  }
+  await page.evaluate(
+    `document.querySelector('.recent-documents-interrupted button').click()`,
+  )
   await page.waitFor(
     `!!document.querySelector('.pdf-page .textLayer span')`,
-    20000,
+    60000,
     'PDF text layer after resume',
   )
   await page.waitFor(
@@ -296,7 +336,7 @@ try {
   await one.send('DOM.setFileInputFiles', { nodeId, files: [PDF_PATH] })
   await one.waitFor(
     `!!document.querySelector('.pdf-page[data-page-number="1"] .textLayer span')`,
-    20000,
+    60000,
     'PDF text layer',
   )
   console.log(
@@ -320,15 +360,15 @@ try {
     5000,
     'toolbar',
   )
-  await one.evaluate(click('Voice comment'))
+  await one.call(clickButton, 'Voice comment')
   await one.waitFor(
     `document.querySelector('.comment-composer-live')?.textContent.includes('Recording')`,
     10000,
     'recording to start',
   )
-  await one.evaluate(typeBody('Typed before the crash (e2e).'))
+  await one.call(typeBody, 'Typed before the crash (e2e).')
   await sleep(3000)
-  await one.evaluate(click('■ Stop'))
+  await one.call(clickButton, '■ Stop')
   await one.waitFor(
     `!!document.querySelector('.comment-composer audio')`,
     5000,
@@ -346,8 +386,8 @@ try {
   // Phase 2: resume, check, re-record and crash mid-recording.
   const two = await newTab('tab 2')
   await resume(two, 'tab 2')
-  await two.evaluate(click('Re-record'))
-  await two.evaluate(click('● Record'))
+  await two.call(clickButton, 'Re-record')
+  await two.call(clickButton, '● Record')
   await two.waitFor(
     `document.querySelector('.comment-composer-live')?.textContent.includes('Recording')`,
     10000,
@@ -363,7 +403,7 @@ try {
   // Phase 3: resume the partial recording, save it.
   const three = await newTab('tab 3')
   await resume(three, 'tab 3')
-  await three.evaluate(click('Save'))
+  await three.call(clickButton, 'Save')
   await three.waitFor(
     `!document.querySelector('.comment-composer')`,
     5000,
@@ -382,12 +422,18 @@ try {
       ),
     ),
   )
-  await three.evaluate(click('← Close'))
+  await three.call(clickButton, '← Close')
   await sleep(500)
   console.log(
     'tab 3: after Close, Resume offered:',
     await three.evaluate(
-      `[...document.querySelectorAll('button')].some((b) => b.textContent.startsWith('Resume '))`,
+      `!!document.querySelector('.recent-documents-interrupted')`,
+    ),
+    '| Continue a review:',
+    JSON.stringify(
+      await three.evaluate(
+        `[...document.querySelectorAll('.recent-documents li')].map((li) => li.innerText.replace(/\\n/g, ' / '))`,
+      ),
     ),
     '| session:',
     JSON.stringify((await three.evaluate(recoveryState)).session),

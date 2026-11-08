@@ -261,18 +261,21 @@ function App() {
     mimeType: string,
     page: number | null,
   ) {
-    const store = recovery.store
-    if (!store) return
-    void keepOpenedDocument(
-      { id: opened.id, name: opened.name, mimeType, bytes, page },
-      {
-        store,
-        isStillOpen: () => openIdRef.current === opened.id,
-        ensurePersistent: storage.ensurePersistent,
-        onKept: setKeptId,
-        onError: setError,
-      },
-    )
+    // The store may still be opening (a slow device): wait for it, so the
+    // first document of a visit is kept too. A failed open is already shown.
+    void recovery.whenOpen().then((store) => {
+      if (!store) return
+      void keepOpenedDocument(
+        { id: opened.id, name: opened.name, mimeType, bytes, page },
+        {
+          store,
+          isStillOpen: () => openIdRef.current === opened.id,
+          ensurePersistent: storage.ensurePersistent,
+          onKept: setKeptId,
+          onError: setError,
+        },
+      )
+    })
   }
 
   /** Reopens the document of an unclean exit, at its page. */
