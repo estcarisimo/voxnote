@@ -17,6 +17,7 @@ import type {
 import type { HighlightColor } from '../core/palette'
 import type { PDFDocumentProxy } from '../core/pdf'
 import { textAnchorFromRange } from '../core/selection'
+import { PAGE_ATTRIBUTE, useNearPages } from '../hooks/useNearPages'
 import type { AutoTranscribeState } from '../hooks/useTranscription'
 import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
 import type { CleanUpFn } from './CleanUpDialog'
@@ -62,6 +63,12 @@ interface PdfViewerProps {
 const PAGE_GUTTER = 24
 const MAX_PAGE_WIDTH = 900
 const SELECTION_SETTLE_MS = 120
+/**
+ * How far beyond the visible area pages keep a canvas and a text layer: one
+ * screen above and one below. Every other page is an empty box of the right
+ * size, so memory and render work follow the screen, not the page count.
+ */
+const RENDER_MARGIN = '100% 0px'
 
 interface PendingAnchor {
   /** The tool that was active when the anchor was read. */
@@ -105,6 +112,7 @@ export function PdfViewer({
   // the pen to lift instead of chasing every intermediate range.
   const penSelectingRef = useRef(false)
   const recorder = useVoiceRecorder()
+  const nearPages = useNearPages(containerRef, pdf.numPages, RENDER_MARGIN)
 
   // A tool switch drops whatever was pending: a region anchor must not
   // reappear later, and a composer must not survive hidden with its
@@ -129,15 +137,16 @@ export function PdfViewer({
 
   useImperativeHandle(ref, () => {
     function scrollToPage(page: number) {
-      geometries.current
-        .get(page)
-        ?.element.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      // Far pages have no geometry: they are not rendered.
+      containerRef.current
+        ?.querySelector(`[${PAGE_ATTRIBUTE}="${page}"]`)
+        ?.scrollIntoView({ block: 'start', behavior: 'smooth' })
     }
     return {
       scrollToPage,
       scrollToAnnotation(annotation) {
-        // Marks exist only for pages that have rendered; an unrendered page
-        // gets the page scroll instead, which makes its marks appear.
+        // Marks exist only for pages near the screen; a far page gets the
+        // page scroll instead, which renders it and makes its marks appear.
         const mark = containerRef.current?.querySelector(
           `[data-annotation-id="${annotation.id}"]`,
         )
@@ -265,6 +274,9 @@ export function PdfViewer({
 
   const pageNumbers = Array.from({ length: pdf.numPages }, (_, i) => i + 1)
   const pendingAnchor = shown && composer ? shown.anchor : null
+  // The page under the toolbar or composer stays rendered even when scrolled
+  // far away, so its selection and pending marks survive.
+  const heldPage = shown ? shown.anchor.page : null
 
   return (
     <div
@@ -278,6 +290,7 @@ export function PdfViewer({
           document={pdf}
           pageNumber={n}
           width={pageWidth}
+          active={nearPages.has(n) || n === heldPage}
           tool={tool}
           annotations={annotations.filter((a) => a.anchor.page === n)}
           selectedId={selectedId}

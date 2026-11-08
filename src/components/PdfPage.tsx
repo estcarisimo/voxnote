@@ -20,6 +20,12 @@ interface PdfPageProps {
   pageNumber: number
   /** CSS pixels of width the page should occupy. */
   width: number
+  /**
+   * Whether the page is near the screen. Only an active page holds a canvas
+   * and a text layer; an inactive one is an empty box of the page's size,
+   * and going inactive releases the canvas memory.
+   */
+  active: boolean
   tool: Tool
   annotations: readonly Annotation[]
   selectedId: string | null
@@ -32,6 +38,11 @@ interface PdfPageProps {
 }
 
 const MIN_REGION_PX = 6
+/**
+ * A page starts rendering only after it has stayed near the screen this
+ * long, so a fast scroll does not paint every page it flies past.
+ */
+export const RENDER_DELAY_MS = 80
 
 interface PenGesture {
   pointerId: number
@@ -61,6 +72,7 @@ export function PdfPage({
   document,
   pageNumber,
   width,
+  active,
   tool,
   annotations,
   selectedId,
@@ -79,7 +91,30 @@ export function PdfPage({
   const penRef = useRef<PenGesture | null>(null)
   const [penError, setPenError] = useState<string | null>(null)
 
+  // Every page, rendered or not, takes its real height, so the scroll
+  // position of a page does not move when the pages above it render.
   useEffect(() => {
+    let cancelled = false
+    document
+      .getPage(pageNumber)
+      .then((page) => {
+        if (cancelled) return
+        const unscaled = page.getViewport({ scale: 1 })
+        setHeight(Math.round((unscaled.height * width) / unscaled.width))
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : String(err))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [document, pageNumber, width])
+
+  useEffect(() => {
+    if (!active) return
+    const canvasElement = canvasRef.current
+    const textLayerElement = textLayerRef.current
     let cancelled = false
     let page: PDFPageProxy | null = null
     let renderTask: ReturnType<PDFPageProxy['render']> | null = null
@@ -92,7 +127,6 @@ export function PdfPage({
       const unscaled = page.getViewport({ scale: 1 })
       const scale = width / unscaled.width
       const viewport: PageViewport = page.getViewport({ scale })
-      setHeight(Math.round(viewport.height))
 
       const root = rootRef.current
       const canvas = canvasRef.current
@@ -110,6 +144,10 @@ export function PdfPage({
       context.setTransform(dpr, 0, 0, dpr, 0, 0)
 
       renderTask = page.render({ canvas, canvasContext: context, viewport })
+      // pdf.js draws in ~15 ms slices but chains them as microtasks, so a
+      // page is one long task. A macrotask between slices lets scrolling,
+      // input and the cancel of a page scrolled past get through.
+      renderTask.onContinue = yieldToBrowser
       await renderTask.promise
       if (cancelled) return
 
@@ -126,21 +164,32 @@ export function PdfPage({
       setGeometry(createPageGeometry(pageNumber, root, textLayerDiv, viewport))
     }
 
-    render().catch((err: unknown) => {
+    const start = setTimeout(() => {
+      render().catch(fail)
+    }, RENDER_DELAY_MS)
+    function fail(err: unknown) {
       // pdf.js rejects the previous render when a new one starts; that is
       // expected during resize and not an error worth surfacing.
       if (cancelled) return
       setError(err instanceof Error ? err.message : String(err))
-    })
+    }
 
     return () => {
       cancelled = true
+      clearTimeout(start)
       renderTask?.cancel()
       textLayer?.cancel()
       page?.cleanup()
       setGeometry(null)
+      // Zero-size backing store: the browser frees the pixels now instead
+      // of keeping them for a page that is off screen or about to redraw.
+      if (canvasElement) {
+        canvasElement.width = 0
+        canvasElement.height = 0
+      }
+      textLayerElement?.replaceChildren()
     }
-  }, [document, pageNumber, width])
+  }, [document, pageNumber, width, active])
 
   useEffect(() => {
     onGeometry(pageNumber, geometry)
@@ -284,7 +333,9 @@ export function PdfPage({
       data-page-number={pageNumber}
       style={{ width, height }}
     >
-      <canvas ref={canvasRef} />
+      {/* No backing store until the page renders: a bare canvas would hold
+          300 x 150 pixels on every page of the document. */}
+      <canvas ref={canvasRef} width={0} height={0} />
       <div className="highlightLayer" aria-hidden="true">
         {geometry &&
           annotations.map((a) => (
@@ -345,6 +396,10 @@ export function PdfPage({
       )}
     </div>
   )
+}
+
+function yieldToBrowser(next: () => void) {
+  setTimeout(next, 0)
 }
 
 /** Shows `range` as the document selection, or clears it for null. */
