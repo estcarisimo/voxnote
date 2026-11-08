@@ -12,28 +12,30 @@ All notable changes to this project are documented here. The format follows
   page at once: canvas, text layer and all. Now only pages within one screen
   of the viewport hold a canvas and a text layer (an IntersectionObserver in
   `src/hooks/useNearPages.ts`). A page starts drawing after it has been near
-  the screen for 80 ms, so a fast scroll skips the pages it passes. pdf.js's
-  render slices are split by a macrotask, so input gets through. A page that
-  goes far releases its canvas (zero-size backing store) and text layer.
+  the screen for 80 ms, so a fast scroll skips the pages it passes. (pdf.js
+  draws a page in ~15 ms slices, one per animation frame; with every page
+  drawing, all their slices shared each frame, which made a frame a
+  multi-second task.) A page that goes far releases its canvas (zero-size
+  backing store) and text layer.
   Every page still takes its real height, so scroll positions hold, and the
   page under an open toolbar or composer stays rendered. Measured with the
   new `scripts/perf-e2e.mjs` on 2026-11-08 (UTC) in headless Chromium 155
   (`--disable-gpu`), 1180 x 820 at devicePixelRatio 2, on RFC 9000 (151
-  pages), on a shared 8 GB Linux machine (load average 1.7 to 14.9 where
+  pages), on a shared 8 GB Linux machine (load average 1.6 to 14.9 where
   logged): five
-  runs of `main` (0d4dce2) and six of this change (three alternating with
-  `main`, one with the save count checked, two after merging `main`
-  42c65b2). Raw logs and setup: `docs/measurements/2026-11-08-pdf-freezes/`.
+  runs of `main` (0d4dce2) and eight of this change (three alternating
+  with `main`, one with the save count checked, two after merging `main`
+  42c65b2, two on the final code). Raw logs and setup: `docs/measurements/2026-11-08-pdf-freezes/`.
   With `main`, the renderer crashed during the fast scroll in 3 of 5 runs.
   Canvas backing stores reached 2,638 MB; the first readable page took 15.9
   to 24.2 s with a longest task of 5.0 to 8.2 s; the two runs that survived
   the fast scroll blocked the main thread for 238 s and 293 s. With this
   change, no run crashed; canvases use 35 MB (53 MB once highlights are
-  drawn); the first page is readable in 0.52 to 1.06 s, with a longest task
+  drawn); the first page is readable in 0.46 to 1.06 s, with a longest task
   of 53 to 84 ms; the fast scroll has 0 to 21 long tasks, the longest
   112 ms; and 30 highlights saved across the document (the header confirms
-  **Annotations (30)** in the three runs that checked it) take a median of
-  13 to 30 ms each, against 108 and 131 ms on the two `main` runs that got
+  **Annotations (30)** in the five runs that checked it) take a median of
+  13 to 38 ms each, against 108 and 131 ms on the two `main` runs that got
   that far. Markdown documents were not affected: a 7,864-line file showed
   no long task while scrolling, saving or exporting, before or after. Not
   yet checked on a real iPad.
