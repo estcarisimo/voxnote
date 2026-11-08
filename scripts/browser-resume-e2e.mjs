@@ -127,6 +127,28 @@ async function evaluate(expression) {
   return result.value
 }
 
+/**
+ * Calls a fixed page function with arguments passed as DevTools values, so
+ * data never becomes part of the code the page evaluates.
+ */
+async function callInPage(fn, ...args) {
+  const { result: global } = await send('Runtime.evaluate', {
+    expression: 'globalThis',
+  })
+  const { result, exceptionDetails } = await send('Runtime.callFunctionOn', {
+    objectId: global.objectId,
+    functionDeclaration: fn.toString(),
+    arguments: args.map((value) => ({ value })),
+    awaitPromise: true,
+    returnByValue: true,
+  })
+  if (exceptionDetails)
+    throw new Error(
+      exceptionDetails.text + ' ' + JSON.stringify(exceptionDetails.exception),
+    )
+  return result.value
+}
+
 async function waitFor(expression, timeoutMs, label) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -152,9 +174,17 @@ const annotationsButton = `[...document.querySelectorAll('header button')].find(
 const errorText = `document.querySelector('[role="alert"]')?.textContent ?? ''`
 const toolbar = `!!document.querySelector('[role="toolbar"][aria-label="Selection actions"]')`
 const click = (scope, text) =>
-  evaluate(
-    // Data reaches the evaluated code only as JSON literals, never raw.
-    `(() => { const b = [...document.querySelectorAll(${JSON.stringify(`${scope} button`)})].find(b => b.textContent === ${JSON.stringify(text)}); if (!b) throw new Error('no button ' + ${JSON.stringify(text)}); b.click(); return true })()`,
+  callInPage(
+    (scope, text) => {
+      const b = [...document.querySelectorAll(`${scope} button`)].find(
+        (b) => b.textContent === text,
+      )
+      if (!b) throw new Error('no button ' + text)
+      b.click()
+      return true
+    },
+    scope,
+    text,
   )
 
 async function openPdf() {
@@ -167,15 +197,25 @@ async function openPdf() {
 }
 
 /** Selects the first `n` characters of page `page`'s first text span. */
-const selectOnPage = (page, n) => `(() => {
-  const span = document.querySelectorAll('.pdf-page')[${JSON.stringify(Number(page) - 1)}].querySelector('.textLayer span')
-  span.scrollIntoView({ block: 'center' })
-  const text = span.firstChild
-  const range = document.createRange()
-  range.setStart(text, 0); range.setEnd(text, ${JSON.stringify(Number(n))})
-  const s = window.getSelection(); s.removeAllRanges(); s.addRange(range)
-  return range.toString()
-})()`
+const selectOnPage = (page, n) =>
+  callInPage(
+    (page, n) => {
+      const span = document
+        .querySelectorAll('.pdf-page')
+        [page - 1].querySelector('.textLayer span')
+      span.scrollIntoView({ block: 'center' })
+      const text = span.firstChild
+      const range = document.createRange()
+      range.setStart(text, 0)
+      range.setEnd(text, n)
+      const selection = window.getSelection()
+      selection.removeAllRanges()
+      selection.addRange(range)
+      return range.toString()
+    },
+    page,
+    n,
+  )
 
 try {
   await send('Page.enable')
@@ -195,7 +235,7 @@ try {
     'opened:',
     await evaluate(`document.querySelector('.app-title').textContent`),
   )
-  console.log('selected:', JSON.stringify(await evaluate(selectOnPage(1, 15))))
+  console.log('selected:', JSON.stringify(await selectOnPage(1, 15)))
   await waitFor(toolbar, 5000, 'toolbar')
   await click('[role="toolbar"]', 'Highlight')
   await waitFor(`(${annotationsButton}).includes('(1)')`, 5000, 'highlight')
@@ -206,7 +246,7 @@ try {
     20000,
     'page 2 text layer',
   )
-  console.log('selected:', JSON.stringify(await evaluate(selectOnPage(2, 15))))
+  console.log('selected:', JSON.stringify(await selectOnPage(2, 15)))
   await waitFor(toolbar, 5000, 'toolbar again')
   await click('[role="toolbar"]', 'Comment')
   await waitFor(
