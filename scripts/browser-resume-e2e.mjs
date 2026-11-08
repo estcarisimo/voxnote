@@ -153,7 +153,8 @@ const errorText = `document.querySelector('[role="alert"]')?.textContent ?? ''`
 const toolbar = `!!document.querySelector('[role="toolbar"][aria-label="Selection actions"]')`
 const click = (scope, text) =>
   evaluate(
-    `(() => { const b = [...document.querySelectorAll('${scope} button')].find(b => b.textContent === ${JSON.stringify(text)}); if (!b) throw new Error('no button ${text}'); b.click(); return true })()`,
+    // Data reaches the evaluated code only as JSON literals, never raw.
+    `(() => { const b = [...document.querySelectorAll(${JSON.stringify(`${scope} button`)})].find(b => b.textContent === ${JSON.stringify(text)}); if (!b) throw new Error('no button ' + ${JSON.stringify(text)}); b.click(); return true })()`,
   )
 
 async function openPdf() {
@@ -167,11 +168,11 @@ async function openPdf() {
 
 /** Selects the first `n` characters of page `page`'s first text span. */
 const selectOnPage = (page, n) => `(() => {
-  const span = document.querySelectorAll('.pdf-page')[${page - 1}].querySelector('.textLayer span')
+  const span = document.querySelectorAll('.pdf-page')[${JSON.stringify(Number(page) - 1)}].querySelector('.textLayer span')
   span.scrollIntoView({ block: 'center' })
   const text = span.firstChild
   const range = document.createRange()
-  range.setStart(text, 0); range.setEnd(text, ${n})
+  range.setStart(text, 0); range.setEnd(text, ${JSON.stringify(Number(n))})
   const s = window.getSelection(); s.removeAllRanges(); s.addRange(range)
   return range.toString()
 })()`
