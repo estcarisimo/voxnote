@@ -6,3 +6,58 @@
   background: #e9e9ee;
   -webkit-overflow-scrolling: touch;
 }
+
+/* The scroll container plus the zoom control floating over its corner. */
+.pdf-viewer-frame {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pdf-viewer-frame > .pdf-viewer {
+  min-height: 0;
+}
+
+.pdf-zoom {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--text-h);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.pdf-zoom > button {
+  font: inherit;
+  font-size: 1rem;
+  /* Comfortable target for a fingertip or a Pencil. */
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.pdf-zoom > button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.pdf-zoom > button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pdf-zoom > .pdf-zoom-level {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+}

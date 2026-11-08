@@ -56,6 +56,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Document zoom, apart from the browser's.** A floating control at the
+  viewer's bottom-right corner zooms the PDF out, in (50% to 400% of the
+  fit-to-width size, in 13 steps) or back to fit; Ctrl+wheel and a trackpad
+  pinch over the pages zoom the document instead of the whole page, and
+  Ctrl/Cmd with +, - or 0 do the same outside a text field. The point under
+  the cursor (or the viewport's center) stays put across a zoom (the math in
+  `src/core/zoom.ts`): a page's height now derives from its measured aspect
+  ratio in the same render as its width, so the scroll position can be
+  corrected before the browser paints. Highlights, the text layer and an
+  open composer follow their anchor to the new size; a pending selection
+  toolbar is dismissed, since its text selection does not survive the text
+  layer redrawing. Zooming in past the container's width scrolls
+  horizontally. The zoom is per open document and is not persisted.
 - **Crash recovery: a crashed or killed tab no longer means starting from
   zero.** Design note: `docs/design/crash-recovery.md` (what can be lost,
   and the decision for each). IndexedDB moves to version 4 (after
