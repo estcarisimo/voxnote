@@ -510,6 +510,8 @@ try {
   console.log('SUMMARY', LABEL)
   console.table(results)
   if (pageProblems.length) console.log('PAGE PROBLEMS', pageProblems)
+  // A failed step or a crash makes the run fail, after printing what it has.
+  if (pageProblems.length || results.some((r) => r.failed)) process.exitCode = 1
 } finally {
   ws.close()
   if (chrome.exitCode === null && chrome.signalCode === null) {

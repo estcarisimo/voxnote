@@ -333,12 +333,12 @@ describe('PdfViewer', () => {
   it('sizes pages from the measured width before the first paint', () => {
     const clientWidth = vi
       .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
-      .mockReturnValue(1000)
+      .mockReturnValue(700)
     try {
       setup()
-      // 1000 wide, no padding in jsdom, minus the 24 px gutters; capped at 900.
+      // 700 wide, no padding in jsdom, minus two 24 px gutters.
       expect(screen.getByTestId('page-1').getAttribute('data-width')).toBe(
-        '900',
+        '652',
       )
     } finally {
       clientWidth.mockRestore()
