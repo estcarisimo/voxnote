@@ -18,12 +18,14 @@ vi.mock('./PdfPage', async () => {
   function PdfPage({
     pageNumber,
     active,
+    width,
     onGeometry,
     onCreateRegion,
     pendingAnchor,
   }: {
     pageNumber: number
     active: boolean
+    width: number
     onGeometry: (page: number, g: PageGeometry | null) => void
     onCreateRegion: (anchor: RegionAnchor) => void
     pendingAnchor: RegionAnchor | null
@@ -50,6 +52,7 @@ vi.mock('./PdfPage', async () => {
         data-testid={`page-${pageNumber}`}
         data-page-number={pageNumber}
         data-active={active}
+        data-width={width}
       >
         {pendingAnchor && <span>pending on page {pendingAnchor.page}</span>}
         <button
@@ -325,5 +328,20 @@ describe('PdfViewer', () => {
     fireEvent.pointerDown(screen.getByTestId('page-3'))
     expect(screen.queryByRole('toolbar')).toBeNull()
     expect(active()).toEqual([3])
+  })
+
+  it('sizes pages from the measured width before the first paint', () => {
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockReturnValue(1000)
+    try {
+      setup()
+      // 1000 wide, no padding in jsdom, minus the 24 px gutters; capped at 900.
+      expect(screen.getByTestId('page-1').getAttribute('data-width')).toBe(
+        '900',
+      )
+    } finally {
+      clientWidth.mockRestore()
+    }
   })
 })

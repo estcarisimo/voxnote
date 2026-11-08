@@ -10,7 +10,8 @@
 //      WIDTH x HEIGHT of the window (default 1180 x 820, an iPad Air).
 // Needs /usr/bin/chromium.
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { once } from 'node:events'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -493,7 +494,7 @@ try {
   await step(IS_PDF ? 'export PDF' : 'export Markdown', async () => {
     const t0 = Date.now()
     await evaluate(
-      `[...document.querySelectorAll('[aria-label="Export"] button')].find(b => b.textContent.includes('${IS_PDF ? 'PDF' : 'Markdown'}')).click()`,
+      `[...document.querySelectorAll('[role="group"][aria-label^="Export"] button')].find(b => b.textContent.includes('${IS_PDF ? 'PDF' : 'Markdown'}')).click()`,
     )
     const start = Date.now()
     while (
@@ -511,5 +512,12 @@ try {
   if (pageProblems.length) console.log('PAGE PROBLEMS', pageProblems)
 } finally {
   ws.close()
-  chrome.kill()
+  if (chrome.exitCode === null && chrome.signalCode === null) {
+    const exited = once(chrome, 'exit')
+    chrome.kill()
+    await exited
+  }
+  // A profile and its caches run to tens of MB per run; keep /tmp clean.
+  rmSync(PROFILE_DIR, { recursive: true, force: true })
+  rmSync(DOWNLOADS, { recursive: true, force: true })
 }
