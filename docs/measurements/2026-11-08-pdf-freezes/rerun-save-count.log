@@ -1,0 +1,23 @@
+{"label":"after-r2","file":"<scratch>/data/rfc9000.pdf","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T01:19:05.655Z"}
+{"step":"open","elapsedMs":1064,"longTasks":5,"longTaskMs":351,"maxTaskMs":84,"maxFrameGapMs":117,"canvases":3,"canvasMB":35.1,"jsHeapMB":9.5,"domNodes":824,"titleMs":286,"firstPageMs":1063}
+{"step":"input latency after open","elapsedMs":2,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":3,"canvasMB":35.1,"jsHeapMB":9.5,"domNodes":824,"evalRoundTripMs":2}
+{"step":"scroll fast through all pages","elapsedMs":10503,"longTasks":21,"longTaskMs":1513,"maxTaskMs":112,"maxFrameGapMs":167,"canvases":3,"canvasMB":35.1,"jsHeapMB":8.9,"domNodes":824,"frames":302,"page1ReadyMs":253}
+{"step":"resize window","elapsedMs":303,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":67,"canvases":3,"canvasMB":32.7,"jsHeapMB":10.4,"domNodes":824}
+{"step":"pen-select text","elapsedMs":854,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":3,"canvasMB":35.1,"jsHeapMB":12.7,"domNodes":836,"toolbarAfterLiftMs":207,"selected":29}
+{"step":"save 30 highlights","elapsedMs":17876,"longTasks":35,"longTaskMs":2442,"maxTaskMs":88,"maxFrameGapMs":100,"canvases":4,"canvasMB":52.6,"jsHeapMB":10,"domNodes":1384,"maxSaveMs":47,"medianSaveMs":23}
+{"step":"export PDF","elapsedMs":1440,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":4,"canvasMB":52.6,"jsHeapMB":34.3,"domNodes":1384,"downloadMs":1440,"file":"rfc9000-voxnote.pdf"}
+SUMMARY after-r2
+{"label":"before-r2-1","file":"<scratch>/data/rfc9000.pdf","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T01:19:43.033Z"}
+{"step":"open","elapsedMs":16291,"longTasks":57,"longTaskMs":14501,"maxTaskMs":5031,"maxFrameGapMs":6183,"canvases":152,"canvasMB":2637.9,"jsHeapMB":22.2,"domNodes":21409,"titleMs":188,"firstPageMs":16291}
+{"step":"input latency after open","elapsedMs":9,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":152,"canvasMB":2637.9,"jsHeapMB":22.2,"domNodes":21409,"evalRoundTripMs":9}
+{"event":"Inspector.targetCrashed","at":"scroll fast through all pages"}
+{"label":"before-r2-2","file":"<scratch>/data/rfc9000.pdf","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T01:34:44.031Z"}
+{"step":"open","elapsedMs":15902,"longTasks":42,"longTaskMs":11896,"maxTaskMs":5489,"maxFrameGapMs":6183,"canvases":152,"canvasMB":2637.9,"jsHeapMB":27.8,"domNodes":21409,"titleMs":1303,"firstPageMs":15902}
+{"step":"input latency after open","elapsedMs":11,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":152,"canvasMB":2637.9,"jsHeapMB":27.9,"domNodes":21409,"evalRoundTripMs":3}
+{"step":"scroll fast through all pages","elapsedMs":296529,"longTasks":302,"longTaskMs":292744,"maxTaskMs":7721,"maxFrameGapMs":7450,"canvases":152,"canvasMB":2637.9,"jsHeapMB":28.3,"domNodes":21409,"frames":302,"page1ReadyMs":154}
+{"step":"resize window","elapsedMs":2612,"longTasks":29,"longTaskMs":8664,"maxTaskMs":2526,"maxFrameGapMs":2833,"canvases":152,"canvasMB":2458.9,"jsHeapMB":71.2,"domNodes":21409}
+{"step":"pen-select text","elapsedMs":6541,"longTasks":27,"longTaskMs":2513,"maxTaskMs":666,"maxFrameGapMs":800,"canvases":152,"canvasMB":2637.9,"jsHeapMB":25.8,"domNodes":21421,"toolbarAfterLiftMs":267,"selected":80}
+{"step":"save 30 highlights","elapsedMs":40307,"longTasks":123,"longTaskMs":32063,"maxTaskMs":1751,"maxFrameGapMs":1717,"canvases":152,"canvasMB":2637.9,"jsHeapMB":30.2,"domNodes":21439,"maxSaveMs":564,"medianSaveMs":131}
+{"step":"export PDF","elapsedMs":5156,"longTasks":19,"longTaskMs":1807,"maxTaskMs":227,"maxFrameGapMs":1567,"canvases":152,"canvasMB":2637.9,"jsHeapMB":28,"domNodes":21439,"downloadMs":5140,"file":"rfc9000-voxnote.pdf"}
+SUMMARY before-r2-2
+DONE

@@ -1,0 +1,4 @@
+2026-11-08T02:03:32Z
+ablation: fd5a99e with the data-sized wait disabled
+{"app":"http://[::1]:4191/voxnote/","target":50,"inViewBeforeReload":50,"inViewAfterResume":31}
+{"app":"http://[::1]:4191/voxnote/","target":50,"inViewBeforeReload":50,"inViewAfterResume":39}

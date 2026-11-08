@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { RegionAnchor } from '../core/annotations'
 import type { PDFDocumentProxy } from '../core/pdf'
@@ -17,11 +17,15 @@ vi.mock('./PdfPage', async () => {
   const { useEffect } = await import('react')
   function PdfPage({
     pageNumber,
+    active,
+    width,
     onGeometry,
     onCreateRegion,
     pendingAnchor,
   }: {
     pageNumber: number
+    active: boolean
+    width: number
     onGeometry: (page: number, g: PageGeometry | null) => void
     onCreateRegion: (anchor: RegionAnchor) => void
     pendingAnchor: RegionAnchor | null
@@ -44,7 +48,12 @@ vi.mock('./PdfPage', async () => {
       return () => onGeometry(pageNumber, null)
     }, [pageNumber, onGeometry])
     return (
-      <div data-testid={`page-${pageNumber}`}>
+      <div
+        data-testid={`page-${pageNumber}`}
+        data-page-number={pageNumber}
+        data-active={active}
+        data-width={width}
+      >
         {pendingAnchor && <span>pending on page {pendingAnchor.page}</span>}
         <button
           type="button"
@@ -79,6 +88,33 @@ vi.stubGlobal(
   'ResizeObserver',
   class {
     observe() {}
+    disconnect() {}
+  },
+)
+
+// jsdom has no IntersectionObserver; useNearPages has its own tests. This
+// one lets a test report which pages are near the screen.
+let reportNear: (changes: Record<number, boolean>) => void = () => {}
+vi.stubGlobal(
+  'IntersectionObserver',
+  class {
+    observed: Element[] = []
+    constructor(
+      callback: (entries: Partial<IntersectionObserverEntry>[]) => void,
+    ) {
+      reportNear = (changes) =>
+        act(() =>
+          callback(
+            Object.entries(changes).map(([page, isIntersecting]) => ({
+              target: this.observed[Number(page) - 1],
+              isIntersecting,
+            })),
+          ),
+        )
+    }
+    observe(element: Element) {
+      this.observed.push(element)
+    }
     disconnect() {}
   },
 )
@@ -258,6 +294,54 @@ describe('PdfViewer', () => {
       expect(scrolled[1]).toBe(mark)
     } finally {
       Element.prototype.scrollIntoView = original
+    }
+  })
+
+  it('renders only pages near the screen, plus the page under the toolbar', () => {
+    render(
+      <PdfViewer
+        document={{ numPages: 3 } as unknown as PDFDocumentProxy}
+        tool="region"
+        annotations={[]}
+        selectedId={null}
+        highlightColor="yellow"
+        onHighlightColorChange={vi.fn()}
+        onCreateHighlight={vi.fn()}
+        onCreateNote={vi.fn(async () => {})}
+        transcribe={null}
+      />,
+    )
+    const active = () =>
+      [1, 2, 3].filter(
+        (n) =>
+          screen.getByTestId(`page-${n}`).getAttribute('data-active') ===
+          'true',
+      )
+    expect(active()).toEqual([])
+    reportNear({ 1: true, 2: true })
+    expect(active()).toEqual([1, 2])
+
+    // A region on page 2 keeps it rendered after it scrolls far away.
+    fireEvent.click(screen.getByText('drag region 2'))
+    reportNear({ 1: false, 2: false, 3: true })
+    expect(active()).toEqual([2, 3])
+    fireEvent.pointerDown(screen.getByTestId('page-3'))
+    expect(screen.queryByRole('toolbar')).toBeNull()
+    expect(active()).toEqual([3])
+  })
+
+  it('sizes pages from the measured width before the first paint', () => {
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockReturnValue(700)
+    try {
+      setup()
+      // 700 wide, no padding in jsdom, minus two 24 px gutters.
+      expect(screen.getByTestId('page-1').getAttribute('data-width')).toBe(
+        '652',
+      )
+    } finally {
+      clientWidth.mockRestore()
     }
   })
 })

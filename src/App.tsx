@@ -955,12 +955,19 @@ async function findResumable(store: RecoveryStore): Promise<Resumable | null> {
 }
 
 /**
- * Brings a page into view once the viewer has laid it out: pages exist as
- * sized placeholders before they render, so this waits only for the mount.
+ * Brings a page into view once the viewer has laid it out: pages render
+ * only near the screen, but the target page and every page above it take
+ * real height first (`data-sized`), so this waits for those heights and not
+ * for any drawing.
  */
 function scrollToPageWhenLaidOut(page: number, framesLeft = 120) {
   const element = document.querySelector(`[data-page-number="${page}"]`)
-  if (element) {
+  const pending = [
+    ...document.querySelectorAll<HTMLElement>(
+      '[data-page-number]:not([data-sized])',
+    ),
+  ].some((p) => Number(p.dataset.pageNumber) <= page)
+  if (element && (!pending || framesLeft === 0)) {
     element.scrollIntoView({ block: 'start' })
     return
   }

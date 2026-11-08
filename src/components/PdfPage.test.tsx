@@ -16,6 +16,7 @@ function renderPage(tool: Tool = 'select') {
       document={pendingDocument}
       pageNumber={1}
       width={600}
+      active
       tool={t}
       annotations={[]}
       selectedId={null}

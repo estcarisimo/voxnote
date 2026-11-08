@@ -1,0 +1,22 @@
+load: 1.87 1.70 2.42
+{"label":"no-hop-1","file":"<scratch>/data/rfc9000.pdf","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T02:20:43.436Z"}
+{"step":"open","elapsedMs":460,"longTasks":1,"longTaskMs":63,"maxTaskMs":63,"maxFrameGapMs":67,"canvases":3,"canvasMB":35.1,"jsHeapMB":10.3,"domNodes":827,"titleMs":170,"firstPageMs":460}
+{"step":"input latency after open","elapsedMs":5,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":3,"canvasMB":35.1,"jsHeapMB":10.3,"domNodes":827,"evalRoundTripMs":4}
+{"step":"scroll fast through all pages","elapsedMs":5367,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":50,"canvases":3,"canvasMB":35.1,"jsHeapMB":8.5,"domNodes":827,"frames":302,"page1ReadyMs":235}
+{"step":"resize window","elapsedMs":302,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":3,"canvasMB":32.7,"jsHeapMB":10.2,"domNodes":827}
+{"step":"pen-select text","elapsedMs":2817,"longTasks":3,"longTaskMs":177,"maxTaskMs":61,"maxFrameGapMs":83,"canvases":3,"canvasMB":35.1,"jsHeapMB":10.7,"domNodes":839,"toolbarAfterLiftMs":214,"selected":80}
+{"step":"save 30 highlights","elapsedMs":17879,"longTasks":33,"longTaskMs":2247,"maxTaskMs":85,"maxFrameGapMs":100,"canvases":4,"canvasMB":52.6,"jsHeapMB":14.6,"domNodes":1387,"maxSaveMs":56,"medianSaveMs":38}
+{"step":"export PDF","elapsedMs":1557,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":4,"canvasMB":52.6,"jsHeapMB":25.2,"domNodes":1387,"downloadMs":1557,"file":"rfc9000-voxnote.pdf"}
+SUMMARY no-hop-1
+exit 0
+load: 1.64 1.69 2.39
+{"label":"no-hop-2","file":"<scratch>/data/rfc9000.pdf","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T02:21:18.973Z"}
+{"step":"open","elapsedMs":488,"longTasks":1,"longTaskMs":77,"maxTaskMs":77,"maxFrameGapMs":83,"canvases":3,"canvasMB":35.1,"jsHeapMB":10.3,"domNodes":827,"titleMs":164,"firstPageMs":488}
+{"step":"input latency after open","elapsedMs":2,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":3,"canvasMB":35.1,"jsHeapMB":10.3,"domNodes":827,"evalRoundTripMs":2}
+{"step":"scroll fast through all pages","elapsedMs":5472,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":67,"canvases":3,"canvasMB":35.1,"jsHeapMB":9.4,"domNodes":827,"frames":302,"page1ReadyMs":245}
+{"step":"resize window","elapsedMs":304,"longTasks":1,"longTaskMs":53,"maxTaskMs":53,"maxFrameGapMs":67,"canvases":3,"canvasMB":32.7,"jsHeapMB":11,"domNodes":827}
+{"step":"pen-select text","elapsedMs":881,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":3,"canvasMB":35.1,"jsHeapMB":13.7,"domNodes":839,"toolbarAfterLiftMs":217,"selected":29}
+{"step":"save 30 highlights","elapsedMs":18061,"longTasks":32,"longTaskMs":2222,"maxTaskMs":89,"maxFrameGapMs":100,"canvases":4,"canvasMB":52.6,"jsHeapMB":14.6,"domNodes":1387,"maxSaveMs":60,"medianSaveMs":38}
+{"step":"export PDF","elapsedMs":1442,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":4,"canvasMB":52.6,"jsHeapMB":25.1,"domNodes":1387,"downloadMs":1442,"file":"rfc9000-voxnote.pdf"}
+SUMMARY no-hop-2
+exit 0

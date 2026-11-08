@@ -421,13 +421,17 @@ npm run format         # Prettier (also formats Markdown); format:check in CI
 npm run build          # typecheck + production build
 ```
 
-Two manual browser checks, not part of `npm test`, drive headless Chromium
+Three manual browser checks, not part of `npm test`, drive headless Chromium
 over the DevTools protocol against the production build
 (`npm run build && npm run preview`): `scripts/browser-e2e.mjs` for opening
-a PDF from a link and an Internet-Draft's XML, and
+a PDF from a link and an Internet-Draft's XML,
 `scripts/browser-markdown-e2e.mjs <file.md>` for the Markdown flow (open,
-highlight, comment, export, reload and find the annotations again). Each
-prints what it saw and every console error.
+highlight, comment, export, reload and find the annotations again), and
+`scripts/perf-e2e.mjs <file.pdf|file.md>` for main-thread blocking while
+reviewing a large document (long tasks, frame gaps and canvas memory while
+opening, scrolling, pen-selecting, saving highlights and exporting; set
+`PROFILE=<step>` for a CPU profile of one step). Each prints what it saw and
+every console error.
 
 Tests sit next to the code as `*.test.ts(x)`. CI runs lint, format,
 typecheck-and-build, tests and `npm audit` on every push and pull request;

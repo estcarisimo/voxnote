@@ -1,0 +1,27 @@
+PROFILE (self ms)
+   29187 (program) :-1
+    3119 setTransform :-1
+    2657 (idle) :-1
+    2156 fillText :-1
+    1323 next :7
+    1154 (anonymous) index-DJmGEKu1.js:145
+     498 #u index-DJmGEKu1.js:135
+     349 postMessage :-1
+     328 measureText :-1
+     326 (garbage collector) :-1
+     245 showText index-DJmGEKu1.js:135
+     204 executeOperatorList index-DJmGEKu1.js:135
+     200 #T index-DJmGEKu1.js:135
+     147 setFont index-DJmGEKu1.js:135
+     109 setProperty :-1
+      97 requestAnimationFrame :-1
+      89 save :-1
+      87 Hd index-DJmGEKu1.js:145
+      83 Pl index-DJmGEKu1.js:7
+      71 #E index-DJmGEKu1.js:135
+      65 replaceChildren :-1
+      64 append :-1
+      55 getContext :-1
+      54 pp index-DJmGEKu1.js:8
+      49 restore :-1
+{"step":"scroll fast through all pages","elapsedMs":42278,"longTasks":310,"longTaskMs":31551,"maxTaskMs":240,"maxFrameGapMs":267,"canvases":3,"canvasMB":35.1,"jsHeapMB":9,"domNodes":824,"frames":302}
