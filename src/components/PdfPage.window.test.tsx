@@ -134,18 +134,4 @@ describe('PdfPage render window', () => {
     await new Promise((r) => setTimeout(r, RENDER_DELAY_MS * 2))
     expect(page.render).not.toHaveBeenCalled()
   })
-
-  it('yields to the browser between render slices', async () => {
-    const { document, renders } = fakeDocument()
-    const { onGeometry } = renderPage(document, true)
-    await waitFor(() => expect(lastGeometry(onGeometry)).not.toBeNull())
-    const task = renders[0] as unknown as {
-      onContinue?: (next: () => void) => void
-    }
-    expect(task.onContinue).toBeTypeOf('function')
-    const next = vi.fn()
-    task.onContinue!(next)
-    expect(next).not.toHaveBeenCalled()
-    await waitFor(() => expect(next).toHaveBeenCalledTimes(1))
-  })
 })

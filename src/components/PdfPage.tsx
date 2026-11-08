@@ -147,10 +147,6 @@ export function PdfPage({
       context.setTransform(dpr, 0, 0, dpr, 0, 0)
 
       renderTask = page.render({ canvas, canvasContext: context, viewport })
-      // pdf.js draws in ~15 ms slices but chains them as microtasks, so a
-      // page is one long task. A macrotask between slices lets scrolling,
-      // input and the cancel of a page scrolled past get through.
-      renderTask.onContinue = yieldToBrowser
       await renderTask.promise
       if (cancelled) return
 
@@ -405,10 +401,6 @@ export function PdfPage({
       )}
     </div>
   )
-}
-
-function yieldToBrowser(next: () => void) {
-  setTimeout(next, 0)
 }
 
 /** Shows `range` as the document selection, or clears it for null. */
