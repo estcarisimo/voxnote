@@ -184,20 +184,27 @@ The review flow is select, act, export:
 
 ### Continuing a review
 
-Keep two files: the original PDF or Markdown file, and its
-`<name>.voxnote.json` from **JSON**. To continue in another browser or on
-another device, open VoxNote, use **Import notes…** (on the landing or next
-to the exports) with the JSON, then open the same file: notes are matched to
-it by the SHA-256 of its content, so a renamed copy works and an edited one
-does not. In the same browser you need nothing extra: **Continue a review**
-on the landing lists the documents with notes here, and reopening the file
-brings them back.
+You annotate a PDF, tap **JSON** to download `<name>.voxnote.json`, and
+three days later want to carry on, maybe on another device or browser:
+open VoxNote there, open the same PDF, tap **Import notes…** (next to the
+exports, or on the landing) and pick that JSON, and continue where you were.
+In the same browser you need nothing at all: reopening the file restores
+everything from this browser's storage, and **Continue a review** on the
+landing lists the documents you have notes for.
+
+Two cases do not work. A different browser or device **without the
+export**: notes live only in the browser where you made them, so keep the
+JSON. And **a new version of the PDF**: notes are matched to the file by
+the SHA-256 of its bytes, so an edited or regenerated file (different
+bytes, different hash) is a different document; carrying notes across
+versions is out of scope. A renamed copy of the same file works.
 
 An import never overwrites silently: identical notes are skipped, new ones
 added, and for a note that differs you choose to keep yours or take the
 file's. Recordings are not in the JSON; voice notes come back with their
 transcripts. Why JSON and not the annotated PDF, and what a future
-`.voxnote` package with audio would add: [docs/design/resume-review.md](docs/design/resume-review.md).
+`.voxnote` package with audio would add:
+[docs/design/resume-review.md](docs/design/resume-review.md).
 
 ## 🔐 Privacy and keys
 
