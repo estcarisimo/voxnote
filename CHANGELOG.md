@@ -8,6 +8,28 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Text selection and highlights line up on pages with a `/Rotate` entry.**
+  pdf.js places every text layer span in the unrotated page frame and turns
+  the whole layer with three stylesheet rules keyed on the
+  `data-main-rotation` attribute it writes on the layer;
+  `src/components/PdfPage.css` had no copy of them, so on a page stored
+  sideways the canvas was drawn rotated and the text layer was not: no span
+  sat on its glyphs, a selection ran across other lines, and a highlight
+  landed away from the text. The stylesheet now carries pdf.js's three
+  rules, scoped to the page's text layer, with the same values. The
+  selection-to-PDF mapping (`src/components/geometry.ts`) already followed
+  the page's rotation through the viewport, now covered by a test with a
+  `/Rotate 90` page. Measured with `scripts/browser-text-layer-e2e.mjs`,
+  which now maps each printed item through the rotated viewport, on
+  2026-11-08 (UTC) in headless Chromium 155 against `npm run dev`, on the
+  four-page PDF from the new `scripts/rotated-pages-pdf.mjs` (six lines a
+  page, `/Rotate` 0, 90, 180 and 270): before, on the pages rotated 90 and
+  270 the median span was 94 % shorter along the text than its glyphs and
+  the worst span started 367 % and 600 % of its length away from them; at
+  180 the lengths were right and the worst span started 321 % away. After,
+  on every page the worst length error is 0.1 % and the worst start offset
+  0.3 % of the text length; the unrotated page is unchanged (0.1 % and
+  0.0 %). Logs: `docs/measurements/2026-11-08-rotated-text-layer/`.
 - **Highlights on two-column pages no longer spill into the other column.**
   pdf.js sizes each text layer span through CSS variables it writes on the
   span (`--font-height`, `--scale-x`) and leaves the rules that apply them
