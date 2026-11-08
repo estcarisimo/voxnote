@@ -28,6 +28,7 @@ function fakeDocument() {
       width: 612 * scale,
       height: 792 * scale,
       viewBox: [0, 0, 612, 792],
+      userUnit: 1,
       convertToPdfPoint: (x: number, y: number) => [x, y],
       convertToViewportPoint: (x: number, y: number) => [x, y],
     }),
@@ -78,7 +79,7 @@ function renderPage(document: PDFDocumentProxy, active: boolean) {
   return {
     root,
     canvas: root.querySelector('canvas')!,
-    textLayer: root.querySelector('.textLayer')!,
+    textLayer: root.querySelector<HTMLDivElement>('.textLayer')!,
     onGeometry,
     setActive: (a: boolean) => view.rerender(page(a)),
   }
@@ -110,6 +111,10 @@ describe('PdfPage render window', () => {
     const dpr = window.devicePixelRatio || 1
     expect(canvas.width).toBe(Math.floor(306 * dpr))
     expect(textLayer.childElementCount).toBe(1)
+    // The layer's CSS sizes each span from these (see PdfPage.css); a Letter
+    // page drawn 306 px wide is at half scale.
+    expect(textLayer.style.getPropertyValue('--scale-factor')).toBe('0.5')
+    expect(textLayer.style.getPropertyValue('--user-unit')).toBe('1')
   })
 
   it('releases the canvas and text layer when the page goes far', async () => {

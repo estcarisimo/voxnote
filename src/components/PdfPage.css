@@ -82,6 +82,22 @@
   transform-origin: 0 0;
   caret-color: transparent;
   z-index: 1;
+  /* pdf.js sizes each span through CSS variables, not inline styles: it
+     writes --font-height, --scale-x and --rotate on the span and
+     --min-font-size on the layer, and leaves the rules that use them to the
+     stylesheet (pdfjs-dist/web/pdf_viewer.css, `.textLayer`). PdfPage.tsx
+     sets --scale-factor and --user-unit on the layer. Without these rules a
+     span keeps the browser's default font size and no horizontal scaling,
+     so its glyph box no longer matches the printed line and a selection's
+     rectangles land wide of the text (into the next column of a two-column
+     page). */
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
 }
 
 .pdf-page .textLayer :is(span, br) {
@@ -90,6 +106,17 @@
   white-space: pre;
   cursor: text;
   transform-origin: 0% 0%;
+}
+
+/* The span sizing rules from pdf_viewer.css, same selectors and values. */
+.pdf-page .textLayer > :not(.markedContent),
+.pdf-page .textLayer .markedContent span:not(.markedContent) {
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x))
+    scale(var(--min-font-size-inv));
 }
 
 .pdf-page .textLayer span.markedContent {
