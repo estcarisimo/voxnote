@@ -330,6 +330,74 @@ describe('PdfViewer', () => {
     expect(active()).toEqual([3])
   })
 
+  it('zooms the pages with the buttons, Ctrl+wheel and Ctrl+keys, apart from the browser', () => {
+    const clientWidth = vi
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockReturnValue(700)
+    try {
+      setup()
+      const width = () =>
+        Number(screen.getByTestId('page-1').getAttribute('data-width'))
+      const level = () =>
+        screen
+          .getByRole('group', { name: 'Zoom' })
+          .querySelector('.pdf-zoom-level')!.textContent
+      expect(width()).toBe(652)
+      expect(level()).toBe('100%')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+      expect(level()).toBe('110%')
+      expect(width()).toBe(Math.round(652 * 1.1))
+
+      // Ctrl+wheel up zooms in further; a plain wheel scrolls as usual.
+      const scroller = document.querySelector('.pdf-viewer')!
+      const plain = fireEvent.wheel(scroller, { deltaY: -100 })
+      expect(plain).toBe(true)
+      expect(level()).toBe('110%')
+      const zooming = fireEvent.wheel(scroller, { deltaY: -500, ctrlKey: true })
+      expect(zooming).toBe(false)
+      expect(level()).toBe('220%')
+
+      // Ctrl+0 fits the width again; Ctrl+- steps out from there.
+      const reset = fireEvent.keyDown(window, { key: '0', ctrlKey: true })
+      expect(reset).toBe(false)
+      expect(level()).toBe('100%')
+      expect(width()).toBe(652)
+      fireEvent.keyDown(window, { key: '-', ctrlKey: true })
+      expect(level()).toBe('90%')
+      // Typed into a field, the same keys are the field's.
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+      fireEvent.keyDown(input, { key: '-', ctrlKey: true })
+      expect(level()).toBe('90%')
+      input.remove()
+
+      // The level button resets to fit and is then inert.
+      fireEvent.click(screen.getByRole('button', { name: /reset to fit/ }))
+      expect(level()).toBe('100%')
+      expect(
+        screen.getByRole('button', { name: /reset to fit/ }),
+      ).toHaveProperty('disabled', true)
+    } finally {
+      clientWidth.mockRestore()
+    }
+  })
+
+  it('drops a pending toolbar on zoom but keeps an open composer on its anchor', async () => {
+    setup()
+    fireEvent.click(screen.getByText('drag region 1'))
+    expect(screen.getByRole('toolbar')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    expect(screen.queryByRole('toolbar')).toBeNull()
+
+    fireEvent.click(screen.getByText('drag region 1'))
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }))
+    expect(screen.getByRole('textbox')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    expect(screen.getByRole('textbox')).toBeTruthy()
+    expect(screen.getByText('pending on page 1')).toBeTruthy()
+  })
+
   it('sizes pages from the measured width before the first paint', () => {
     const clientWidth = vi
       .spyOn(HTMLElement.prototype, 'clientWidth', 'get')

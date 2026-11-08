@@ -18,6 +18,19 @@ import type {
 import type { HighlightColor } from '../core/palette'
 import type { PDFDocumentProxy } from '../core/pdf'
 import { textAnchorFromRange } from '../core/selection'
+import {
+  FIT_ZOOM,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  focusAt,
+  formatZoom,
+  scrollToFocus,
+  zoomByWheel,
+  zoomIn,
+  zoomOut,
+  type PageBox,
+  type ZoomFocus,
+} from '../core/zoom'
 import { PAGE_ATTRIBUTE, useNearPages } from '../hooks/useNearPages'
 import type { AutoTranscribeState } from '../hooks/useTranscription'
 import { useComposerDraft } from '../hooks/useComposerDraft'
@@ -112,7 +125,13 @@ export function PdfViewer({
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const geometries = useRef(new Map<number, PageGeometry>())
-  const [pageWidth, setPageWidth] = useState(600)
+  // The width that fits the container; the zoom multiplies it.
+  const [fitWidth, setFitWidth] = useState(600)
+  const [zoom, setZoom] = useState(FIT_ZOOM)
+  const pageWidth = Math.round(fitWidth * zoom)
+  // The point to hold still across the next page resize, set by a zoom
+  // and consumed once the pages have their new size.
+  const focusRef = useRef<ZoomFocus | null>(null)
   // A draft kept from before a crash reopens its composer where it was.
   const [pending, setPending] = useState<PendingAnchor | null>(() =>
     restoredPending(drafts),
@@ -121,6 +140,7 @@ export function PdfViewer({
     () => restoredPending(drafts) && (drafts?.restored?.mode ?? null),
   )
   const composerRef = useRef<Composer>(composer)
+  const pendingRef = useRef<PendingAnchor | null>(pending)
   // True while a pen drag is building a selection: the toolbar waits for
   // the pen to lift instead of chasing every intermediate range.
   const penSelectingRef = useRef(false)
@@ -145,6 +165,10 @@ export function PdfViewer({
   useEffect(() => {
     composerRef.current = composer
   }, [composer])
+
+  useEffect(() => {
+    pendingRef.current = pending
+  }, [pending])
 
   // Whatever closed the composer, the microphone and replay URL go with it.
   const { discard } = recorder
@@ -184,15 +208,105 @@ export function PdfViewer({
     (page: number, geometry: PageGeometry | null) => {
       if (geometry) geometries.current.set(page, geometry)
       else geometries.current.delete(page)
+      // A page redrawn at a new size (a zoom, a resize) moves the anchor
+      // under an open composer: the composer follows it.
+      const held = pendingRef.current
+      const container = containerRef.current
+      if (geometry && container && held && held.anchor.page === page) {
+        const placement = placementFor(held.anchor, geometry, container)
+        setPending({ ...held, placement })
+      }
     },
     [],
   )
+
+  /**
+   * Applies a zoom, holding the content under `at` (viewport coordinates
+   * within the scroll container; its center by default) in place. A
+   * pending toolbar goes: its text selection does not survive the text
+   * layer redrawing. An open composer stays and follows its anchor.
+   */
+  function applyZoom(next: number, at?: { x: number; y: number }) {
+    const container = containerRef.current
+    if (!container || next === zoom) return
+    const pages = pageBoxes(container)
+    if (pages.length > 0) {
+      const x = at?.x ?? container.clientWidth / 2
+      const y = at?.y ?? container.clientHeight / 2
+      focusRef.current = focusAt(
+        pages,
+        { top: container.scrollTop, left: container.scrollLeft },
+        x,
+        y,
+      )
+    }
+    if (!composerRef.current) {
+      window.getSelection()?.removeAllRanges()
+      setPending(null)
+    }
+    setZoom(next)
+  }
+
+  // The pages took their new size in this commit; put the focus back
+  // under its viewport point before the browser paints.
+  useLayoutEffect(() => {
+    const focus = focusRef.current
+    const container = containerRef.current
+    if (!focus || !container) return
+    focusRef.current = null
+    const scroll = scrollToFocus(pageBoxes(container), focus)
+    container.scrollTop = scroll.top
+    container.scrollLeft = scroll.left
+  }, [pageWidth])
+
+  // Ctrl+wheel (and a trackpad pinch, which browsers deliver the same way)
+  // zooms the document instead of the browser's page. React registers wheel
+  // listeners as passive, so the default cannot be prevented from JSX.
+  const zoomRef = useRef(zoom)
+  zoomRef.current = zoom
+  const applyZoomRef = useRef(applyZoom)
+  applyZoomRef.current = applyZoom
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      const origin = container.getBoundingClientRect()
+      applyZoomRef.current(zoomByWheel(zoomRef.current, event.deltaY), {
+        x: event.clientX - origin.left,
+        y: event.clientY - origin.top,
+      })
+    }
+    container.addEventListener('wheel', onWheel, { passive: false })
+    return () => container.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // Ctrl/Cmd and +, - or 0 zoom the document, as in a desktop PDF reader,
+  // unless the keys are typed into a field.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return
+      const target = event.target
+      if (target instanceof HTMLElement && isEditable(target)) return
+      const current = zoomRef.current
+      let next: number
+      if (event.key === '+' || event.key === '=') next = zoomIn(current)
+      else if (event.key === '-' || event.key === '_') next = zoomOut(current)
+      else if (event.key === '0') next = FIT_ZOOM
+      else return
+      event.preventDefault()
+      applyZoomRef.current(next)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   useLayoutEffect(() => {
     const element = containerRef.current
     if (!element) return
     const fit = (contentWidth: number) =>
-      setPageWidth(
+      setFitWidth(
         Math.max(200, Math.min(MAX_PAGE_WIDTH, contentWidth - PAGE_GUTTER * 2)),
       )
     // Measured before the first paint: pages sized at a placeholder width
@@ -287,19 +401,10 @@ export function PdfViewer({
     const geometry = geometries.current.get(anchor.page)
     const container = containerRef.current
     if (!geometry || !container) return
-    const css = geometry.toCssRect(anchor.rect)
-    const page = geometry.element.getBoundingClientRect()
-    const origin = container.getBoundingClientRect()
-    const left = page.left - origin.left + container.scrollLeft
-    const top = page.top - origin.top + container.scrollTop
     setPending({
       tool: 'region',
       anchor,
-      placement: {
-        left: left + css.left + css.width / 2,
-        top: top + css.top,
-        bottom: top + css.top + css.height,
-      },
+      placement: placementFor(anchor, geometry, container),
     })
   }
 
@@ -319,58 +424,140 @@ export function PdfViewer({
   const heldPage = shown ? shown.anchor.page : null
 
   return (
-    <div
-      ref={containerRef}
-      className="pdf-viewer"
-      onPointerDownCapture={pointerDown}
-    >
-      {pageNumbers.map((n) => (
-        <PdfPage
-          key={n}
-          document={pdf}
-          pageNumber={n}
-          width={pageWidth}
-          active={nearPages.has(n) || n === heldPage}
-          tool={tool}
-          annotations={annotations.filter((a) => a.anchor.page === n)}
-          selectedId={selectedId}
-          pendingAnchor={pendingAnchor}
-          onGeometry={onGeometry}
-          onCreateRegion={onRegion}
-          onPenSelecting={onPenSelecting}
-        />
-      ))}
-      {shown && !composer && (
-        <SelectionToolbar
-          placement={shown.placement}
-          color={highlightColor}
-          onColorChange={onHighlightColorChange}
-          onHighlight={highlight}
-          onComment={() => openComposer('typed')}
-          onVoice={() => openComposer('voice')}
-          onSuggest={
-            shown.anchor.type === 'text' ? () => openComposer('suggest') : null
-          }
-        />
-      )}
-      {shown && composer && (
-        <CommentComposer
-          key={composer}
-          placement={shown.placement}
-          mode={composer === 'suggest' ? 'suggestion' : 'comment'}
-          quote={shown.anchor.type === 'text' ? shown.anchor.quote : null}
-          recorder={composer === 'typed' ? null : recorder}
-          transcribe={composer === 'typed' ? null : transcribe}
-          cleanUp={composer === 'typed' ? null : cleanUp}
-          autoTranscribe={composer === 'typed' ? null : autoTranscribe}
-          onSave={saveNote}
-          onCancel={closeComposer}
-          restored={kept.restored}
-          onDraftChange={drafts ? kept.onDraftChange : undefined}
-          onDiscardDraft={closeComposer}
-        />
-      )}
+    <div className="pdf-viewer-frame">
+      <div
+        ref={containerRef}
+        className="pdf-viewer"
+        onPointerDownCapture={pointerDown}
+      >
+        {pageNumbers.map((n) => (
+          <PdfPage
+            key={n}
+            document={pdf}
+            pageNumber={n}
+            width={pageWidth}
+            active={nearPages.has(n) || n === heldPage}
+            tool={tool}
+            annotations={annotations.filter((a) => a.anchor.page === n)}
+            selectedId={selectedId}
+            pendingAnchor={pendingAnchor}
+            onGeometry={onGeometry}
+            onCreateRegion={onRegion}
+            onPenSelecting={onPenSelecting}
+          />
+        ))}
+        {shown && !composer && (
+          <SelectionToolbar
+            placement={shown.placement}
+            color={highlightColor}
+            onColorChange={onHighlightColorChange}
+            onHighlight={highlight}
+            onComment={() => openComposer('typed')}
+            onVoice={() => openComposer('voice')}
+            onSuggest={
+              shown.anchor.type === 'text'
+                ? () => openComposer('suggest')
+                : null
+            }
+          />
+        )}
+        {shown && composer && (
+          <CommentComposer
+            key={composer}
+            placement={shown.placement}
+            mode={composer === 'suggest' ? 'suggestion' : 'comment'}
+            quote={shown.anchor.type === 'text' ? shown.anchor.quote : null}
+            recorder={composer === 'typed' ? null : recorder}
+            transcribe={composer === 'typed' ? null : transcribe}
+            cleanUp={composer === 'typed' ? null : cleanUp}
+            autoTranscribe={composer === 'typed' ? null : autoTranscribe}
+            onSave={saveNote}
+            onCancel={closeComposer}
+            restored={kept.restored}
+            onDraftChange={drafts ? kept.onDraftChange : undefined}
+            onDiscardDraft={closeComposer}
+          />
+        )}
+      </div>
+      <div className="pdf-zoom" role="group" aria-label="Zoom">
+        <button
+          type="button"
+          aria-label="Zoom out"
+          disabled={zoom <= MIN_ZOOM}
+          onClick={() => applyZoom(zoomOut(zoom))}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="pdf-zoom-level"
+          aria-label={`Zoom ${formatZoom(zoom)}, reset to fit width`}
+          disabled={zoom === FIT_ZOOM}
+          onClick={() => applyZoom(FIT_ZOOM)}
+        >
+          {formatZoom(zoom)}
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          disabled={zoom >= MAX_ZOOM}
+          onClick={() => applyZoom(zoomIn(zoom))}
+        >
+          +
+        </button>
+      </div>
     </div>
+  )
+}
+
+/**
+ * Where the toolbar or composer for `anchor` goes, in the scroll
+ * container's content coordinates: centered over the anchor's marks.
+ */
+function placementFor(
+  anchor: TextAnchor | RegionAnchor,
+  geometry: PageGeometry,
+  container: HTMLDivElement,
+): ToolbarPlacement {
+  const rects = anchor.type === 'text' ? anchor.rects : [anchor.rect]
+  if (rects.length === 0) throw new Error('An anchor needs at least one rect')
+  let left = Infinity
+  let right = -Infinity
+  let top = Infinity
+  let bottom = -Infinity
+  for (const rect of rects) {
+    const css = geometry.toCssRect(rect)
+    left = Math.min(left, css.left)
+    right = Math.max(right, css.left + css.width)
+    top = Math.min(top, css.top)
+    bottom = Math.max(bottom, css.top + css.height)
+  }
+  const page = geometry.element.getBoundingClientRect()
+  const origin = container.getBoundingClientRect()
+  const pageLeft = page.left - origin.left + container.scrollLeft
+  const pageTop = page.top - origin.top + container.scrollTop
+  return {
+    left: pageLeft + (left + right) / 2,
+    top: pageTop + top,
+    bottom: pageTop + bottom,
+  }
+}
+
+/** The pages' boxes in the scroll container's content coordinates. */
+function pageBoxes(container: HTMLDivElement): PageBox[] {
+  const pages = container.querySelectorAll<HTMLElement>(`[${PAGE_ATTRIBUTE}]`)
+  return Array.from(pages, (page) => ({
+    top: page.offsetTop,
+    left: page.offsetLeft,
+    width: page.offsetWidth,
+    height: page.offsetHeight,
+  }))
+}
+
+function isEditable(element: HTMLElement): boolean {
+  return (
+    element.isContentEditable ||
+    element.closest('input, textarea, select, [contenteditable]') !== null
   )
 }
 
