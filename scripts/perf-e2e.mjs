@@ -10,7 +10,7 @@
 //      WIDTH x HEIGHT of the window (default 1180 x 820, an iPad Air).
 // Needs /usr/bin/chromium.
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readdirSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -26,7 +26,7 @@ const HIGHLIGHTS = Number(process.env.HIGHLIGHTS ?? 30)
 // PROFILE=<step name prefix>: CPU-profile that step and print the functions
 // with the most self time, to see what the long tasks are made of.
 const PROFILE = process.env.PROFILE ?? ''
-const PORT = 9335
+const PROFILE_DIR = mkdtempSync(join(tmpdir(), 'voxnote-perf-'))
 const DOWNLOADS = mkdtempSync(join(tmpdir(), 'voxnote-perf-downloads-'))
 
 const chrome = spawn(
@@ -37,8 +37,10 @@ const chrome = spawn(
     '--disable-gpu',
     '--enable-precise-memory-info',
     `--window-size=${WIDTH},${HEIGHT}`,
-    `--remote-debugging-port=${PORT}`,
-    `--user-data-dir=${mkdtempSync(join(tmpdir(), 'voxnote-perf-'))}`,
+    // Port 0: Chromium picks a free port and writes it to the profile, so
+    // this script never attaches to another session's browser.
+    '--remote-debugging-port=0',
+    `--user-data-dir=${PROFILE_DIR}`,
     'about:blank',
   ],
   { stdio: 'ignore' },
@@ -49,7 +51,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 async function targets() {
   for (let i = 0; i < 50; i++) {
     try {
-      const res = await fetch(`http://127.0.0.1:${PORT}/json`)
+      const port = readFileSync(
+        join(PROFILE_DIR, 'DevToolsActivePort'),
+        'utf8',
+      ).split('\n')[0]
+      const res = await fetch(`http://127.0.0.1:${port}/json`)
       return await res.json()
     } catch {
       await sleep(200)
@@ -70,6 +76,15 @@ ws.onmessage = (e) => {
     const { resolve, reject } = pending.get(msg.id)
     pending.delete(msg.id)
     msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result)
+  } else if (
+    msg.method === 'Inspector.targetCrashed' ||
+    msg.method === 'Inspector.detached'
+  ) {
+    // A renderer killed for memory shows up here: that is a finding.
+    console.log(
+      JSON.stringify({ event: msg.method, ...msg.params, at: currentStep }),
+    )
+    pageProblems.push(msg.method)
   } else if (msg.method === 'Runtime.exceptionThrown') {
     pageProblems.push(
       'exception: ' + JSON.stringify(msg.params.exceptionDetails),
@@ -83,6 +98,14 @@ ws.onmessage = (e) => {
         msg.params.args.map((a) => a.value ?? a.description).join(' '),
     )
   }
+}
+// A closed connection (the browser died) fails every pending call instead of
+// leaving the script hanging.
+ws.onclose = () => {
+  for (const { reject } of pending.values()) {
+    reject(new Error(`DevTools connection closed during "${currentStep}"`))
+  }
+  pending.clear()
 }
 const send = (method, params = {}) =>
   new Promise((resolve, reject) => {
@@ -162,6 +185,7 @@ const memory = () =>
   })()`)
 
 const results = []
+let currentStep = 'start'
 
 function printProfile({ nodes, samples, timeDeltas }) {
   const byId = new Map(nodes.map((n) => [n.id, n]))
@@ -178,6 +202,7 @@ function printProfile({ nodes, samples, timeDeltas }) {
 }
 
 async function step(name, fn) {
+  currentStep = name
   const profiling = PROFILE && name.startsWith(PROFILE)
   if (profiling) {
     await send('Profiler.enable')
@@ -186,7 +211,14 @@ async function step(name, fn) {
   }
   const from = await now()
   const wall = Date.now()
-  const extra = (await fn()) ?? {}
+  let extra
+  try {
+    extra = (await fn()) ?? {}
+  } catch (err) {
+    // Record the failure and go on: one broken step should not hide the
+    // measurements of the others.
+    extra = { failed: String(err.message ?? err).slice(0, 200) }
+  }
   const elapsedMs = Date.now() - wall
   await settle()
   if (profiling) printProfile((await send('Profiler.stop')).profile)
@@ -254,6 +286,7 @@ const selectSomeText = (n) =>
 const toolbar = `!!document.querySelector('[role="toolbar"][aria-label="Selection actions"]')`
 
 try {
+  await send('Inspector.enable')
   await send('Page.enable')
   await send('Runtime.enable')
   await send('DOM.enable')
@@ -289,13 +322,29 @@ try {
   )
 
   await step('open', async () => {
-    const { root } = await send('DOM.getDocument')
-    const { nodeId } = await send('DOM.querySelector', {
-      nodeId: root.nodeId,
-      selector: 'input[type="file"][accept*=".md"]',
-    })
     const t0 = Date.now()
-    await send('DOM.setFileInputFiles', { nodeId, files: [FILE] })
+    // The document can be replaced under us (the service worker taking
+    // over on first load), which invalidates node ids: retry once.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const { root } = await send('DOM.getDocument')
+        const { nodeId } = await send('DOM.querySelector', {
+          nodeId: root.nodeId,
+          selector: 'input[type="file"][accept*=".md"]',
+        })
+        await send('DOM.setFileInputFiles', { nodeId, files: [FILE] })
+        break
+      } catch (err) {
+        if (attempt > 3) throw err
+        console.log(`open: retrying after "${err.message}"`)
+        await sleep(1000)
+        await waitFor(
+          `!!document.querySelector('input[type="file"]')`,
+          15000,
+          'landing',
+        )
+      }
+    }
     await waitFor(`!!document.querySelector('.app-title')`, 60000, 'document')
     const titleMs = Date.now() - t0
     // First readable page: a canvas with pixels and a text layer with spans

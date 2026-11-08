@@ -6,6 +6,32 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Large PDFs no longer freeze or crash the tab.** The viewer drew every
+  page at once: canvas, text layer and all. Now only pages within one screen
+  of the viewport hold a canvas and a text layer (an IntersectionObserver in
+  `src/hooks/useNearPages.ts`). A page starts drawing after it has been near
+  the screen for 80 ms, so a fast scroll skips the pages it passes. pdf.js's
+  render slices are split by a macrotask, so input gets through. A page that
+  goes far releases its canvas (zero-size backing store) and text layer.
+  Every page still takes its real height, so scroll positions hold, and the
+  page under an open toolbar or composer stays rendered. Measured with the
+  new `scripts/perf-e2e.mjs` on 2026-11-08 (UTC) in headless Chromium 155
+  (`--disable-gpu`), 1180 x 820 at devicePixelRatio 2, on RFC 9000 (151
+  pages), three alternating runs of `main` (0d4dce2) and this change on a
+  loaded 8 GB Linux machine. With `main`, the renderer crashed during the
+  fast scroll in 2 of 3 runs. Canvas backing stores reached 2,638 MB; the
+  first readable page took 17.0 to 24.2 s with a longest task of 5.3 to
+  8.2 s; the run that survived blocked the main thread for 238 s while
+  scrolling. With this change, canvases use 35 MB, the first page is
+  readable in 0.52 to 0.59 s with one task of 57 to 63 ms, the fast scroll
+  has at most one long task (55 ms), and 30 highlights saved across the
+  document take a median of 13 to 20 ms each instead of 108 ms. Markdown
+  documents were not affected: a 7,864-line file showed no long task while
+  scrolling, saving or exporting, before or after. Not yet checked on a real
+  iPad.
+
 ### Changed
 
 - **The landing is generic about where a document comes from.** The link
