@@ -2,7 +2,7 @@
 
 The raw output behind the "Large PDFs no longer freeze or crash the tab" and
 "Resume returns to the page you were on" entries in `CHANGELOG.md` (PR #32).
-Each `.log` line is one JSON record as `scripts/perf-e2e.mjs` printed it.
+In the perf logs, each line that starts with `{` is one JSON record as `scripts/perf-e2e.mjs` (or `resume-check.mjs`) printed it. The other lines are run separators, load averages, summaries, exit codes and notes.
 `<scratch>` replaces the local scratch directory that held the input files.
 
 ## Setup

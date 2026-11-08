@@ -1,0 +1,20 @@
+{"label":"md-before-1","file":"<scratch>/data/rfc9000.md","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T00:25:07.429Z"}
+{"step":"open","elapsedMs":343,"longTasks":2,"longTaskMs":288,"maxTaskMs":200,"maxFrameGapMs":217,"canvases":0,"canvasMB":0,"jsHeapMB":11.8,"domNodes":2502,"titleMs":335,"firstPageMs":336}
+{"step":"input latency after open","elapsedMs":8,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":11.8,"domNodes":2502,"evalRoundTripMs":8}
+{"label":"md-after-1","file":"<scratch>/data/rfc9000.md","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T00:25:14.824Z"}
+{"step":"open","elapsedMs":371,"longTasks":2,"longTaskMs":303,"maxTaskMs":215,"maxFrameGapMs":233,"canvases":0,"canvasMB":0,"jsHeapMB":11.8,"domNodes":2502,"titleMs":355,"firstPageMs":356}
+{"step":"input latency after open","elapsedMs":2,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":11.8,"domNodes":2502,"evalRoundTripMs":2}
+{"step":"scroll fast through all pages","elapsedMs":3378,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":12,"domNodes":2502,"frames":202}
+{"step":"save 30 highlights","elapsedMs":12646,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":16.5,"domNodes":2532,"maxSaveMs":63,"medianSaveMs":28}
+{"step":"export Markdown","elapsedMs":104,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":16.6,"domNodes":2532,"downloadMs":104,"file":"rfc9000.voxnote.md"}
+{"label":"md-before-2","file":"<scratch>/data/rfc9000.md","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T00:25:35.394Z"}
+{"step":"open","elapsedMs":306,"longTasks":2,"longTaskMs":242,"maxTaskMs":176,"maxFrameGapMs":200,"canvases":0,"canvasMB":0,"jsHeapMB":19.6,"domNodes":2502,"titleMs":294,"firstPageMs":301}
+{"step":"input latency after open","elapsedMs":2,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":19.6,"domNodes":2502,"evalRoundTripMs":0}
+{"step":"scroll fast through all pages","elapsedMs":3875,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":100,"canvases":0,"canvasMB":0,"jsHeapMB":19.7,"domNodes":2502,"frames":202}
+{"step":"save 30 highlights","elapsedMs":12678,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":22.3,"domNodes":2532,"maxSaveMs":58,"medianSaveMs":31}
+{"step":"export Markdown","elapsedMs":107,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":22.4,"domNodes":2532,"downloadMs":107,"file":"rfc9000.voxnote.md"}
+{"label":"md-after-2","file":"<scratch>/data/rfc9000.md","dpr":2,"width":1180,"height":820,"ua":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36","utc":"2026-11-08T00:25:54.606Z"}
+{"step":"open","elapsedMs":723,"longTasks":2,"longTaskMs":629,"maxTaskMs":497,"maxFrameGapMs":517,"canvases":0,"canvasMB":0,"jsHeapMB":34.6,"domNodes":2532,"titleMs":687,"firstPageMs":712}
+{"step":"input latency after open","elapsedMs":1,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":34.6,"domNodes":2532,"evalRoundTripMs":1}
+{"step":"scroll fast through all pages","elapsedMs":3400,"longTasks":0,"longTaskMs":0,"maxTaskMs":0,"maxFrameGapMs":0,"canvases":0,"canvasMB":0,"jsHeapMB":34.7,"domNodes":2532,"frames":202}
+DONE
