@@ -13,8 +13,8 @@ Each `.log` line is one JSON record as `scripts/perf-e2e.mjs` printed it.
 - Perf runs: window 1180 x 820 at devicePixelRatio 2 (an iPad Air's size),
   `HIGHLIGHTS=30`. Resume runs: 1180 x 820, DPR 1.
 - Machine: Linux, 8 GB of RAM, shared with other sessions; the load average
-  (1/5/15 min) is printed at each run in `runs-1-3.log` and ranged from 1.3
-  to 16.
+  (1/5/15 min) is printed at each run in `runs-1-3.log` and ranged from
+  1.7 to 14.9 there. The other files did not log it.
 - Documents: RFC 9000 as PDF (151 Letter pages, 1,535,216 bytes, from
   rfc-editor.org) and as Markdown (`rfc9000.md` from the quicwg/base-drafts
   repository, 7,864 lines). An 80-page A4 PDF made by `make-a4-pdf.mjs`
@@ -24,13 +24,19 @@ Each `.log` line is one JSON record as `scripts/perf-e2e.mjs` printed it.
 
 ## Files
 
-| File                      | What                                                                                                                      | Builds                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `runs-1-3.log`            | Three alternating PDF runs, 00:34 to 01:12 UTC                                                                            | `main` 0d4dce2 vs branch 88ef6b6                         |
-| `rerun-save-count.log`    | One branch run, two `main` runs, 01:19 to 01:41 UTC, with the save step requiring the header to read **Annotations (30)** | `main` 0d4dce2 vs branch 87b9b66                         |
-| `merged-main-42c65b2.log` | Two branch runs after merging `main` 42c65b2, 02:00 UTC                                                                   | branch fd5a99e                                           |
-| `markdown.log`            | Two runs per build on the Markdown file, 00:25 UTC                                                                        | `main` 0d4dce2 vs branch 88ef6b6                         |
-| `resume.log`              | Open, scroll to page N, reload, **Resume**, page at the top third of the viewer, 02:01 to 02:02 UTC (`resume-check.mjs`)  | `main` 42c65b2 (port 4193) vs branch fd5a99e (port 4191) |
+| File                      | What                                                                                                                      | Builds                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `runs-1-3.log`            | Three alternating PDF runs, 00:34 to 01:12 UTC                                                                            | `main` 0d4dce2 vs branch 88ef6b6                              |
+| `rerun-save-count.log`    | One branch run, two `main` runs, 01:19 to 01:41 UTC, with the save step requiring the header to read **Annotations (30)** | `main` 0d4dce2 vs the tree later committed as 87b9b66         |
+| `merged-main-42c65b2.log` | Two branch runs after merging `main` 42c65b2, 02:00 UTC                                                                   | branch fd5a99e                                                |
+| `markdown.log`            | Two runs per build on the Markdown file, 00:25 UTC; two of the four stop early (see below)                                | `main` 0d4dce2 vs the tree committed seconds later as 88ef6b6 |
+| `resume.log`              | Open, scroll to page N, reload, **Resume**, page at the top third of the viewer, 02:01 to 02:02 UTC (`resume-check.mjs`)  | `main` 42c65b2 (port 4193) vs branch fd5a99e (port 4191)      |
+
+In `markdown.log`, `md-before-1` has only the open steps and `md-after-2`
+has no save or export rows. The script of that hour stopped at its first
+error and that output was filtered out, so the reason is not recorded. The
+Markdown claim rests on the complete runs (`md-before-2`, `md-after-1`) and
+the scroll step of `md-after-2`.
 
 `Inspector.targetCrashed` lines in the PDF logs are renderer crashes; a
 `main` run that crashed has no rows after the crash.

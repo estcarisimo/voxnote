@@ -1,6 +1,6 @@
 // Opens a PDF, scrolls to TARGET, reloads, resumes, and reports the page in view.
 import { spawn } from 'node:child_process'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 const [APP_URL, FILE, TARGET = '50'] = process.argv.slice(2)
@@ -124,5 +124,10 @@ try {
   )
 } finally {
   ws.close()
-  chrome.kill()
+  if (chrome.exitCode === null) {
+    const exited = new Promise((r) => chrome.once('exit', r))
+    chrome.kill()
+    await exited
+  }
+  rmSync(dir, { recursive: true, force: true })
 }

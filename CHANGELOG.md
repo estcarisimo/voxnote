@@ -19,7 +19,8 @@ All notable changes to this project are documented here. The format follows
   page under an open toolbar or composer stays rendered. Measured with the
   new `scripts/perf-e2e.mjs` on 2026-11-08 (UTC) in headless Chromium 155
   (`--disable-gpu`), 1180 x 820 at devicePixelRatio 2, on RFC 9000 (151
-  pages), on a shared 8 GB Linux machine (load average 1.3 to 16): five
+  pages), on a shared 8 GB Linux machine (load average 1.7 to 14.9 where
+  logged): five
   runs of `main` (0d4dce2) and six of this change (three alternating with
   `main`, one with the save count checked, two after merging `main`
   42c65b2). Raw logs and setup: `docs/measurements/2026-11-08-pdf-freezes/`.
