@@ -74,7 +74,7 @@ describe('IndexedDB annotation store', () => {
       { ...comment, schemaVersion: 2 },
     ]
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 2)
+      const req = factory.open('test')
       req.onsuccess = () => {
         const tx = req.result.transaction('annotations', 'readwrite')
         for (const record of stored) tx.objectStore('annotations').put(record)
@@ -98,7 +98,7 @@ describe('IndexedDB annotation store', () => {
     const store = await openAnnotationStore('test', factory)
     // Write a bad record behind the store's back.
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 2)
+      const req = factory.open('test')
       req.onsuccess = () => {
         const tx = req.result.transaction('annotations', 'readwrite')
         tx.objectStore('annotations').put({
@@ -326,7 +326,7 @@ describe('IndexedDB write atomicity with audio', () => {
     const factory = new IDBFactory()
     const store = await openAnnotationStore('test', factory)
     await new Promise<void>((resolve, reject) => {
-      const req = factory.open('test', 2)
+      const req = factory.open('test')
       req.onsuccess = () => {
         const tx = req.result.transaction('audio', 'readwrite')
         tx.objectStore('audio').put({ id: 'x', blob: 'not a blob' })
@@ -342,3 +342,177 @@ describe('IndexedDB write atomicity with audio', () => {
     store.close()
   })
 })
+
+describe('IndexedDB document meta', () => {
+  const pdf = { name: 'paper.pdf', kind: 'pdf' } as const
+  const clock = (...isos: string[]) => {
+    let i = 0
+    return () => new Date(isos[Math.min(i++, isos.length - 1)])
+  }
+
+  it('records the name and last write time, and lists documents with annotations', async () => {
+    const store = await openAnnotationStore(
+      'test',
+      new IDBFactory(),
+      clock(
+        '2026-11-01T10:00:00Z',
+        '2026-11-02T10:00:00Z',
+        '2026-11-03T10:00:00Z',
+      ),
+    )
+    const a = createHighlight({ documentId: 'doc-a', anchor: region(1) })
+    const b = createHighlight({ documentId: 'doc-b', anchor: region(1) })
+    await store.put(a, undefined, pdf)
+    await store.put(b, undefined, { name: 'notes.md', kind: 'markdown' })
+    // A later write without a label keeps the name and moves the time.
+    await store.put(rewritten(a))
+    expect(await store.listDocuments()).toEqual([
+      {
+        id: 'doc-a',
+        name: 'paper.pdf',
+        kind: 'pdf',
+        lastAnnotatedAt: '2026-11-03T10:00:00.000Z',
+        count: 1,
+      },
+      {
+        id: 'doc-b',
+        name: 'notes.md',
+        kind: 'markdown',
+        lastAnnotatedAt: '2026-11-02T10:00:00.000Z',
+        count: 1,
+      },
+    ])
+    // A document whose last annotation was deleted is not listed.
+    await store.delete(b.id)
+    expect((await store.listDocuments()).map((d) => d.id)).toEqual(['doc-a'])
+    store.close()
+  })
+
+  it('writes a batch all or nothing, for one document only', async () => {
+    const store = await openAnnotationStore('test', new IDBFactory())
+    const a = createHighlight({ documentId: 'doc', anchor: region(1) })
+    const b = createHighlight({ documentId: 'doc', anchor: region(2) })
+    const other = createHighlight({ documentId: 'other', anchor: region(1) })
+    await expect(
+      store.putMany([a, { ...b, kind: 'nope' as never }], pdf),
+    ).rejects.toThrow(/invalid annotation/)
+    await expect(store.putMany([a, other], pdf)).rejects.toThrow(
+      /belongs to document other/,
+    )
+    expect(await store.list('doc')).toEqual([])
+    expect(await store.listDocuments()).toEqual([])
+
+    await store.putMany([a, b], pdf)
+    expect(await store.list('doc')).toHaveLength(2)
+    expect(await store.listDocuments()).toMatchObject([
+      { id: 'doc', name: 'paper.pdf', count: 2 },
+    ])
+    store.close()
+  })
+
+  it('backfills unnamed records when upgrading a version 2 database, then names them on open', async () => {
+    const factory = new IDBFactory()
+    const older = createHighlight(
+      { documentId: 'doc', anchor: region(1) },
+      new Date('2026-10-01T00:00:00Z'),
+    )
+    const newer = createHighlight(
+      { documentId: 'doc', anchor: region(2) },
+      new Date('2026-10-05T00:00:00Z'),
+    )
+    await new Promise<void>((resolve, reject) => {
+      const req = factory.open('test', 2)
+      req.onupgradeneeded = () => {
+        const s = req.result.createObjectStore('annotations', { keyPath: 'id' })
+        s.createIndex('documentId', 'documentId', { unique: false })
+        req.result.createObjectStore('audio', { keyPath: 'id' })
+      }
+      req.onsuccess = () => {
+        const tx = req.result.transaction('annotations', 'readwrite')
+        tx.objectStore('annotations').put(older)
+        tx.objectStore('annotations').put(newer)
+        tx.oncomplete = () => {
+          req.result.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+
+    const store = await openAnnotationStore('test', factory)
+    expect(await store.list('doc')).toHaveLength(2)
+    expect(await store.listDocuments()).toEqual([
+      {
+        id: 'doc',
+        name: null,
+        kind: null,
+        lastAnnotatedAt: newer.updatedAt,
+        count: 2,
+      },
+    ])
+    await store.nameDocument('doc', pdf)
+    // Naming never creates a record for a document with no annotations.
+    await store.nameDocument('never-annotated', pdf)
+    expect(await store.listDocuments()).toEqual([
+      {
+        id: 'doc',
+        name: 'paper.pdf',
+        kind: 'pdf',
+        lastAnnotatedAt: newer.updatedAt,
+        count: 2,
+      },
+    ])
+    store.close()
+
+    // Opening again is a no-op upgrade: nothing is backfilled twice.
+    const again = await openAnnotationStore('test', factory)
+    expect(await again.listDocuments()).toHaveLength(1)
+    again.close()
+  })
+
+  it('fails loudly on a corrupt document record', async () => {
+    const factory = new IDBFactory()
+    const store = await openAnnotationStore('test', factory)
+    await new Promise<void>((resolve, reject) => {
+      const req = factory.open('test')
+      req.onsuccess = () => {
+        const tx = req.result.transaction('documentMeta', 'readwrite')
+        tx.objectStore('documentMeta').put({ id: 'x', name: 42 })
+        tx.oncomplete = () => {
+          req.result.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+      req.onerror = () => reject(req.error)
+    })
+    await expect(store.listDocuments()).rejects.toThrow(
+      /Corrupt document record/,
+    )
+    // A write for that document refuses to overwrite what it cannot read.
+    const h = createHighlight({ documentId: 'x', anchor: region(1) })
+    await expect(store.put(h, undefined, pdf)).rejects.toThrow(
+      /Corrupt document record/,
+    )
+    expect(await store.list('x')).toEqual([])
+    await expect(store.nameDocument('x', pdf)).rejects.toThrow(
+      /Corrupt document record/,
+    )
+    store.close()
+  })
+
+  it('refuses an invalid document label', async () => {
+    const store = await openAnnotationStore('test', new IDBFactory())
+    const h = createHighlight({ documentId: 'doc', anchor: region(1) })
+    await expect(
+      store.put(h, undefined, { name: '', kind: 'pdf' }),
+    ).rejects.toThrow(/Invalid document label/)
+    store.close()
+  })
+})
+
+/** The same highlight, written again (as an edit would). */
+function rewritten<T>(value: T): T {
+  return { ...value }
+}

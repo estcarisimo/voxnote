@@ -15,7 +15,8 @@ import {
 import type { MarkdownDocument } from '../core/markdown'
 import { highlightRgb, type HighlightColor } from '../core/palette'
 import type { AutoTranscribeState } from '../hooks/useTranscription'
-import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
+import { useComposerDraft } from '../hooks/useComposerDraft'
+import type { DraftKeeper } from '../hooks/useDraft'
 import type { CleanUpFn } from './CleanUpDialog'
 import { CommentComposer, type CommentDraft } from './CommentComposer'
 import { MarkdownView } from './MarkdownView'
@@ -45,6 +46,11 @@ interface MarkdownViewerProps {
   cleanUp?: CleanUpFn | null
   /** The document's standing consent to transcribe on Stop. */
   autoTranscribe?: AutoTranscribeState | null
+  /**
+   * Keeps the open composer's draft across crashes. Read once at mount: a
+   * draft restored then reopens the composer on its anchor.
+   */
+  drafts?: DraftKeeper | null
   ref?: Ref<MarkdownViewerHandle>
 }
 
@@ -75,14 +81,24 @@ export function MarkdownViewer({
   transcribe,
   cleanUp = null,
   autoTranscribe = null,
+  drafts = null,
   ref,
 }: MarkdownViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const paperRef = useRef<HTMLDivElement>(null)
-  const [pending, setPending] = useState<PendingAnchor | null>(null)
-  const [composer, setComposer] = useState<Composer>(null)
-  const composerRef = useRef<Composer>(null)
-  const recorder = useVoiceRecorder()
+  // A draft kept from before a crash reopens its composer where it was.
+  const [pending, setPending] = useState<PendingAnchor | null>(() =>
+    restoredPending(drafts),
+  )
+  const [composer, setComposer] = useState<Composer>(
+    () => restoredPending(drafts) && (drafts?.restored?.mode ?? null),
+  )
+  const composerRef = useRef<Composer>(composer)
+  const kept = useComposerDraft(
+    drafts,
+    composer === 'voice' || composer === 'suggest',
+  )
+  const { recorder } = kept
 
   useEffect(() => {
     composerRef.current = composer
@@ -146,6 +162,12 @@ export function MarkdownViewer({
   function openComposer(mode: Exclude<Composer, null>) {
     if (!pending) return
     setComposer(mode)
+    kept.begin({
+      mode,
+      anchor: pending.anchor,
+      placement: pending.placement,
+      body: mode === 'suggest' ? pending.anchor.quote : '',
+    })
     // Start right away: the tap on the mic is the request to record.
     if (mode === 'voice') void recorder.start()
   }
@@ -157,6 +179,12 @@ export function MarkdownViewer({
       kind: composer === 'suggest' ? 'suggestion' : 'comment',
       anchor: pending.anchor,
     })
+    closeComposer()
+  }
+
+  /** Saved, cancelled or discarded: the kept draft goes with the composer. */
+  function closeComposer() {
+    kept.finish()
     clear()
   }
 
@@ -195,11 +223,21 @@ export function MarkdownViewer({
           cleanUp={composer === 'typed' ? null : cleanUp}
           autoTranscribe={composer === 'typed' ? null : autoTranscribe}
           onSave={saveNote}
-          onCancel={clear}
+          onCancel={closeComposer}
+          restored={kept.restored}
+          onDraftChange={drafts ? kept.onDraftChange : undefined}
+          onDiscardDraft={closeComposer}
         />
       )}
     </div>
   )
+}
+
+/** The anchor of a draft restored at mount, as a pending anchor. */
+function restoredPending(drafts: DraftKeeper | null): PendingAnchor | null {
+  const restored = drafts?.restored
+  if (!restored || restored.anchor.type !== 'block-text') return null
+  return { anchor: restored.anchor, placement: restored.placement }
 }
 
 /**

@@ -12,6 +12,9 @@ const props = {
   onFile: vi.fn(),
   onUrl: vi.fn(),
   onDraftXml: vi.fn(),
+  onImportNotes: vi.fn(),
+  recentDocuments: [],
+  onResume: vi.fn(),
   error: null,
 }
 
@@ -56,6 +59,79 @@ describe('OpenPdf', () => {
     fireEvent.drop(zone, { dataTransfer: { files: [file] } })
     expect(onFile).toHaveBeenCalledWith(file)
     expect(zone.className).not.toContain('open-pdf--dragging')
+  })
+
+  it('routes a picked or dropped .json file to the notes import', () => {
+    const onFile = vi.fn()
+    const onImportNotes = vi.fn()
+    const { container } = render(
+      <OpenPdf {...props} onFile={onFile} onImportNotes={onImportNotes} />,
+    )
+    const notes = new File(['{}'], 'paper.voxnote.json', {
+      type: 'application/json',
+    })
+    fireEvent.drop(container.firstElementChild!, {
+      dataTransfer: { files: [notes] },
+    })
+    fireEvent.change(screen.getByLabelText('Notes file to import'), {
+      target: { files: [notes] },
+    })
+    expect(onImportNotes.mock.calls).toEqual([[notes], [notes]])
+    expect(onFile).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Import notes…' })).toBeTruthy()
+  })
+
+  it('sends whatever is picked in the notes picker to the import, never to open', () => {
+    const onFile = vi.fn()
+    const onImportNotes = vi.fn()
+    render(<OpenPdf {...props} onFile={onFile} onImportNotes={onImportNotes} />)
+    const pdf = pdfFile()
+    fireEvent.change(screen.getByLabelText('Notes file to import'), {
+      target: { files: [pdf] },
+    })
+    expect(onImportNotes).toHaveBeenCalledWith(pdf)
+    expect(onFile).not.toHaveBeenCalled()
+  })
+
+  it('lists recent documents with UTC times and resumes the one tapped', () => {
+    const onResume = vi.fn()
+    const documents = [
+      {
+        id: 'a'.repeat(64),
+        name: 'paper.pdf',
+        kind: 'pdf' as const,
+        lastAnnotatedAt: '2026-11-07T18:04:31.000Z',
+        count: 3,
+        stored: false,
+      },
+      {
+        id: 'b'.repeat(64),
+        name: null,
+        kind: null,
+        lastAnnotatedAt: '2026-10-01T00:00:00.000Z',
+        count: 1,
+        stored: true,
+      },
+    ]
+    render(
+      <OpenPdf {...props} recentDocuments={documents} onResume={onResume} />,
+    )
+    const items = screen
+      .getByRole('heading', { name: 'Continue a review' })
+      .parentElement!.querySelectorAll('li')
+    expect([...items].map((li) => li.textContent)).toEqual([
+      'paper.pdf3 annotations · notes saved 2026-11-07 18:04 UTCChoose file…',
+      'Unnamed document bbbbbbbb…1 annotation · notes saved 2026-10-01 00:00 UTCReopen',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /paper\.pdf/ }))
+    expect(onResume).toHaveBeenCalledWith(documents[0])
+  })
+
+  it('shows no recent list when no document has notes', () => {
+    render(<OpenPdf {...props} />)
+    expect(
+      screen.queryByRole('heading', { name: 'Continue a review' }),
+    ).toBeNull()
   })
 
   it('ignores a drop with no file', () => {
@@ -266,5 +342,122 @@ describe('OpenPdf', () => {
     })
     expect(onDraftXml).toHaveBeenCalledWith(xml)
     expect(onFile).not.toHaveBeenCalled()
+  })
+
+  it('lists the interrupted document first under Continue a review, reopened only on a tap', () => {
+    const onResumeInterrupted = vi.fn()
+    const onForgetInterrupted = vi.fn()
+    const onFile = vi.fn()
+    const resumable = {
+      documentId: 'a'.repeat(64),
+      name: 'thesis.pdf',
+      page: 12,
+      openedAt: '2026-11-07T09:41:00.000Z',
+    }
+    render(
+      <OpenPdf
+        {...props}
+        onFile={onFile}
+        recentDocuments={[
+          {
+            id: 'a'.repeat(64),
+            name: 'thesis.pdf',
+            kind: 'pdf',
+            lastAnnotatedAt: '2026-11-07T09:00:00.000Z',
+            count: 3,
+            stored: true,
+          },
+          {
+            id: 'b'.repeat(64),
+            name: 'other.pdf',
+            kind: 'pdf',
+            lastAnnotatedAt: '2026-11-06T09:00:00.000Z',
+            count: 1,
+            stored: false,
+          },
+        ]}
+        interrupted={resumable}
+        onResumeInterrupted={onResumeInterrupted}
+        onForgetInterrupted={onForgetInterrupted}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Continue a review' })
+    const rows = within(section).getAllByRole('listitem')
+    // One feature: the interrupted document is the first row, not a second
+    // entry for the same file.
+    expect(rows).toHaveLength(2)
+    expect(rows[0].textContent).toContain('at page 12')
+    expect(rows[0].textContent).toContain('2026-11-07 09:41 UTC')
+    expect(rows[1].textContent).toContain('other.pdf')
+    expect(onResumeInterrupted).not.toHaveBeenCalled()
+    fireEvent.click(within(rows[0]).getByText('Resume thesis.pdf'))
+    expect(onResumeInterrupted).toHaveBeenCalledWith(resumable)
+    fireEvent.click(
+      within(rows[0]).getByRole('button', { name: 'Forget its copy' }),
+    )
+    expect(onForgetInterrupted).toHaveBeenCalledWith(resumable)
+    expect(onFile).not.toHaveBeenCalled()
+  })
+
+  it('shows Continue a review for an interrupted document without notes', () => {
+    render(
+      <OpenPdf
+        {...props}
+        recentDocuments={[]}
+        interrupted={{
+          documentId: 'c'.repeat(64),
+          name: 'draft.md',
+          page: null,
+          openedAt: '2026-11-07T09:41:00.000Z',
+        }}
+        onResumeInterrupted={vi.fn()}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Continue a review' })
+    expect(section.textContent).toContain('Resume draft.md')
+    expect(section.textContent).not.toContain('at page')
+  })
+
+  it('shows whether storage is persistent and how much is used', () => {
+    const status = {
+      usage: 1_234_567,
+      quota: 10e9,
+      checkedAt: '2026-11-08T01:02:00.000Z',
+    }
+    const { rerender } = render(
+      <OpenPdf
+        {...props}
+        storage={{ ...status, persistence: 'granted', requested: true }}
+      />,
+    )
+    expect(document.querySelector('.open-pdf-storage')?.textContent).toBe(
+      "Storage: persistent (asked 2026-11-08 01:02 UTC). This browser has marked VoxNote's data as persistent, so it should not evict it to free space. Using 1.2 MB of about 10.0 GB.",
+    )
+    rerender(
+      <OpenPdf
+        {...props}
+        storage={{ ...status, persistence: 'denied', requested: true }}
+      />,
+    )
+    const denied = screen.getByRole('note').textContent
+    expect(denied).toContain('persistence refused (asked 2026-11-08 01:02 UTC)')
+    expect(denied).toContain('after seven days')
+    expect(denied).toContain('Home Screen')
+    rerender(
+      <OpenPdf
+        {...props}
+        storage={{
+          ...status,
+          usage: null,
+          quota: null,
+          persistence: 'unavailable',
+          requested: true,
+        }}
+      />,
+    )
+    expect(screen.getByRole('note').textContent).toContain(
+      'offers no way to request persistent storage',
+    )
+    expect(screen.getByRole('note').textContent).toContain('Usage unknown')
   })
 })

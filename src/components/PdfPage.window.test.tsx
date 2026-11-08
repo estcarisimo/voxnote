@@ -92,7 +92,10 @@ describe('PdfPage render window', () => {
     const { document, page } = fakeDocument()
     const { root, canvas } = renderPage(document, false)
     // Half of a Letter page's width gives half its height.
+    expect(root.hasAttribute('data-sized')).toBe(false)
     await waitFor(() => expect(root.style.height).toBe('396px'))
+    // Marked once the real height is in: crash resume waits for it.
+    expect(root.getAttribute('data-sized')).toBe('true')
     await new Promise((r) => setTimeout(r, RENDER_DELAY_MS * 2))
     expect(page.render).not.toHaveBeenCalled()
     expect(canvas.width).toBe(0)

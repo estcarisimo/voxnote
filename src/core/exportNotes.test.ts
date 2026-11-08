@@ -19,6 +19,7 @@ const DOC: ExportDocument = {
   kind: 'pdf',
   name: 'paper.pdf',
   id: 'abc123',
+  size: 48_213,
   pageCount: 3,
 }
 const NOW = new Date('2026-10-29T12:00:00.000Z')
@@ -372,6 +373,9 @@ describe('validation', () => {
     expect(() => exportJson({ ...DOC, pageCount: 0 }, [], NOW)).toThrow(
       'Invalid page count: 0',
     )
+    expect(() => exportJson({ ...DOC, size: 0 }, [], NOW)).toThrow(
+      'Invalid document size: 0',
+    )
   })
 })
 
@@ -406,11 +410,13 @@ describe('exportJson', () => {
     )
     const annotations = [highlight, comment, suggestion]
 
-    const text = exportJson(DOC, annotations, NOW)
+    const text = exportJson(DOC, annotations, NOW, '1.2.3')
     const parsed = JSON.parse(text) as Record<string, unknown>
 
     expect(parsed.schemaVersion).toBe(NOTES_EXPORT_SCHEMA_VERSION)
+    expect(NOTES_EXPORT_SCHEMA_VERSION).toBe(3)
     expect(parsed.exportedAt).toBe('2026-10-29T12:00:00.000Z')
+    expect(parsed.app).toEqual({ name: 'VoxNote', version: '1.2.3' })
     expect(parsed.document).toEqual(DOC)
     const restored = parsed.annotations as unknown[]
     expect(restored.every(isAnnotation)).toBe(true)
@@ -433,6 +439,7 @@ describe('Markdown documents', () => {
     kind: 'markdown',
     name: 'notes.md',
     id: 'md123',
+    size: 912,
     blockCount: 4,
   }
   const block = (page: number, start: number, quote: string) =>

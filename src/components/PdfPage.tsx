@@ -85,6 +85,8 @@ export function PdfPage({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textLayerRef = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState<number>(Math.round(width * 1.294))
+  // False while the height is still the Letter-shaped estimate.
+  const [sized, setSized] = useState(false)
   const [geometry, setGeometry] = useState<PageGeometry | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -101,6 +103,7 @@ export function PdfPage({
         if (cancelled) return
         const unscaled = page.getViewport({ scale: 1 })
         setHeight(Math.round((unscaled.height * width) / unscaled.width))
+        setSized(true)
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -336,6 +339,7 @@ export function PdfPage({
       ref={rootRef}
       className="pdf-page"
       data-page-number={pageNumber}
+      data-sized={sized || undefined}
       style={{ width, height }}
     >
       {/* No backing store until the page renders: a bare canvas would hold

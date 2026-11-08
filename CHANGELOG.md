@@ -33,9 +33,64 @@ All notable changes to this project are documented here. The format follows
   crashes in 5 runs. Markdown documents were not affected: a 7,864-line
   file showed no long task while scrolling, saving or exporting, before or
   after. Not yet checked on a real iPad.
+- **Resume returns to the page you were on.** The viewer sized its pages at
+  a placeholder width of 600 px and corrected it a frame later, so the
+  crash-recovery scroll to page N landed well before N. Pages taller than
+  Letter shifted further, because a page's real height arrived after the
+  scroll. The viewer now measures its width before the first paint, every
+  page is marked `data-sized` once its real height is in, and the resume
+  scroll waits for the target page and those above it. Checked on
+  2026-11-08 (UTC) in headless Chromium 155 at 1180 x 820, DPR 1, with a
+  throwaway script: open, scroll to page N, reload, **Resume**, then read the
+  page at the top third of the viewer. On `main` (42c65b2) RFC 9000 page 120
+  came back as page 74 and an 80-page A4 file's page 50 as page 31. With
+  this change they came back as 120, 50 and 7 (page 7 of the A4 file).
+  Without the `data-sized` wait, the A4 file's page 50 came back as 31.
+
+### Added
+
+- **Crash recovery: a crashed or killed tab no longer means starting from
+  zero.** Design note: `docs/design/crash-recovery.md` (what can be lost,
+  and the decision for each). IndexedDB moves to version 4 (after
+  `documentMeta` at version 3) with an idempotent upgrade and three new
+  stores (`src/core/recoveryStore.ts`, unit
+  tested with fake-indexeddb): `documents` keeps the bytes of every opened PDF
+  or Markdown file (id = SHA-256, name, MIME type, Blob, size, `openedAt`
+  UTC; **Continue a review** now reopens a kept document in one tap through
+  the `StoredDocuments` seam), `session`
+  records the open document and the PDF page in view, and `drafts` keeps the
+  open composer (kind, anchor, placement, body, the recording, its raw
+  transcript and an accepted polish). On the landing, the first row of
+  **Continue a review** is **Resume _name_**
+  reopens the kept document after an unclean exit, on a tap only (an
+  automatic reopen of the document that crashed the tab would crash it
+  again), with **Forget its copy** to drop it; **Close** clears the session.
+  The composer is written 400 ms after each change and at once when the page
+  is hidden; the recorder now emits audio every second, so a recording
+  survives even a crash mid-sentence, before Stop and before any
+  transcription. Reopening the document brings the composer back with
+  **Draft restored (saved … UTC)** and **Discard draft**. A failed write
+  (quota) is shown in the error banner. An error boundary around the viewer
+  (and one around the whole app) shows the error and **Reload** instead of a
+  blank page, and never touches local storage; uncaught errors and unhandled
+  promise rejections on `window` are shown in the error banner. Verified end
+  to end with `scripts/browser-crash-e2e.mjs` (headless Chromium 155,
+  `Page.crash` twice). README privacy section: what is kept and how to clear
+  it.
+- **Persistent storage.** The first write of each visit asks the browser not
+  to evict VoxNote's data (`navigator.storage.persist()`, skipped when
+  already persistent, never awaited before the session is written since
+  Firefox may show a permission prompt; `src/core/keepDocument.ts`); the landing shows the outcome and the usage from
+  `navigator.storage.estimate()` (`src/core/storagePersistence.ts`). A
+  browser without the API is reported in the error banner instead of being
+  treated as safe. The design note and README state Safari's seven-day
+  eviction rule and the Home Screen exemption, with the WebKit sources and
+  the date they were read.
 
 ### Changed
 
+- **JSON export format 3.** The envelope adds the document's size in bytes
+  and `app: { name, version }`; the reader still accepts formats 1 and 2.
 - **The landing is generic about where a document comes from.** The link
   field is now **Or open from a link** and accepts a PDF or a Markdown file
   (a PDF by its `%PDF-` bytes whatever the path says; Markdown by a `.md` or
@@ -61,6 +116,30 @@ All notable changes to this project are documented here. The format follows
   draft's XML compiled and opened (7 pages) after the consent dialog.
 
 ### Added
+
+- **Continuing a review: Import notes… and Continue a review.** The answer
+  to "what do I load to continue?" is the original file plus its JSON
+  export; the decision, and why the annotated PDF is not re-imported and a
+  `.voxnote` package with audio is deferred, is in
+  `docs/design/resume-review.md`. **Import notes…** (on the landing, next to
+  the exports, or by dropping a `.json` on the landing) reads a JSON export
+  of any format (envelope v1 to v3, annotation schema v1 to v3), refuses an
+  invalid file as a whole with the reason, and shows what it holds before
+  writing: new notes are added, identical ones skipped, and for each note
+  that differs the reviewer keeps theirs or takes the file's; a summary
+  follows (added, skipped, conflicts, voice notes whose recording is not in
+  this browser). Notes for a document that is not open are stored for it,
+  and the summary offers to open that file. The landing lists the documents
+  with notes in this browser (**Continue a review**: name, count, last
+  saved time in UTC); tapping one asks for the file and says so if the
+  picked file's content differs. Domain: `src/core/importNotes.ts`
+  (parse, validate, plan, merge), a `documentMeta` object store in
+  `src/core/store.ts` (IndexedDB version 3; existing annotations are
+  backfilled with an unnamed record, named on the next open), `putMany`,
+  `nameDocument` and `listDocuments` on the store, and the
+  `src/core/storedDocuments.ts` seam where kept document bytes will plug
+  in; all unit tested with `fake-indexeddb`. README: **Continuing a review**
+  and the privacy note on what is stored.
 
 - **Highlight colors.** A fixed palette of six colors (yellow, green, blue,
   pink, orange, purple; names and hex values in one place,

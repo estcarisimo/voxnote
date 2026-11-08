@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Annotation, TextAnchor } from '../core/annotations'
+import {
+  createHighlight,
+  type Annotation,
+  type TextAnchor,
+} from '../core/annotations'
 import type { AnnotationStore } from '../core/store'
 import { useAnnotations } from './useAnnotations'
 
@@ -15,6 +19,11 @@ vi.mock('../core/store', () => ({
       put: async (annotation) => {
         rows.set(annotation.id, annotation)
       },
+      putMany: async (annotations) => {
+        for (const a of annotations) rows.set(a.id, a)
+      },
+      nameDocument: async () => {},
+      listDocuments: async () => [],
       getAudio: async () => null,
       delete: async (id) => {
         rows.delete(id)
@@ -100,5 +109,21 @@ describe('useAnnotations', () => {
     expect(saved.kind === 'comment' && saved.voice?.transcript).toEqual(
       transcript,
     )
+  })
+
+  it('reloads the list after an import written through writeAndReload', async () => {
+    const { result } = renderHook(() =>
+      useAnnotations('doc-b', { name: 'b.pdf', kind: 'pdf' }),
+    )
+    await waitFor(() => expect(result.current.ready).toBe(true))
+    const imported = createHighlight({ documentId: 'doc-b', anchor })
+    await act(async () => {
+      const n = await result.current.writeAndReload(async (store) => {
+        await store.putMany([imported])
+        return 1
+      })
+      expect(n).toBe(1)
+    })
+    expect(result.current.annotations).toEqual([imported])
   })
 })

@@ -1,18 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AnnotationList,
   type TranscriptArrival,
 } from './components/AnnotationList'
 import { CleanUpDialog } from './components/CleanUpDialog'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
 import { GitHubLink } from './components/GitHubLink'
+import { ImportNotesDialog } from './components/ImportNotesDialog'
+import type { RecentDocument } from './components/RecentDocuments'
 import {
   MarkdownViewer,
   type MarkdownViewerHandle,
 } from './components/MarkdownViewer'
-import { OpenPdf } from './components/OpenPdf'
+import { OpenPdf, type Resumable } from './components/OpenPdf'
 import {
   PdfViewer,
   type NewNoteRequest,
@@ -35,9 +38,21 @@ import type { HighlightColor } from './core/palette'
 import {
   exportJson,
   exportMarkdown,
+  validatedAndSorted,
   type ExportDocument,
 } from './core/exportNotes'
 import { exportAnnotatedPdf } from './core/exportPdf'
+import {
+  MAX_NOTES_FILE_BYTES,
+  applyMerge,
+  labelOf,
+  parseNotesFile,
+  planMerge,
+  type ImportSummary,
+  type MergePlan,
+  type NotesFile,
+  type Resolutions,
+} from './core/importNotes'
 import {
   isMarkdownFile,
   parseMarkdown,
@@ -50,34 +65,87 @@ import {
   loadDocument,
   type PDFDocumentProxy,
 } from './core/pdf'
+import { keepOpenedDocument } from './core/keepDocument'
+import type { RecoveryStore } from './core/recoveryStore'
 import { fetchDocument } from './core/remotePdf'
+import {
+  openAnnotationStore,
+  type AnnotationStore,
+  type DocumentLabel,
+} from './core/store'
+import {
+  NO_STORED_DOCUMENTS,
+  storedDocumentsFrom,
+} from './core/storedDocuments'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
+import { useDraft } from './hooks/useDraft'
 import { useHighlightColor } from './hooks/useHighlightColor'
 import { useProviders } from './hooks/useProviders'
+import { useRecoveryStore } from './hooks/useRecoveryStore'
+import { useStorageStatus } from './hooks/useStorageStatus'
+import { useSessionPage } from './hooks/useSessionPage'
+import { useWindowErrors } from './hooks/useWindowErrors'
 import { AiKeysButton } from './components/AiKeysButton'
 import { useTranscription } from './hooks/useTranscription'
 import './App.css'
 
-/** The open document: its SHA-256 id, its file name and its parsed form. */
+/** How a document is opened: the file a resume expected, the page to show. */
+interface OpenOptions {
+  expected?: ExpectedDocument | null
+  /** PDF page to scroll to once laid out (crash resume). */
+  resumePage?: number | null
+}
+
+/**
+ * The open document: its SHA-256 id, its file name, its size in bytes and
+ * its parsed form.
+ */
 type OpenDocument =
   | {
       kind: 'pdf'
       id: string
       name: string
+      size: number
       bytes: Uint8Array
       pdf: PDFDocumentProxy
     }
-  | { kind: 'markdown'; id: string; name: string; markdown: MarkdownDocument }
+  | {
+      kind: 'markdown'
+      id: string
+      name: string
+      size: number
+      markdown: MarkdownDocument
+    }
+
+/** A file the user was asked to open, to check the one they pick. */
+interface ExpectedDocument {
+  id: string
+  name: string | null
+}
+
+/** A parsed notes file waiting for the user to confirm the merge. */
+interface PendingImport {
+  fileName: string
+  notes: NotesFile
+  plan: MergePlan
+}
 
 function exportInfo(doc: OpenDocument): ExportDocument {
   return doc.kind === 'pdf'
-    ? { kind: 'pdf', name: doc.name, id: doc.id, pageCount: doc.pdf.numPages }
+    ? {
+        kind: 'pdf',
+        name: doc.name,
+        id: doc.id,
+        size: doc.size,
+        pageCount: doc.pdf.numPages,
+      }
     : {
         kind: 'markdown',
         name: doc.name,
         id: doc.id,
+        size: doc.size,
         blockCount: doc.markdown.blocks.length,
       }
 }
@@ -96,9 +164,45 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   // An Internet-Draft's XML waiting for consent to be compiled into a PDF.
   const [draftXml, setDraftXml] = useState<File | null>(null)
+  const recovery = useRecoveryStore()
+  // Where a resumed document's bytes come from: crash recovery's store.
+  const storedDocuments = useMemo(
+    () =>
+      recovery.store
+        ? storedDocumentsFrom(recovery.store)
+        : NO_STORED_DOCUMENTS,
+    [recovery.store],
+  )
+  const drafts = useDraft(doc?.id ?? null, recovery)
+  // The document that was open when the page last went away, if kept.
+  const [resumable, setResumable] = useState<Resumable | null>(null)
+  useWindowErrors(setError)
+  const storage = useStorageStatus()
+  // The document whose copy is kept: only it may be named by the session.
+  const [keptId, setKeptId] = useState<string | null>(null)
+  // The open document's id, set in the same tick as open and close, for
+  // writes that finish after either.
+  const openIdRef = useRef<string | null>(null)
+  useSessionPage(
+    recovery.store,
+    doc?.kind === 'pdf' && doc.id === keptId ? doc.id : null,
+    setError,
+  )
   const viewerRef = useRef<PdfViewerHandle>(null)
   const markdownViewerRef = useRef<MarkdownViewerHandle>(null)
-  const store = useAnnotations(doc?.id ?? null)
+  const docLabel = useMemo<DocumentLabel | undefined>(
+    () => (doc ? { name: doc.name, kind: doc.kind } : undefined),
+    [doc],
+  )
+  const store = useAnnotations(doc?.id ?? null, docLabel)
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  const [recent, setRecent] = useState<RecentDocument[]>([])
+  // Bumped after a write the landing list must show.
+  const [recentVersion, setRecentVersion] = useState(0)
+  const documentPickerRef = useRef<HTMLInputElement>(null)
+  const notesPickerRef = useRef<HTMLInputElement>(null)
+  // The file the user was last asked for (Recent documents, an import).
+  const expectedRef = useRef<ExpectedDocument | null>(null)
   const highlightColor = useHighlightColor()
   const providers = useProviders()
   const autoConsents = useAutoTranscribeConsent(providers)
@@ -119,6 +223,94 @@ function App() {
     docIdRef.current = doc?.id ?? null
     storeRef.current = store
   })
+
+  // On the landing, offer the document of an unclean exit. Close clears the
+  // session, so this only finds one after a crash, a kill or a reload.
+  const landing = doc === null
+  const refreshStorage = storage.refresh
+  useEffect(() => {
+    if (!landing) return
+    refreshStorage().catch((err: unknown) => {
+      setError(`Could not read the storage status: ${messageOf(err)}`)
+    })
+    const store = recovery.store
+    if (!store) return
+    let live = true
+    findResumable(store).then(
+      (found) => live && setResumable(found),
+      (err: unknown) =>
+        live && setError(`Could not read the last session: ${messageOf(err)}`),
+    )
+    return () => {
+      live = false
+    }
+  }, [recovery.store, landing, refreshStorage])
+
+  // A restored draft on a region reopens with the Region tool, so its
+  // composer is not dropped as belonging to another tool.
+  const [toolSetFor, setToolSetFor] = useState<string | null>(null)
+  if (doc && drafts.ready && toolSetFor !== doc.id) {
+    setToolSetFor(doc.id)
+    if (drafts.restored?.anchor.type === 'region') setTool('region')
+  }
+
+  /** Keeps the bytes and the session so a crash can be resumed. */
+  function keepDocument(
+    opened: OpenDocument,
+    bytes: Uint8Array,
+    mimeType: string,
+    page: number | null,
+  ) {
+    // The store may still be opening (a slow device): wait for it, so the
+    // first document of a visit is kept too. A failed open is already shown.
+    void recovery.whenOpen().then((store) => {
+      if (!store) return
+      void keepOpenedDocument(
+        { id: opened.id, name: opened.name, mimeType, bytes, page },
+        {
+          store,
+          isStillOpen: () => openIdRef.current === opened.id,
+          ensurePersistent: storage.ensurePersistent,
+          onKept: setKeptId,
+          onError: setError,
+        },
+      )
+    })
+  }
+
+  /** Reopens the document of an unclean exit, at its page. */
+  async function resumeInterrupted(target: Resumable) {
+    const store = recovery.store
+    if (!store || loading) return
+    setError(null)
+    try {
+      const stored = await store.getDocument(target.documentId)
+      if (!stored) throw new Error('it is no longer kept on this device')
+      const file = new File([stored.blob], stored.name, {
+        type: stored.mimeType,
+      })
+      await openFile(file, {
+        expected: { id: target.documentId, name: target.name },
+        resumePage: target.page,
+      })
+    } catch (err: unknown) {
+      setError(`Could not resume "${target.name}": ${messageOf(err)}`)
+    }
+  }
+
+  async function forget(target: Resumable) {
+    const store = recovery.store
+    if (!store) return
+    try {
+      await store.clearSession()
+      await store.deleteDocument(target.documentId)
+      setResumable(null)
+      // Its row in Continue a review now asks for the file again.
+      setRecentVersion((v) => v + 1)
+    } catch (err: unknown) {
+      setError(`Could not forget "${target.name}": ${messageOf(err)}`)
+    }
+  }
 
   async function transcribeStored(comment: Note) {
     if (!comment.voice) throw new Error('This comment has no recording')
@@ -152,7 +344,39 @@ function App() {
     await store.applyCleanUp(note.id, proposal)
   }
 
-  async function openFile(file: File) {
+  // The landing lists the documents with notes in this browser.
+  useEffect(() => {
+    if (doc) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const opened = await openAnnotationStore()
+        try {
+          const [documents, stored] = await Promise.all([
+            opened.listDocuments(),
+            storedDocuments.ids(),
+          ])
+          if (!cancelled) {
+            setRecent(
+              documents.map((d) => ({ ...d, stored: stored.has(d.id) })),
+            )
+          }
+        } finally {
+          opened.close()
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(`Could not list the documents with notes: ${messageOf(err)}`)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [doc, recentVersion, storedDocuments])
+
+  async function openFile(file: File, options: OpenOptions = {}) {
+    const { expected = null, resumePage = null } = options
     if (loading) return
     setError(null)
     const markdown = isMarkdownFile(file)
@@ -173,6 +397,7 @@ function App() {
           kind: 'markdown',
           id,
           name: file.name,
+          size: bytes.length,
           markdown: parseMarkdown(source),
         }
       } else {
@@ -180,15 +405,38 @@ function App() {
           computeDocumentId(bytes),
           loadDocument(bytes),
         ])
-        opened = { kind: 'pdf', id, name: file.name, bytes, pdf }
+        opened = {
+          kind: 'pdf',
+          id,
+          name: file.name,
+          size: bytes.length,
+          bytes,
+          pdf,
+        }
       }
       release(doc)
       // A consent dialog for the old document must not outlive it.
       transcription.finish(null)
       cleanUpFlow.finish(null)
       setArrivals({})
+      openIdRef.current = opened.id
       setDoc(opened)
       setSelectedId(null)
+      if (expected && expected.id !== opened.id) {
+        setError(
+          `"${file.name}" is not the file those notes are for: its content differs from ${expected.name ? `"${expected.name}"` : 'that document'} (SHA-256 ${expected.id.slice(0, 12)}…). Notes for this file, if any, are shown instead.`,
+        )
+      }
+      setResumable(null)
+      if (resumePage !== null && opened.kind === 'pdf') {
+        scrollToPageWhenLaidOut(resumePage)
+      }
+      keepDocument(
+        opened,
+        bytes,
+        file.type || (markdown ? 'text/markdown' : 'application/pdf'),
+        opened.kind === 'pdf' ? (resumePage ?? 1) : null,
+      )
     } catch (err: unknown) {
       setError(
         `Could not open "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
@@ -213,7 +461,119 @@ function App() {
     }
   }
 
+  /** Reopens a recent document from stored bytes, or asks for its file. */
+  function resume(entry: RecentDocument) {
+    setError(null)
+    const expected = { id: entry.id, name: entry.name }
+    expectedRef.current = expected
+    if (!entry.stored) {
+      // Synchronously, inside the tap: browsers open a file dialog only then.
+      documentPickerRef.current?.click()
+      return
+    }
+    void storedDocuments.get(entry.id).then(
+      (file) => {
+        if (!file) {
+          setError(
+            `The stored copy of ${entry.name ?? 'that document'} is gone; choose the file instead.`,
+          )
+          return
+        }
+        return openFile(file, { expected })
+      },
+      (err: unknown) =>
+        setError(`Could not reopen the stored copy: ${messageOf(err)}`),
+    )
+  }
+
+  /** Reads a notes export and shows what importing it would do. */
+  async function startImport(file: File) {
+    setError(null)
+    try {
+      if (file.size > MAX_NOTES_FILE_BYTES) {
+        throw new Error(
+          `it is ${file.size} bytes, more than any notes file (${MAX_NOTES_FILE_BYTES} bytes at most)`,
+        )
+      }
+      const notes = parseNotesFile(await file.text())
+      checkAgainstOpenDocument(notes)
+      const existing = await storedAnnotationsOf(notes.document.id)
+      setPendingImport({
+        fileName: file.name,
+        notes,
+        plan: planMerge(existing, notes.annotations),
+      })
+    } catch (err: unknown) {
+      setError(`Could not import "${file.name}": ${messageOf(err)}`)
+    }
+  }
+
+  /**
+   * The file is checked against the shape it declares; when its document is
+   * the open one, against the real page or block count and kind too, so a
+   * hand-edited file cannot store anchors the document does not have.
+   */
+  function checkAgainstOpenDocument(notes: NotesFile) {
+    if (!doc || doc.id !== notes.document.id) return
+    try {
+      validatedAndSorted(exportInfo(doc), notes.annotations)
+    } catch (err: unknown) {
+      throw new Error(
+        `the notes do not fit the open "${doc.name}": ${messageOf(err)}`,
+      )
+    }
+  }
+
+  async function storedAnnotationsOf(documentId: string) {
+    if (docIdRef.current === documentId) {
+      if (!storeRef.current.ready) {
+        throw new Error('the open document’s notes are still loading')
+      }
+      return storeRef.current.annotations
+    }
+    const opened = await openAnnotationStore()
+    try {
+      return await opened.list(documentId)
+    } finally {
+      opened.close()
+    }
+  }
+
+  /**
+   * Merges the file into the store. The comparison is made again at write
+   * time, since the stored notes may have changed while the dialog was open;
+   * a new conflict nobody chose a side for fails the import loudly.
+   */
+  async function applyImport(
+    notes: NotesFile,
+    resolutions: Resolutions,
+  ): Promise<ImportSummary> {
+    const id = notes.document.id
+    const open = docIdRef.current === id
+    if (open) checkAgainstOpenDocument(notes)
+    const label = open && docLabel ? docLabel : labelOf(notes.document)
+    const write = async (target: AnnotationStore) => {
+      const plan = planMerge(await target.list(id), notes.annotations)
+      return applyMerge(target, plan, resolutions, label)
+    }
+    if (open) return storeRef.current.writeAndReload(write)
+    const opened = await openAnnotationStore()
+    try {
+      return await write(opened)
+    } finally {
+      opened.close()
+      setRecentVersion((v) => v + 1)
+    }
+  }
+
   function closeDocument() {
+    openIdRef.current = null
+    // Reopening the same document looks at its draft again.
+    setToolSetFor(null)
+    // A deliberate close is not a crash: nothing to resume next time.
+    recovery.store?.clearSession().catch((err: unknown) => {
+      setError(`Could not clear the session: ${messageOf(err)}`)
+    })
     release(doc)
     transcription.finish(null)
     cleanUpFlow.finish(null)
@@ -318,17 +678,74 @@ function App() {
     }
   }
 
+  // Rendered in both views: Recent documents and the import summary ask for
+  // a document, and the header's Import notes… asks for a notes file.
+  const pickers = (
+    <>
+      <input
+        ref={documentPickerRef}
+        type="file"
+        accept="application/pdf,.pdf,text/markdown,.md,.markdown"
+        hidden
+        aria-label="Document to continue"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void openFile(file, { expected: expectedRef.current })
+        }}
+      />
+      <input
+        ref={notesPickerRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        aria-label="Notes file"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void startImport(file)
+        }}
+      />
+      {pendingImport && (
+        <ImportNotesDialog
+          key={pendingImport.notes.exportedAt + pendingImport.fileName}
+          fileName={pendingImport.fileName}
+          notes={pendingImport.notes}
+          plan={pendingImport.plan}
+          documentOpen={doc?.id === pendingImport.notes.document.id}
+          onApply={(resolutions) =>
+            applyImport(pendingImport.notes, resolutions)
+          }
+          onOpenDocument={() => {
+            const { id, name } = pendingImport.notes.document
+            expectedRef.current = { id, name }
+            setPendingImport(null)
+            documentPickerRef.current?.click()
+          }}
+          onClose={() => setPendingImport(null)}
+        />
+      )}
+    </>
+  )
+
   if (!doc) {
     return (
       <main className="app">
         <OpenPdf
-          onFile={openFile}
+          onFile={(file) => void openFile(file)}
+          interrupted={resumable}
+          onResumeInterrupted={(target) => void resumeInterrupted(target)}
+          onForgetInterrupted={(target) => void forget(target)}
+          storage={storage.status}
           onUrl={(url) => void openUrl(url)}
+          onImportNotes={(file) => void startImport(file)}
+          recentDocuments={recent}
+          onResume={resume}
           onDraftXml={(file) => {
             setError(null)
             setDraftXml(file)
           }}
-          error={error}
+          error={error ?? recovery.error}
         />
         {loading && <p className="app-status">Opening…</p>}
         {draftXml && (
@@ -342,6 +759,7 @@ function App() {
             onCancel={() => setDraftXml(null)}
           />
         )}
+        {pickers}
       </main>
     )
   }
@@ -392,6 +810,7 @@ function App() {
             doc.kind === 'pdf' ? store.annotations.length === 0 : 'hidden'
           }
           onExport={(format) => void exportAs(format)}
+          onImport={() => notesPickerRef.current?.click()}
         />
         <AiKeysButton
           pressed={settingsOpen}
@@ -399,45 +818,61 @@ function App() {
         />
         <GitHubLink className="app-bar-github" />
       </header>
-      {(error || store.error || autoConsents.error || highlightColor.error) && (
+      {(error ||
+        store.error ||
+        autoConsents.error ||
+        highlightColor.error ||
+        recovery.error ||
+        drafts.error) && (
         <p role="alert" className="app-error">
-          {error ?? store.error ?? autoConsents.error ?? highlightColor.error}
+          {error ??
+            store.error ??
+            autoConsents.error ??
+            highlightColor.error ??
+            recovery.error ??
+            drafts.error}
         </p>
       )}
       <div className="app-body">
-        {doc.kind === 'pdf' ? (
-          <PdfViewer
-            // A new document starts with no pending anchor or open composer.
-            key={doc.id}
-            ref={viewerRef}
-            document={doc.pdf}
-            tool={tool}
-            annotations={store.annotations}
-            selectedId={selectedId}
-            highlightColor={highlightColor.color}
-            onHighlightColorChange={highlightColor.setColor}
-            onCreateHighlight={createHighlight}
-            onCreateNote={createNote}
-            transcribe={transcription.request}
-            cleanUp={cleanUpFlow.request}
-            autoTranscribe={transcription.auto}
-          />
-        ) : (
-          <MarkdownViewer
-            key={doc.id}
-            ref={markdownViewerRef}
-            document={doc.markdown}
-            annotations={store.annotations}
-            selectedId={selectedId}
-            highlightColor={highlightColor.color}
-            onHighlightColorChange={highlightColor.setColor}
-            onCreateHighlight={createHighlight}
-            onCreateNote={createNote}
-            transcribe={transcription.request}
-            cleanUp={cleanUpFlow.request}
-            autoTranscribe={transcription.auto}
-          />
-        )}
+        <ErrorBoundary label="The viewer">
+          {!drafts.ready ? (
+            <p className="app-status">Opening…</p>
+          ) : doc.kind === 'pdf' ? (
+            <PdfViewer
+              // A new document starts with no pending anchor or open composer.
+              key={doc.id}
+              ref={viewerRef}
+              document={doc.pdf}
+              tool={tool}
+              annotations={store.annotations}
+              selectedId={selectedId}
+              highlightColor={highlightColor.color}
+              onHighlightColorChange={highlightColor.setColor}
+              onCreateHighlight={createHighlight}
+              onCreateNote={createNote}
+              transcribe={transcription.request}
+              cleanUp={cleanUpFlow.request}
+              autoTranscribe={transcription.auto}
+              drafts={drafts}
+            />
+          ) : (
+            <MarkdownViewer
+              key={doc.id}
+              ref={markdownViewerRef}
+              document={doc.markdown}
+              annotations={store.annotations}
+              selectedId={selectedId}
+              highlightColor={highlightColor.color}
+              onHighlightColorChange={highlightColor.setColor}
+              onCreateHighlight={createHighlight}
+              onCreateNote={createNote}
+              transcribe={transcription.request}
+              cleanUp={cleanUpFlow.request}
+              autoTranscribe={transcription.auto}
+              drafts={drafts}
+            />
+          )}
+        </ErrorBoundary>
         {listOpen && (
           <AnnotationList
             annotations={store.annotations}
@@ -496,8 +931,49 @@ function App() {
           }
         />
       )}
+      {pickers}
     </main>
   )
+}
+
+/** The kept document of the last unclean exit, if there is one. */
+async function findResumable(store: RecoveryStore): Promise<Resumable | null> {
+  const session = await store.getSession()
+  if (!session) return null
+  const stored = await store.getDocument(session.documentId)
+  if (!stored) {
+    throw new Error(
+      'the document that was open is no longer kept on this device; open its file again',
+    )
+  }
+  return {
+    documentId: stored.id,
+    name: stored.name,
+    page: session.page,
+    openedAt: session.updatedAt,
+  }
+}
+
+/**
+ * Brings a page into view once the viewer has laid it out: pages render
+ * only near the screen, but the target page and every page above it take
+ * real height first (`data-sized`), so this waits for those heights and not
+ * for any drawing.
+ */
+function scrollToPageWhenLaidOut(page: number, framesLeft = 120) {
+  const element = document.querySelector(`[data-page-number="${page}"]`)
+  const pending = [
+    ...document.querySelectorAll<HTMLElement>(
+      '[data-page-number]:not([data-sized])',
+    ),
+  ].some((p) => Number(p.dataset.pageNumber) <= page)
+  if (element && (!pending || framesLeft === 0)) {
+    element.scrollIntoView({ block: 'start' })
+    return
+  }
+  if (framesLeft > 0) {
+    requestAnimationFrame(() => scrollToPageWhenLaidOut(page, framesLeft - 1))
+  }
 }
 
 function messageOf(err: unknown): string {

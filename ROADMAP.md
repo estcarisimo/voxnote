@@ -112,6 +112,13 @@ the success criterion on real iPad hardware.
       Verified with unit tests, poppler and headless Chromium; not yet on
       an iPad.
 - [x] Persist locally in IndexedDB; reload restores annotations onto the PDF.
+- [x] Crash recovery (2026-11-08, design note `docs/design/crash-recovery.md`):
+      the opened document, the session (document and page) and the open
+      composer's draft, recording included, are kept in IndexedDB; **Resume**
+      first in **Continue a review** after an unclean exit, **Draft restored** in the
+      composer; an error boundary with **Reload**; window errors shown.
+      Verified with `Page.crash` in headless Chromium 155; not yet on a real
+      iPad (MediaRecorder timeslices on iOS Safari untested).
 - [~] Interoperability test: export highlights as native PDF annotations with
   `pdf-lib` and open the result in Preview, Acrobat, PDF Expert, Chrome.
   Export done; verified with poppler (pdftoppm) and qpdf. Preview,

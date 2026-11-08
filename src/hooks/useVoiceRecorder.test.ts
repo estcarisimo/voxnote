@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useVoiceRecorder } from './useVoiceRecorder'
+import { CHUNK_MS, useVoiceRecorder } from './useVoiceRecorder'
 
 /** Minimal MediaRecorder double: stop() delivers chunks then fires onstop. */
 class FakeMediaRecorder {
@@ -19,7 +19,9 @@ class FakeMediaRecorder {
     this.mimeType = options.mimeType
     FakeMediaRecorder.instances.push(this)
   }
-  start() {
+  startedWith: number | undefined
+  start(timeslice?: number) {
+    this.startedWith = timeslice
     this.state = 'recording'
   }
   stop() {
@@ -202,5 +204,58 @@ describe('useVoiceRecorder', () => {
     act(() => track.onended?.())
     await flush()
     expect(result.current.state.status).toBe('recorded')
+  })
+
+  it('records in timeslices and reports the audio captured so far', async () => {
+    const { stream } = fakeStream()
+    getUserMedia.mockResolvedValue(stream)
+    const onProgress = vi.fn()
+    const { result } = renderHook(() => useVoiceRecorder({ onProgress }))
+    await act(() => result.current.start())
+    const recorder = FakeMediaRecorder.instances[0]
+    expect(recorder.startedWith).toBe(CHUNK_MS)
+
+    act(() => recorder.ondataavailable?.({ data: new Blob(['ab']) }))
+    act(() => recorder.ondataavailable?.({ data: new Blob(['cd']) }))
+    expect(onProgress).toHaveBeenCalledTimes(2)
+    const partial = onProgress.mock.calls[1][0]
+    expect(partial.blob.size).toBe(4)
+    expect(partial.mimeType).toBe('audio/webm;codecs=opus')
+    expect(partial.recordedAt).toMatch(/Z$/)
+
+    // The final chunk is published by Stop, not as progress.
+    act(() => {
+      void result.current.stop()
+    })
+    await flush()
+    expect(onProgress).toHaveBeenCalledTimes(2)
+    const { state } = result.current
+    expect(state.status === 'recorded' && state.recording.blob.size).toBe(8)
+  })
+
+  it('restores a kept recording as the finished one, with a new URL', () => {
+    const { result } = renderHook(() => useVoiceRecorder())
+    const blob = new Blob(['kept'], { type: 'audio/webm' })
+    act(() =>
+      result.current.restore({
+        blob,
+        mimeType: 'audio/webm',
+        durationMs: 1200,
+        recordedAt: '2026-11-07T10:00:00.000Z',
+      }),
+    )
+    expect(result.current.state).toEqual({
+      status: 'recorded',
+      recording: {
+        blob,
+        mimeType: 'audio/webm',
+        durationMs: 1200,
+        recordedAt: '2026-11-07T10:00:00.000Z',
+        url: 'blob:fake',
+      },
+    })
+    expect(createObjectURL).toHaveBeenCalledWith(blob)
+    act(() => result.current.discard())
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:fake')
   })
 })

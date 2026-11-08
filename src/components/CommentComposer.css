@@ -112,3 +112,15 @@
   margin: 4px 0 0;
   white-space: pre-wrap;
 }
+
+.comment-composer-restored {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(60, 140, 255, 0.12);
+  font-size: 0.85rem;
+}
