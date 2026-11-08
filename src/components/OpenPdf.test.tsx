@@ -12,6 +12,9 @@ const props = {
   onFile: vi.fn(),
   onUrl: vi.fn(),
   onDraftXml: vi.fn(),
+  onImportNotes: vi.fn(),
+  recentDocuments: [],
+  onResume: vi.fn(),
   error: null,
 }
 
@@ -56,6 +59,67 @@ describe('OpenPdf', () => {
     fireEvent.drop(zone, { dataTransfer: { files: [file] } })
     expect(onFile).toHaveBeenCalledWith(file)
     expect(zone.className).not.toContain('open-pdf--dragging')
+  })
+
+  it('routes a picked or dropped .json file to the notes import', () => {
+    const onFile = vi.fn()
+    const onImportNotes = vi.fn()
+    const { container } = render(
+      <OpenPdf {...props} onFile={onFile} onImportNotes={onImportNotes} />,
+    )
+    const notes = new File(['{}'], 'paper.voxnote.json', {
+      type: 'application/json',
+    })
+    fireEvent.drop(container.firstElementChild!, {
+      dataTransfer: { files: [notes] },
+    })
+    fireEvent.change(screen.getByLabelText('Notes file to import'), {
+      target: { files: [notes] },
+    })
+    expect(onImportNotes.mock.calls).toEqual([[notes], [notes]])
+    expect(onFile).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Import notes…' })).toBeTruthy()
+  })
+
+  it('lists recent documents with UTC times and resumes the one tapped', () => {
+    const onResume = vi.fn()
+    const documents = [
+      {
+        id: 'a'.repeat(64),
+        name: 'paper.pdf',
+        kind: 'pdf' as const,
+        lastAnnotatedAt: '2026-11-07T18:04:31.000Z',
+        count: 3,
+        stored: false,
+      },
+      {
+        id: 'b'.repeat(64),
+        name: null,
+        kind: null,
+        lastAnnotatedAt: '2026-10-01T00:00:00.000Z',
+        count: 1,
+        stored: true,
+      },
+    ]
+    render(
+      <OpenPdf {...props} recentDocuments={documents} onResume={onResume} />,
+    )
+    const items = screen
+      .getByRole('heading', { name: 'Continue a review' })
+      .parentElement!.querySelectorAll('li')
+    expect([...items].map((li) => li.textContent)).toEqual([
+      'paper.pdf3 annotations · last annotated 2026-11-07 18:04 UTCChoose file…',
+      'Unnamed document bbbbbbbb…1 annotation · last annotated 2026-10-01 00:00 UTCReopen',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /paper\.pdf/ }))
+    expect(onResume).toHaveBeenCalledWith(documents[0])
+  })
+
+  it('shows no recent list when no document has notes', () => {
+    render(<OpenPdf {...props} />)
+    expect(
+      screen.queryByRole('heading', { name: 'Continue a review' }),
+    ).toBeNull()
   })
 
   it('ignores a drop with no file', () => {

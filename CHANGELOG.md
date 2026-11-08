@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **JSON export format 3.** The envelope adds the document's size in bytes
+  and `app: { name, version }`; the reader still accepts formats 1 and 2.
 - **The landing is generic about where a document comes from.** The link
   field is now **Or open from a link** and accepts a PDF or a Markdown file
   (a PDF by its `%PDF-` bytes whatever the path says; Markdown by a `.md` or
@@ -33,6 +35,30 @@ All notable changes to this project are documented here. The format follows
   draft's XML compiled and opened (7 pages) after the consent dialog.
 
 ### Added
+
+- **Continuing a review: Import notes… and Continue a review.** The answer
+  to "what do I load to continue?" is the original file plus its JSON
+  export; the decision, and why the annotated PDF is not re-imported and a
+  `.voxnote` package with audio is deferred, is in
+  `docs/design/resume-review.md`. **Import notes…** (on the landing, next to
+  the exports, or by dropping a `.json` on the landing) reads a JSON export
+  of any format (envelope v1 to v3, annotation schema v1 to v3), refuses an
+  invalid file as a whole with the reason, and shows what it holds before
+  writing: new notes are added, identical ones skipped, and for each note
+  that differs the reviewer keeps theirs or takes the file's; a summary
+  follows (added, skipped, conflicts, voice notes whose recording is not in
+  this browser). Notes for a document that is not open are stored for it,
+  and the summary offers to open that file. The landing lists the documents
+  with notes in this browser (**Continue a review**: name, count, last
+  annotated time in UTC); tapping one asks for the file and says so if the
+  picked file's content differs. Domain: `src/core/importNotes.ts`
+  (parse, validate, plan, merge), a `documentMeta` object store in
+  `src/core/store.ts` (IndexedDB version 3; existing annotations are
+  backfilled with an unnamed record, named on the next open), `putMany`,
+  `nameDocument` and `listDocuments` on the store, and the
+  `src/core/storedDocuments.ts` seam where kept document bytes will plug
+  in; all unit tested with `fake-indexeddb`. README: **Continuing a review**
+  and the privacy note on what is stored.
 
 - **Highlight colors.** A fixed palette of six colors (yellow, green, blue,
   pink, orange, purple; names and hex values in one place,

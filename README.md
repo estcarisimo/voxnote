@@ -177,14 +177,35 @@ The review flow is select, act, export:
      comments, suggestions (original and replacement) and voice notes with
      their raw transcripts; a polished body is labeled with its provider and
      model, export time labeled UTC.
-   - **JSON** → `<name>.voxnote.json`, the document name, kind, SHA-256 id,
-     page count (block count for a Markdown document) and the annotations as
-     stored, without audio.
+   - **JSON** → `<name>.voxnote.json`, the document name, kind, size in
+     bytes, SHA-256 id, page count (block count for a Markdown document), the
+     VoxNote version and UTC export time, and the annotations as stored,
+     without audio. **Import notes…** reads it back (see below).
+
+### Continuing a review
+
+Keep two files: the original PDF or Markdown file, and its
+`<name>.voxnote.json` from **JSON**. To continue in another browser or on
+another device, open VoxNote, use **Import notes…** (on the landing or next
+to the exports) with the JSON, then open the same file: notes are matched to
+it by the SHA-256 of its content, so a renamed copy works and an edited one
+does not. In the same browser you need nothing extra: **Continue a review**
+on the landing lists the documents with notes here, and reopening the file
+brings them back.
+
+An import never overwrites silently: identical notes are skipped, new ones
+added, and for a note that differs you choose to keep yours or take the
+file's. Recordings are not in the JSON; voice notes come back with their
+transcripts. Why JSON and not the annotated PDF, and what a future
+`.voxnote` package with audio would add: [docs/design/resume-review.md](docs/design/resume-review.md).
 
 ## 🔐 Privacy and keys
 
-- **Local-first by default.** Documents, annotations and recordings are
-  stored in your browser's IndexedDB on this origin. The site has no server,
+- **Local-first by default.** Annotations and recordings are stored in
+  your browser's IndexedDB on this origin, with, for each document you
+  annotated, its file name, kind and the UTC time of its last annotation (for
+  **Continue a review**). An imported notes file is merged there and not
+  kept. The site has no server,
   and documents never leave the browser. A Markdown file's images are never
   loaded, so opening one makes no request to any host it names.
 - **Visit counting.** The live site counts visits with Google Analytics 4,

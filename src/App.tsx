@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AnnotationList,
   type TranscriptArrival,
@@ -8,6 +8,8 @@ import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
 import { ExportMenu, type ExportFormat } from './components/ExportMenu'
 import { GitHubLink } from './components/GitHubLink'
+import { ImportNotesDialog } from './components/ImportNotesDialog'
+import type { RecentDocument } from './components/RecentDocuments'
 import {
   MarkdownViewer,
   type MarkdownViewerHandle,
@@ -39,6 +41,17 @@ import {
 } from './core/exportNotes'
 import { exportAnnotatedPdf } from './core/exportPdf'
 import {
+  MAX_NOTES_FILE_BYTES,
+  applyMerge,
+  labelOf,
+  parseNotesFile,
+  planMerge,
+  type ImportSummary,
+  type MergePlan,
+  type NotesFile,
+  type Resolutions,
+} from './core/importNotes'
+import {
   isMarkdownFile,
   parseMarkdown,
   type MarkdownDocument,
@@ -51,6 +64,15 @@ import {
   type PDFDocumentProxy,
 } from './core/pdf'
 import { fetchDocument } from './core/remotePdf'
+import {
+  openAnnotationStore,
+  type AnnotationStore,
+  type DocumentLabel,
+} from './core/store'
+import {
+  NO_STORED_DOCUMENTS,
+  type StoredDocuments,
+} from './core/storedDocuments'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
 import { useCleanUp } from './hooks/useCleanUp'
@@ -60,24 +82,60 @@ import { AiKeysButton } from './components/AiKeysButton'
 import { useTranscription } from './hooks/useTranscription'
 import './App.css'
 
-/** The open document: its SHA-256 id, its file name and its parsed form. */
+/**
+ * Where a resumed document's bytes come from. No bytes are kept yet; the
+ * crash-recovery `documents` store plugs in here (see storedDocuments.ts).
+ */
+const storedDocuments: StoredDocuments = NO_STORED_DOCUMENTS
+
+/**
+ * The open document: its SHA-256 id, its file name, its size in bytes and
+ * its parsed form.
+ */
 type OpenDocument =
   | {
       kind: 'pdf'
       id: string
       name: string
+      size: number
       bytes: Uint8Array
       pdf: PDFDocumentProxy
     }
-  | { kind: 'markdown'; id: string; name: string; markdown: MarkdownDocument }
+  | {
+      kind: 'markdown'
+      id: string
+      name: string
+      size: number
+      markdown: MarkdownDocument
+    }
+
+/** A file the user was asked to open, to check the one they pick. */
+interface ExpectedDocument {
+  id: string
+  name: string | null
+}
+
+/** A parsed notes file waiting for the user to confirm the merge. */
+interface PendingImport {
+  fileName: string
+  notes: NotesFile
+  plan: MergePlan
+}
 
 function exportInfo(doc: OpenDocument): ExportDocument {
   return doc.kind === 'pdf'
-    ? { kind: 'pdf', name: doc.name, id: doc.id, pageCount: doc.pdf.numPages }
+    ? {
+        kind: 'pdf',
+        name: doc.name,
+        id: doc.id,
+        size: doc.size,
+        pageCount: doc.pdf.numPages,
+      }
     : {
         kind: 'markdown',
         name: doc.name,
         id: doc.id,
+        size: doc.size,
         blockCount: doc.markdown.blocks.length,
       }
 }
@@ -98,7 +156,19 @@ function App() {
   const [draftXml, setDraftXml] = useState<File | null>(null)
   const viewerRef = useRef<PdfViewerHandle>(null)
   const markdownViewerRef = useRef<MarkdownViewerHandle>(null)
-  const store = useAnnotations(doc?.id ?? null)
+  const docLabel = useMemo<DocumentLabel | undefined>(
+    () => (doc ? { name: doc.name, kind: doc.kind } : undefined),
+    [doc],
+  )
+  const store = useAnnotations(doc?.id ?? null, docLabel)
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  const [recent, setRecent] = useState<RecentDocument[]>([])
+  // Bumped after a write the landing list must show.
+  const [recentVersion, setRecentVersion] = useState(0)
+  const documentPickerRef = useRef<HTMLInputElement>(null)
+  const notesPickerRef = useRef<HTMLInputElement>(null)
+  // The file the user was last asked for (Recent documents, an import).
+  const expectedRef = useRef<ExpectedDocument | null>(null)
   const highlightColor = useHighlightColor()
   const providers = useProviders()
   const autoConsents = useAutoTranscribeConsent(providers)
@@ -152,7 +222,38 @@ function App() {
     await store.applyCleanUp(note.id, proposal)
   }
 
-  async function openFile(file: File) {
+  // The landing lists the documents with notes in this browser.
+  useEffect(() => {
+    if (doc) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const opened = await openAnnotationStore()
+        try {
+          const [documents, stored] = await Promise.all([
+            opened.listDocuments(),
+            storedDocuments.ids(),
+          ])
+          if (!cancelled) {
+            setRecent(
+              documents.map((d) => ({ ...d, stored: stored.has(d.id) })),
+            )
+          }
+        } finally {
+          opened.close()
+        }
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(`Could not list the documents with notes: ${messageOf(err)}`)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [doc, recentVersion])
+
+  async function openFile(file: File, expected?: ExpectedDocument | null) {
     if (loading) return
     setError(null)
     const markdown = isMarkdownFile(file)
@@ -173,6 +274,7 @@ function App() {
           kind: 'markdown',
           id,
           name: file.name,
+          size: bytes.length,
           markdown: parseMarkdown(source),
         }
       } else {
@@ -180,7 +282,14 @@ function App() {
           computeDocumentId(bytes),
           loadDocument(bytes),
         ])
-        opened = { kind: 'pdf', id, name: file.name, bytes, pdf }
+        opened = {
+          kind: 'pdf',
+          id,
+          name: file.name,
+          size: bytes.length,
+          bytes,
+          pdf,
+        }
       }
       release(doc)
       // A consent dialog for the old document must not outlive it.
@@ -189,6 +298,11 @@ function App() {
       setArrivals({})
       setDoc(opened)
       setSelectedId(null)
+      if (expected && expected.id !== opened.id) {
+        setError(
+          `"${file.name}" is not the file those notes are for: its content differs from ${expected.name ? `"${expected.name}"` : 'that document'} (SHA-256 ${expected.id.slice(0, 12)}…). Notes for this file, if any, are shown instead.`,
+        )
+      }
     } catch (err: unknown) {
       setError(
         `Could not open "${file.name}": ${err instanceof Error ? err.message : String(err)}`,
@@ -210,6 +324,93 @@ function App() {
     } catch (err: unknown) {
       setError(`Could not open ${url.href}: ${messageOf(err)}`)
       setLoading(false)
+    }
+  }
+
+  /** Reopens a recent document from stored bytes, or asks for its file. */
+  function resume(entry: RecentDocument) {
+    setError(null)
+    const expected = { id: entry.id, name: entry.name }
+    expectedRef.current = expected
+    if (!entry.stored) {
+      // Synchronously, inside the tap: browsers open a file dialog only then.
+      documentPickerRef.current?.click()
+      return
+    }
+    void storedDocuments.get(entry.id).then(
+      (file) => {
+        if (!file) {
+          setError(
+            `The stored copy of ${entry.name ?? 'that document'} is gone; choose the file instead.`,
+          )
+          return
+        }
+        return openFile(file, expected)
+      },
+      (err: unknown) =>
+        setError(`Could not reopen the stored copy: ${messageOf(err)}`),
+    )
+  }
+
+  /** Reads a notes export and shows what importing it would do. */
+  async function startImport(file: File) {
+    setError(null)
+    try {
+      if (file.size > MAX_NOTES_FILE_BYTES) {
+        throw new Error(
+          `it is ${file.size} bytes, more than any notes file (${MAX_NOTES_FILE_BYTES} bytes at most)`,
+        )
+      }
+      const notes = parseNotesFile(await file.text())
+      const existing = await storedAnnotationsOf(notes.document.id)
+      setPendingImport({
+        fileName: file.name,
+        notes,
+        plan: planMerge(existing, notes.annotations),
+      })
+    } catch (err: unknown) {
+      setError(`Could not import "${file.name}": ${messageOf(err)}`)
+    }
+  }
+
+  async function storedAnnotationsOf(documentId: string) {
+    if (docIdRef.current === documentId) {
+      if (!storeRef.current.ready) {
+        throw new Error('the open document’s notes are still loading')
+      }
+      return storeRef.current.annotations
+    }
+    const opened = await openAnnotationStore()
+    try {
+      return await opened.list(documentId)
+    } finally {
+      opened.close()
+    }
+  }
+
+  /**
+   * Merges the file into the store. The comparison is made again at write
+   * time, since the stored notes may have changed while the dialog was open;
+   * a new conflict nobody chose a side for fails the import loudly.
+   */
+  async function applyImport(
+    notes: NotesFile,
+    resolutions: Resolutions,
+  ): Promise<ImportSummary> {
+    const id = notes.document.id
+    const open = docIdRef.current === id
+    const label = open && docLabel ? docLabel : labelOf(notes.document)
+    const write = async (target: AnnotationStore) => {
+      const plan = planMerge(await target.list(id), notes.annotations)
+      return applyMerge(target, plan, resolutions, label)
+    }
+    if (open) return storeRef.current.writeAndReload(write)
+    const opened = await openAnnotationStore()
+    try {
+      return await write(opened)
+    } finally {
+      opened.close()
+      setRecentVersion((v) => v + 1)
     }
   }
 
@@ -318,12 +519,65 @@ function App() {
     }
   }
 
+  // Rendered in both views: Recent documents and the import summary ask for
+  // a document, and the header's Import notes… asks for a notes file.
+  const pickers = (
+    <>
+      <input
+        ref={documentPickerRef}
+        type="file"
+        accept="application/pdf,.pdf,text/markdown,.md,.markdown"
+        hidden
+        aria-label="Document to continue"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void openFile(file, expectedRef.current)
+        }}
+      />
+      <input
+        ref={notesPickerRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        aria-label="Notes file"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void startImport(file)
+        }}
+      />
+      {pendingImport && (
+        <ImportNotesDialog
+          key={pendingImport.notes.exportedAt + pendingImport.fileName}
+          fileName={pendingImport.fileName}
+          notes={pendingImport.notes}
+          plan={pendingImport.plan}
+          documentOpen={doc?.id === pendingImport.notes.document.id}
+          onApply={(resolutions) =>
+            applyImport(pendingImport.notes, resolutions)
+          }
+          onOpenDocument={() => {
+            const { id, name } = pendingImport.notes.document
+            expectedRef.current = { id, name }
+            setPendingImport(null)
+            documentPickerRef.current?.click()
+          }}
+          onClose={() => setPendingImport(null)}
+        />
+      )}
+    </>
+  )
+
   if (!doc) {
     return (
       <main className="app">
         <OpenPdf
-          onFile={openFile}
+          onFile={(file) => void openFile(file)}
           onUrl={(url) => void openUrl(url)}
+          onImportNotes={(file) => void startImport(file)}
+          recentDocuments={recent}
+          onResume={resume}
           onDraftXml={(file) => {
             setError(null)
             setDraftXml(file)
@@ -342,6 +596,7 @@ function App() {
             onCancel={() => setDraftXml(null)}
           />
         )}
+        {pickers}
       </main>
     )
   }
@@ -392,6 +647,7 @@ function App() {
             doc.kind === 'pdf' ? store.annotations.length === 0 : 'hidden'
           }
           onExport={(format) => void exportAs(format)}
+          onImport={() => notesPickerRef.current?.click()}
         />
         <AiKeysButton
           pressed={settingsOpen}
@@ -496,6 +752,7 @@ function App() {
           }
         />
       )}
+      {pickers}
     </main>
   )
 }

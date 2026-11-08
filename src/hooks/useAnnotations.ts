@@ -20,7 +20,11 @@ import {
 } from '../core/annotations'
 import { withCleanUp, type CleanUpProposal } from '../core/cleanUp'
 import type { HighlightColor } from '../core/palette'
-import { openAnnotationStore, type AnnotationStore } from '../core/store'
+import {
+  openAnnotationStore,
+  type AnnotationStore,
+  type DocumentLabel,
+} from '../core/store'
 
 export type NewNote =
   | {
@@ -62,6 +66,13 @@ interface AnnotationsState {
   /** The recording behind a voice comment, or null when it has none. */
   getAudio: (id: string) => Promise<Blob | null>
   remove: (id: string) => Promise<void>
+  /**
+   * Runs a write against this document's store (an import), one at a time
+   * with the other writes, then reloads the list from the store.
+   */
+  writeAndReload: <T>(
+    write: (store: AnnotationStore) => Promise<T>,
+  ) => Promise<T>
 }
 
 interface Loaded {
@@ -82,8 +93,17 @@ const NONE: Annotation[] = []
  * to the store first and to React state only once they succeeded. State is
  * tagged with the document id, so switching documents never shows stale data.
  */
-export function useAnnotations(documentId: string | null): AnnotationsState {
+export function useAnnotations(
+  documentId: string | null,
+  /** The open file's name and kind, recorded beside every write. */
+  label?: DocumentLabel,
+): AnnotationsState {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
+  // Read at write time: a label change alone must not reopen the store.
+  const labelRef = useRef(label)
+  useEffect(() => {
+    labelRef.current = label
+  })
   const [failed, setFailed] = useState<Failed | null>(null)
   // The list as of the last write, ahead of the render that shows it: a
   // transcript arriving right after a save must find the saved note even
@@ -107,6 +127,13 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
         opened = store
         const annotations = await store.list(documentId)
         if (cancelled) return
+        // A document annotated before names were kept gets its name now,
+        // so the recent list can say which file it is.
+        const name = labelRef.current
+        if (annotations.length > 0 && name) {
+          await store.nameDocument(documentId, name)
+          if (cancelled) return
+        }
         latest.current = { documentId, store, annotations }
         setLoaded(latest.current)
       })
@@ -165,7 +192,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
           anchor,
           color,
         })
-        await state.store.put(annotation)
+        await state.store.put(annotation, undefined, labelRef.current)
         apply(state.documentId, (list) => [...list, annotation])
         return annotation
       })
@@ -199,6 +226,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
         await state.store.put(
           note,
           input.audio ? { id: note.id, blob: input.audio } : undefined,
+          labelRef.current,
         )
         apply(state.documentId, (list) => [...list, note])
         return note
@@ -216,7 +244,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
           throw new Error(`No comment or suggestion with id ${id}`)
         }
         const updated = withBody(existing, body)
-        await state.store.put(updated)
+        await state.store.put(updated, undefined, labelRef.current)
         apply(state.documentId, (list) =>
           list.map((a) => (a.id === id ? updated : a)),
         )
@@ -233,7 +261,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
         const existing = state.annotations.find((a) => a.id === id)
         if (!existing) throw new Error(`No annotation with id ${id}`)
         const updated = withVisibility(existing, visibility)
-        await state.store.put(updated)
+        await state.store.put(updated, undefined, labelRef.current)
         apply(state.documentId, (list) =>
           list.map((a) => (a.id === id ? updated : a)),
         )
@@ -252,7 +280,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
           throw new Error(`No highlight with id ${id}`)
         }
         const updated = withColor(existing, color)
-        await state.store.put(updated)
+        await state.store.put(updated, undefined, labelRef.current)
         apply(state.documentId, (list) =>
           list.map((a) => (a.id === id ? updated : a)),
         )
@@ -271,7 +299,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
           throw new Error(`No comment or suggestion with id ${id}`)
         }
         const updated = withTranscript(existing, transcript)
-        await state.store.put(updated)
+        await state.store.put(updated, undefined, labelRef.current)
         apply(state.documentId, (list) =>
           list.map((a) => (a.id === id ? updated : a)),
         )
@@ -290,7 +318,7 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
           throw new Error(`No comment or suggestion with id ${id}`)
         }
         const updated = withCleanUp(existing, proposal)
-        await state.store.put(updated)
+        await state.store.put(updated, undefined, labelRef.current)
         apply(state.documentId, (list) =>
           list.map((a) => (a.id === id ? updated : a)),
         )
@@ -320,6 +348,19 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     [current, apply, serialize],
   )
 
+  const writeAndReload = useCallback(
+    async <T>(write: (store: AnnotationStore) => Promise<T>) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      return serialize(current.documentId, async (state) => {
+        const result = await write(state.store)
+        const annotations = await state.store.list(state.documentId)
+        apply(state.documentId, () => annotations)
+        return result
+      })
+    },
+    [current, apply, serialize],
+  )
+
   return {
     annotations: current?.annotations ?? NONE,
     ready: current !== null,
@@ -333,5 +374,6 @@ export function useAnnotations(documentId: string | null): AnnotationsState {
     applyCleanUp,
     getAudio,
     remove,
+    writeAndReload,
   }
 }

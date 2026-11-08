@@ -8,3 +8,6 @@ interface ImportMetaEnv {
    */
   readonly VITE_GA_MEASUREMENT_ID?: string
 }
+
+/** package.json `version`, replaced at build time; see vite.config.ts. */
+declare const __APP_VERSION__: string

@@ -5,9 +5,11 @@ import {
   type DragEvent,
   type FormEvent,
 } from 'react'
+import { isNotesFile } from '../core/importNotes'
 import { isDraftXmlFile, parseHttpUrl } from '../core/remotePdf'
 import { loadAnalytics } from './analytics'
 import { GitHubLink, REPOSITORY_URL } from './GitHubLink'
+import { RecentDocuments, type RecentDocument } from './RecentDocuments'
 import './OpenPdf.css'
 
 interface OpenPdfProps {
@@ -16,6 +18,11 @@ interface OpenPdfProps {
   onUrl: (url: URL) => void
   /** An Internet-Draft's XML source, to compile into a PDF after consent. */
   onDraftXml: (file: File) => void
+  /** A notes export (.voxnote.json) to merge into this browser's notes. */
+  onImportNotes: (file: File) => void
+  /** Documents with notes in this browser, most recent first. */
+  recentDocuments: readonly RecentDocument[]
+  onResume: (document: RecentDocument) => void
   error: string | null
 }
 
@@ -58,9 +65,18 @@ function isStandalone(): boolean {
  * Landing view: pick a PDF or a Markdown file with the file dialog, or drop
  * one onto the page.
  */
-export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
+export function OpenPdf({
+  onFile,
+  onUrl,
+  onDraftXml,
+  onImportNotes,
+  recentDocuments,
+  onResume,
+  error,
+}: OpenPdfProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const xmlInputRef = useRef<HTMLInputElement>(null)
+  const notesInputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [urlText, setUrlText] = useState('')
   const [urlError, setUrlError] = useState<string | null>(null)
@@ -72,11 +88,15 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
     loadAnalytics(import.meta.env.VITE_GA_MEASUREMENT_ID)
   }, [])
 
-  /** A dropped or picked XML file is a draft to compile; anything else, a PDF. */
+  /**
+   * A dropped or picked XML file is a draft to compile, a JSON file a notes
+   * export to import; anything else, a document to open.
+   */
   function accept(fileList: FileList | null) {
     const file = fileList?.[0]
     if (!file) return
     if (isDraftXmlFile(file)) onDraftXml(file)
+    else if (isNotesFile(file)) onImportNotes(file)
     else onFile(file)
   }
 
@@ -149,6 +169,27 @@ export function OpenPdf({ onFile, onUrl, onDraftXml, error }: OpenPdfProps) {
             </p>
           )}
         </div>
+
+        <RecentDocuments documents={recentDocuments} onResume={onResume} />
+
+        <p className="open-pdf-converters">
+          Continuing a review from another browser or device?{' '}
+          <button type="button" onClick={() => notesInputRef.current?.click()}>
+            Import notes…
+          </button>{' '}
+          from its <code>.voxnote.json</code> export, then open the same file.
+          <input
+            ref={notesInputRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            aria-label="Notes file to import"
+            onChange={(e) => {
+              accept(e.target.files)
+              e.target.value = ''
+            }}
+          />
+        </p>
 
         <form className="open-pdf-url" onSubmit={submitUrl}>
           <label htmlFor="open-pdf-url">Or open from a link</label>

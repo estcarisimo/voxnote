@@ -1,0 +1,28 @@
+.import-conflict {
+  margin: 0 0 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.import-conflict legend {
+  padding: 0 4px;
+  font-size: 0.85rem;
+  color: var(--text-h);
+}
+
+.import-conflict label {
+  display: block;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.import-conflict-text {
+  display: block;
+  margin-top: 4px;
+  white-space: pre-wrap;
+  color: var(--text-h);
+}
