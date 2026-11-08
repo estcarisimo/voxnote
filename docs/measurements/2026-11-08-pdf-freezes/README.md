@@ -38,6 +38,13 @@ error and that output was filtered out, so the reason is not recorded. The
 Markdown claim rests on the complete runs (`md-before-2`, `md-after-1`) and
 the scroll step of `md-after-2`.
 
+`profile-scroll-intermediate.txt` is the CPU profile (`PROFILE=scroll`,
+functions by self time in ms) of the fast-scroll step at an intermediate,
+uncommitted build, written at 00:16 UTC on 2026-11-08. That build had the page
+window and the slice yielding but not yet the 80 ms render delay, and its
+remaining time is mostly native raster and composite (`(program)`), plus
+`setTransform` and `fillText` in pdf.js drawing.
+
 `Inspector.targetCrashed` lines in the PDF logs are renderer crashes; a
 `main` run that crashed has no rows after the crash.
 

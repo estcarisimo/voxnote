@@ -124,7 +124,7 @@ try {
   )
 } finally {
   ws.close()
-  if (chrome.exitCode === null) {
+  if (chrome.exitCode === null && chrome.signalCode === null) {
     const exited = new Promise((r) => chrome.once('exit', r))
     chrome.kill()
     await exited
