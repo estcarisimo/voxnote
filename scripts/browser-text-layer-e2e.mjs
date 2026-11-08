@@ -2,14 +2,21 @@
 // DevTools protocol against the build served at APP_URL (`npm run build &&
 // npm run preview`, or `npm run dev`), opens a PDF, and compares every text
 // layer span on one page with the text pdf.js extracts for that page: the
-// span's box on screen must sit where the glyphs are printed and be as wide
-// as they are. A span wider than its text puts a selection's rectangles
-// beside the text, into the next column on a two-column page.
-// Prints the worst width and position error and a verdict.
+// span's box on screen must sit where the glyphs are printed and be as long
+// as they are. A span longer than its text puts a selection's rectangles
+// beside the text, into the next column on a two-column page; a span away
+// from its text (every span, on a page with a /Rotate entry whose text
+// layer is not turned with the canvas) puts them on other lines entirely.
+// Prints the worst length and position errors and a verdict.
+//
+// Each printed item's box is mapped to the screen through the page's
+// viewport (`convertToViewportPoint`), so a page rotated by its /Rotate
+// entry is compared in its rotated frame: text then runs down or up the
+// screen, and "length" is the span's extent along that direction.
 //
 // Usage: node scripts/browser-text-layer-e2e.mjs <file.pdf> [page number]
 // Env: APP_URL (default http://127.0.0.1:4173/voxnote/), TOLERANCE (fraction
-//      of the text width, default 0.05). Needs /usr/bin/chromium.
+//      of the text length, default 0.05). Needs /usr/bin/chromium.
 import { spawn } from 'node:child_process'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -22,8 +29,10 @@ if (!FILE) throw new Error('Pass the path to a .pdf')
 const PAGE = Number(process.argv[3] ?? 1)
 const TOLERANCE = Number(process.env.TOLERANCE ?? 0.05)
 
-// What pdf.js prints: each text item's left edge and width in PDF user
-// space, with the page's media box to map them to the screen.
+// What pdf.js prints: each text item's origin (its baseline's start), its
+// width and its font height in PDF user space, with the page's viewport at
+// scale 1 (rotated by the page's /Rotate entry, as the app's is) to map
+// them to the screen.
 const loadingTask = getDocument({ data: new Uint8Array(readFileSync(FILE)) })
 const pdf = await loadingTask.promise
 const pdfPage = await pdf.getPage(PAGE)
@@ -31,7 +40,13 @@ const viewport = pdfPage.getViewport({ scale: 1 })
 const textContent = await pdfPage.getTextContent()
 const printed = textContent.items
   .filter((item) => 'str' in item && item.str.trim() !== '' && item.width > 0)
-  .map((item) => ({ text: item.str, x: item.transform[4], width: item.width }))
+  .map((item) => ({
+    text: item.str,
+    x: item.transform[4],
+    y: item.transform[5],
+    width: item.width,
+    height: item.height,
+  }))
 await loadingTask.destroy()
 
 const profileDir = mkdtempSync(join(tmpdir(), 'voxnote-text-layer-'))
@@ -152,11 +167,64 @@ try {
         .filter((s) => s.textContent.trim() !== '' && s.childElementCount === 0)
         .map((s) => {
           const r = s.getBoundingClientRect()
-          return { text: s.textContent, left: r.left - origin.left, width: r.width }
+          return {
+            text: s.textContent,
+            left: r.left - origin.left,
+            top: r.top - origin.top,
+            width: r.width,
+            height: r.height,
+          }
         }),
     }
   })()`)
   const scale = screen.pageWidth / viewport.width
+  const rotation = viewport.rotation
+
+  // A PDF user-space point → CSS px relative to the page's top-left corner.
+  const toScreen = (x, y) =>
+    viewport.convertToViewportPoint(x, y).map((v) => v * scale)
+  // The box the item's glyphs occupy on screen: baseline origin to
+  // (origin + width, origin + font height), through the rotated viewport.
+  const expectedBox = (item) => {
+    const corners = [
+      toScreen(item.x, item.y),
+      toScreen(item.x + item.width, item.y),
+      toScreen(item.x, item.y + item.height),
+      toScreen(item.x + item.width, item.y + item.height),
+    ]
+    const xs = corners.map((c) => c[0])
+    const ys = corners.map((c) => c[1])
+    const left = Math.min(...xs)
+    const top = Math.min(...ys)
+    // Which way the text runs on screen: from the baseline's start to its
+    // end. Horizontal on an unrotated page, vertical at 90 or 270.
+    const [sx, sy] = corners[0]
+    const [ex, ey] = corners[1]
+    const horizontal = Math.abs(ex - sx) >= Math.abs(ey - sy)
+    return {
+      left,
+      top,
+      width: Math.max(...xs) - left,
+      height: Math.max(...ys) - top,
+      horizontal,
+      // The edge where the text starts, along its direction.
+      start: horizontal
+        ? ex > sx
+          ? 'left'
+          : 'right'
+        : ey > sy
+          ? 'top'
+          : 'bottom',
+    }
+  }
+  const edge = (box, side) =>
+    side === 'left'
+      ? box.left
+      : side === 'right'
+        ? box.left + box.width
+        : side === 'top'
+          ? box.top
+          : box.top + box.height
 
   // Match each printed item to the span with the same text; a text printed
   // more than once is matched in document order.
@@ -178,36 +246,65 @@ try {
       unmatched++
       continue
     }
-    const expectedLeft = (item.x - viewport.viewBox[0]) * scale
-    const expectedWidth = item.width * scale
+    const expected = expectedBox(item)
+    // Along the text: its length and where it starts. Across it: the
+    // center of the line. pdf.js tops a span at the font's ascent above the
+    // baseline, so a fraction of a line's height across is expected.
+    const along = expected.horizontal ? 'width' : 'height'
+    const across = expected.horizontal ? 'height' : 'width'
+    const center = (box, axis) =>
+      axis === 'width' ? box.left + box.width / 2 : box.top + box.height / 2
     errors.push({
       text: item.text,
       widthPt: item.width,
-      widthError: Math.abs(span.width - expectedWidth) / expectedWidth,
-      leftError: Math.abs(span.left - expectedLeft) / expectedWidth,
+      widthError: Math.abs(span[along] - expected[along]) / expected[along],
+      leftError:
+        Math.abs(edge(span, expected.start) - edge(expected, expected.start)) /
+        expected[along],
+      acrossError:
+        Math.abs(center(span, across) - center(expected, across)) /
+        expected[across],
     })
   }
   const percent = (v) => `${(v * 100).toFixed(1)}%`
   const sorted = errors.map((e) => e.widthError).sort((a, b) => a - b)
   const median = sorted[Math.floor(sorted.length / 2)] ?? NaN
   const wide = errors.filter((e) => e.widthPt >= MIN_WIDTH_PT)
-  const worst = wide.reduce((w, e) => (e.widthError > w.widthError ? e : w), {
-    widthError: -1,
-    leftError: 0,
-    text: '',
-  })
+  const worstBy = (key) =>
+    wide.reduce((w, e) => (e[key] > w[key] ? e : w), {
+      widthError: -1,
+      leftError: -1,
+      acrossError: -1,
+      text: '',
+    })
+  const worst = worstBy('widthError')
+  const worstPosition = worstBy('leftError')
+  const worstAcross = worstBy('acrossError')
   console.log(
-    `page ${PAGE}: ${errors.length} spans compared (${wide.length} at least ${MIN_WIDTH_PT} pt wide), ${unmatched} printed items without a span, scale ${scale.toFixed(3)}`,
+    `page ${PAGE} (rotation ${rotation}): ${errors.length} spans compared (${wide.length} at least ${MIN_WIDTH_PT} pt wide), ${unmatched} printed items without a span, scale ${scale.toFixed(3)}`,
   )
   console.log(
-    `width error, all spans: median ${percent(median)} of the text width`,
+    `length error, all spans: median ${percent(median)} of the text length`,
   )
   console.log(
-    `width error, wide spans: worst ${percent(worst.widthError)} (position error ${percent(worst.leftError)}) on ${JSON.stringify(worst.text.slice(0, 50))}`,
+    `length error, wide spans: worst ${percent(worst.widthError)} on ${JSON.stringify(worst.text.slice(0, 50))}`,
   )
-  const ok = wide.length > 0 && worst.widthError <= TOLERANCE
   console.log(
-    `RESULT: ${ok ? 'PASS' : 'FAIL'} (tolerance ${percent(TOLERANCE)} on wide spans) in`,
+    `position error along the text, wide spans: worst ${percent(worstPosition.leftError)} of the text length on ${JSON.stringify(worstPosition.text.slice(0, 50))}`,
+  )
+  console.log(
+    `position error across the text, wide spans: worst ${percent(worstAcross.acrossError)} of the line height on ${JSON.stringify(worstAcross.text.slice(0, 50))}`,
+  )
+  // Across the text, pdf.js's span sits a fraction of a line above the
+  // item's box (ascent against font height); a wrong line is 100 % or more.
+  const ACROSS_TOLERANCE = 0.5
+  const ok =
+    wide.length > 0 &&
+    worst.widthError <= TOLERANCE &&
+    worstPosition.leftError <= TOLERANCE &&
+    worstAcross.acrossError <= ACROSS_TOLERANCE
+  console.log(
+    `RESULT: ${ok ? 'PASS' : 'FAIL'} (tolerance ${percent(TOLERANCE)} of the text length along it, ${percent(ACROSS_TOLERANCE)} of the line height across it, on wide spans) in`,
     await evaluate('navigator.userAgent'),
   )
   process.exitCode = ok ? 0 : 1

@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, degrees } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import {
   clampToViewBox,
@@ -97,6 +97,34 @@ describe('createPageGeometry with real pdf.js viewports', () => {
       g.toPdfRect(client(100 + css.left, 50 + css.top, css.width, css.height)),
       rect,
     )
+  })
+
+  it('follows a page /Rotate entry through the default viewport rotation', async () => {
+    // The app asks for `getViewport({ scale })` with no rotation, so the
+    // page's own /Rotate entry drives the mapping, as it drives the canvas.
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const doc = await PDFDocument.create()
+    doc.addPage([400, 600]).setRotation(degrees(90))
+    const pdf = await pdfjs.getDocument({ data: await doc.save() }).promise
+    const viewport = (await pdf.getPage(1)).getViewport({ scale: 2 })
+    expect(viewport.rotation).toBe(90)
+    // Rotated 90° clockwise on screen: the 400×600 pt page shows as
+    // 1200×800 px, its PDF bottom-left corner (0, 0) at the screen's
+    // top-left and its top-left corner (0, 600) at the top-right.
+    expect([viewport.width, viewport.height]).toEqual([1200, 800])
+    const g = createPageGeometry(1, element, element, viewport)
+    // A 10×5 pt box 20 pt from the left edge and 565 pt up: on screen it
+    // sits 1130 px from the left, 40 px down, 10 px wide and 20 px tall.
+    const rect = { x: 20, y: 565, width: 10, height: 5 }
+    close(g.toCssRect(rect), { left: 1130, top: 40, width: 10, height: 20 })
+    close(g.toPdfRect(client(100 + 1130, 50 + 40, 10, 20)), rect)
+    // The top-left pixel of the page is the PDF origin.
+    close(g.toPdfRect(client(100, 50, 2, 2)), {
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 1,
+    })
   })
 
   it('respects a media box that does not start at the origin', async () => {

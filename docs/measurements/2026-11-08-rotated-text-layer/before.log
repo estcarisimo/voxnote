@@ -1,0 +1,27 @@
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+page 1 (rotation 0): 6 spans compared (6 at least 30 pt wide), 0 printed items without a span, scale 1.471
+length error, all spans: median 0.1% of the text length
+length error, wide spans: worst 0.1% on "Pack my box with five dozen liquor jugs."
+position error along the text, wide spans: worst 0.0% of the text length on "How vexingly quick daft zebras jump!"
+position error across the text, wide spans: worst 18.1% of the line height on "Page rotated 0 degrees"
+RESULT: PASS (tolerance 5.0% of the text length along it, 50.0% of the line height across it, on wide spans) in Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+page 2 (rotation 90): 6 spans compared (6 at least 30 pt wide), 0 printed items without a span, scale 1.136
+length error, all spans: median 94.0% of the text length
+length error, wide spans: worst 95.0% on "The quick brown fox jumps over the lazy dog."
+position error along the text, wide spans: worst 366.7% of the text length on "Bottom right corner"
+position error across the text, wide spans: worst 3780.5% of the line height on "The quick brown fox jumps over the lazy dog."
+RESULT: FAIL (tolerance 5.0% of the text length along it, 50.0% of the line height across it, on wide spans) in Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+page 3 (rotation 270): 6 spans compared (6 at least 30 pt wide), 0 printed items without a span, scale 1.136
+length error, all spans: median 94.0% of the text length
+length error, wide spans: worst 95.0% on "The quick brown fox jumps over the lazy dog."
+position error along the text, wide spans: worst 599.6% of the text length on "Bottom right corner"
+position error across the text, wide spans: worst 2727.0% of the line height on "Bottom right corner"
+RESULT: FAIL (tolerance 5.0% of the text length along it, 50.0% of the line height across it, on wide spans) in Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36
+page 3 (rotation 180): 6 spans compared (6 at least 30 pt wide), 0 printed items without a span, scale 1.471
+length error, all spans: median 0.1% of the text length
+length error, wide spans: worst 0.1% on "Pack my box with five dozen liquor jugs."
+position error along the text, wide spans: worst 321.0% of the text length on "Bottom right corner"
+position error across the text, wide spans: worst 6394.2% of the line height on "Bottom right corner"
+RESULT: FAIL (tolerance 5.0% of the text length along it, 50.0% of the line height across it, on wide spans) in Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36
