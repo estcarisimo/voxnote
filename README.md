@@ -190,7 +190,10 @@ open VoxNote there, open the same PDF, tap **Import notes…** (next to the
 exports, or on the landing) and pick that JSON, and continue where you were.
 In the same browser you need nothing at all: reopening the file restores
 everything from this browser's storage, and **Continue a review** on the
-landing lists the documents you have notes for.
+landing lists the documents you have notes for and reopens them in one tap
+from the copy this browser keeps (or asks for the file when there is none).
+After a crash or a killed tab, its first row is **Resume _name_**, which
+also brings back an unsaved comment and its recording.
 
 Two cases do not work. A different browser or device **without the
 export**: notes live only in the browser where you made them, so keep the
@@ -216,6 +219,35 @@ transcripts. Why JSON and not the annotated PDF, and what a future
   kept. The site has no server,
   and documents never leave the browser. A Markdown file's images are never
   loaded, so opening one makes no request to any host it names.
+- **What is kept in this browser, and how to clear it.** Besides the
+  annotations and their recordings, VoxNote keeps, for crash recovery
+  ([design note](docs/design/crash-recovery.md)): a copy of each document you
+  open (its bytes, name, type, size and when it was opened, UTC), a one-record
+  session naming the document open when the page last closed and the page in
+  view, and the draft of an unsaved comment or suggestion, including its
+  recording while you are still speaking (written every second). **Close**
+  clears the session; **Save**, **Cancel** or **Discard draft** delete the
+  draft; **Forget its copy** under **Resume** (in
+  **Continue a review**) deletes the kept copy of that
+  document. To remove everything, clear this site's data in the browser
+  (site settings → delete data/storage for the site); that also deletes your
+  annotations and saved API keys. A failed write, such as a full quota, is
+  shown on screen, never skipped silently.
+- **Eviction.** Browsers may delete a site's local data. Safari deletes all
+  of it (IndexedDB included) after seven days of Safari use without opening
+  the site, but not for a web app added to the Home Screen, which keeps its
+  own count of days of use ([WebKit, 2020-03-24](https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/),
+  read 2026-11-08 UTC). On the first save of each visit VoxNote asks the
+  browser for persistent storage (`navigator.storage.persist()`); WebKit
+  grants it by heuristics such as running as a Home Screen web app
+  ([WebKit, 2023-08-10](https://webkit.org/blog/14403/updates-to-storage-policy/)),
+  Chromium decides from your history with the site without asking, and
+  Firefox shows a permission prompt
+  ([MDN](https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria), read 2026-11-08 UTC).
+  VoxNote asks once per visit and never waits on the answer.
+  The landing shows whether storage is persistent and how much is used; a
+  browser without the API is reported as such. On an iPad, add VoxNote to
+  the Home Screen and export your notes from time to time.
 - **Visit counting.** The live site counts visits with Google Analytics 4,
   without cookies: the build reads the measurement id from the repository
   variable `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only,

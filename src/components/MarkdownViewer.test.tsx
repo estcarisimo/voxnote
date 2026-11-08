@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createComment, createHighlight } from '../core/annotations'
 import { parseMarkdown } from '../core/markdown'
 import { MarkdownViewer, type MarkdownViewerHandle } from './MarkdownViewer'
+import type { Draft } from '../core/recoveryStore'
+import type { DraftKeeper } from '../hooks/useDraft'
 import type { NewNoteRequest } from './PdfViewer'
 
 const DOC = parseMarkdown(
@@ -189,5 +191,112 @@ describe('MarkdownViewer', () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(1)
     const target = scrollIntoView.mock.contexts[0] as Element
     expect(target.getAttribute('data-block')).toBe('2')
+  })
+})
+
+describe('MarkdownViewer draft keeping', () => {
+  const anchor = {
+    type: 'block-text',
+    page: 2,
+    quote: 'The claim',
+    start: 0,
+    end: 9,
+  } as const
+
+  function keeper(restored: Draft | null): DraftKeeper {
+    return {
+      ready: true,
+      restored,
+      error: null,
+      begin: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    }
+  }
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:restored')
+    URL.revokeObjectURL = vi.fn()
+  })
+
+  it('starts a draft when a composer opens and drops it on Cancel', async () => {
+    const drafts = keeper(null)
+    renderViewer({ drafts })
+    selectInBlock(2, 0, 9)
+    await screen.findByRole('toolbar')
+    fireEvent.click(screen.getByRole('button', { name: 'Suggest' }))
+    expect(drafts.begin).toHaveBeenCalledWith({
+      mode: 'suggest',
+      anchor,
+      placement: expect.any(Object),
+      body: 'The claim',
+    })
+    fireEvent.change(await screen.findByRole('textbox'), {
+      target: { value: 'A claim' },
+    })
+    expect(drafts.update).toHaveBeenLastCalledWith({
+      body: 'A claim',
+      transcript: undefined,
+      cleanUp: undefined,
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(drafts.remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('reopens a restored voice draft with its recording, and saves it', async () => {
+    const blob = new Blob(['opus'], { type: 'audio/webm' })
+    const drafts = keeper({
+      documentId: 'doc',
+      mode: 'voice',
+      anchor,
+      placement: { left: 0, top: 0, bottom: 0 },
+      body: 'Said before the crash',
+      audio: {
+        blob,
+        mimeType: 'audio/webm',
+        durationMs: 2500,
+        recordedAt: '2026-11-07T09:59:00.000Z',
+        complete: false,
+      },
+      updatedAt: '2026-11-07T10:00:00.000Z',
+    })
+    const { onCreateNote } = renderViewer({ drafts })
+    expect(screen.getByRole('textbox')).toHaveProperty(
+      'value',
+      'Said before the crash',
+    )
+    expect(screen.getByRole('status').textContent).toContain(
+      'Draft restored (saved 2026-11-07 10:00 UTC)',
+    )
+    await waitFor(() =>
+      expect(document.querySelector('audio')?.getAttribute('src')).toBe(
+        'blob:restored',
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(onCreateNote).toHaveBeenCalledTimes(1))
+    expect(onCreateNote.mock.calls[0]![0]).toMatchObject({
+      kind: 'comment',
+      anchor,
+      body: 'Said before the crash',
+      audio: blob,
+      voice: { mimeType: 'audio/webm', durationMs: 2500 },
+    })
+    expect(drafts.remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('discards a restored draft on request', async () => {
+    const drafts = keeper({
+      documentId: 'doc',
+      mode: 'typed',
+      anchor,
+      placement: { left: 0, top: 0, bottom: 0 },
+      body: 'Old thought',
+      updatedAt: '2026-11-07T10:00:00.000Z',
+    })
+    renderViewer({ drafts })
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+    expect(drafts.remove).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('textbox')).toBeNull()
   })
 })

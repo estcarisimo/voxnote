@@ -35,9 +35,27 @@ export interface VoiceRecorder {
   stop(): Promise<Recording | null>
   /** Drops the recording or the error and returns to idle. */
   discard(): void
+  /**
+   * Shows a recording kept from before a crash as the finished recording,
+   * with a fresh replay URL. Ignored while the microphone is in use.
+   */
+  restore(recording: Omit<Recording, 'url'>): void
+}
+
+/** The audio captured so far, while recording is still running. */
+export type PartialRecording = Omit<Recording, 'url'>
+
+export interface VoiceRecorderOptions {
+  /**
+   * Called every `CHUNK_MS` while recording with everything captured so
+   * far, so a caller can keep it somewhere that survives a crash.
+   */
+  onProgress?: (partial: PartialRecording) => void
 }
 
 const TICK_MS = 250
+/** MediaRecorder timeslice: how much audio a crash can cost at most. */
+export const CHUNK_MS = 1000
 
 /**
  * Records audio from the microphone with MediaRecorder. Everything stays in
@@ -49,7 +67,14 @@ const TICK_MS = 250
  * start still waiting on the permission prompt releases the microphone as
  * soon as it gets it instead of recording with no UI attached.
  */
-export function useVoiceRecorder(): VoiceRecorder {
+export function useVoiceRecorder(
+  options: VoiceRecorderOptions = {},
+): VoiceRecorder {
+  // The latest callback, without restarting a recording when it changes.
+  const onProgress = useRef(options.onProgress)
+  useEffect(() => {
+    onProgress.current = options.onProgress
+  })
   const [state, setState] = useState<RecorderState>({ status: 'idle' })
   const [elapsedMs, setElapsedMs] = useState(0)
   const generation = useRef(0)
@@ -126,7 +151,17 @@ export function useVoiceRecorder(): VoiceRecorder {
       const recordedAt = new Date().toISOString()
 
       recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.push(event.data)
+        if (event.data.size === 0) return
+        chunks.push(event.data)
+        // The final chunk arrives with Stop; onstop publishes that one.
+        if (recorder.state !== 'recording') return
+        const type = recorder.mimeType || mimeType
+        onProgress.current?.({
+          blob: new Blob(chunks, { type }),
+          mimeType: type,
+          durationMs: performance.now() - startedAt,
+          recordedAt,
+        })
       }
       recorder.onerror = () => {
         teardown()
@@ -157,7 +192,7 @@ export function useVoiceRecorder(): VoiceRecorder {
       for (const track of stream.getTracks()) {
         track.onended = () => recorder.state === 'recording' && recorder.stop()
       }
-      recorder.start()
+      recorder.start(CHUNK_MS)
       setState({ status: 'recording', startedAt })
     } catch (err: unknown) {
       if (!live()) return
@@ -186,5 +221,14 @@ export function useVoiceRecorder(): VoiceRecorder {
     setState((s) => (s.status === 'idle' ? s : { status: 'idle' }))
   }, [teardown, settleStop])
 
-  return { state, elapsedMs, start, stop, discard }
+  const restore = useCallback((recording: Omit<Recording, 'url'>) => {
+    if (recorderRef.current || streamRef.current) return
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+    const url = URL.createObjectURL(recording.blob)
+    urlRef.current = url
+    setElapsedMs(0)
+    setState({ status: 'recorded', recording: { ...recording, url } })
+  }, [])
+
+  return { state, elapsedMs, start, stop, discard, restore }
 }

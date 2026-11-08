@@ -20,6 +20,7 @@ Facts an agent should keep straight:
 - [Roadmap](https://raw.githubusercontent.com/estcarisimo/voxnote/main/ROADMAP.md): the platform decision (web app first), milestones M0 to M1 and what is verified
 - [Changelog](https://raw.githubusercontent.com/estcarisimo/voxnote/main/CHANGELOG.md): every user-visible change, Keep a Changelog format
 - [Live transcription design note](https://raw.githubusercontent.com/estcarisimo/voxnote/main/docs/design/live-transcription.md): proposal for showing the transcript while recording; not implemented
+- [Crash recovery design note](https://raw.githubusercontent.com/estcarisimo/voxnote/main/docs/design/crash-recovery.md): what a crash or a killed tab can lose, what is kept in IndexedDB to resume, and the stored-document schema
 - [Full text for language models](https://estcarisimo.github.io/voxnote/llms-full.txt): the project described in one file
 
 ## Project

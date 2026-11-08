@@ -18,7 +18,8 @@ import type { HighlightColor } from '../core/palette'
 import type { PDFDocumentProxy } from '../core/pdf'
 import { textAnchorFromRange } from '../core/selection'
 import type { AutoTranscribeState } from '../hooks/useTranscription'
-import { useVoiceRecorder } from '../hooks/useVoiceRecorder'
+import { useComposerDraft } from '../hooks/useComposerDraft'
+import type { DraftKeeper } from '../hooks/useDraft'
 import type { CleanUpFn } from './CleanUpDialog'
 import { CommentComposer, type CommentDraft } from './CommentComposer'
 import type { PageGeometry } from './geometry'
@@ -56,6 +57,11 @@ interface PdfViewerProps {
   cleanUp?: CleanUpFn | null
   /** The document's standing consent to transcribe on Stop. */
   autoTranscribe?: AutoTranscribeState | null
+  /**
+   * Keeps the open composer's draft across crashes. Read once at mount: a
+   * draft restored then reopens the composer on its anchor.
+   */
+  drafts?: DraftKeeper | null
   ref?: Ref<PdfViewerHandle>
 }
 
@@ -93,18 +99,28 @@ export function PdfViewer({
   transcribe,
   cleanUp = null,
   autoTranscribe = null,
+  drafts = null,
   ref,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const geometries = useRef(new Map<number, PageGeometry>())
   const [pageWidth, setPageWidth] = useState(600)
-  const [pending, setPending] = useState<PendingAnchor | null>(null)
-  const [composer, setComposer] = useState<Composer>(null)
-  const composerRef = useRef<Composer>(null)
+  // A draft kept from before a crash reopens its composer where it was.
+  const [pending, setPending] = useState<PendingAnchor | null>(() =>
+    restoredPending(drafts),
+  )
+  const [composer, setComposer] = useState<Composer>(
+    () => restoredPending(drafts) && (drafts?.restored?.mode ?? null),
+  )
+  const composerRef = useRef<Composer>(composer)
   // True while a pen drag is building a selection: the toolbar waits for
   // the pen to lift instead of chasing every intermediate range.
   const penSelectingRef = useRef(false)
-  const recorder = useVoiceRecorder()
+  const kept = useComposerDraft(
+    drafts,
+    composer === 'voice' || composer === 'suggest',
+  )
+  const { recorder } = kept
 
   // A tool switch drops whatever was pending: a region anchor must not
   // reappear later, and a composer must not survive hidden with its
@@ -217,6 +233,15 @@ export function PdfViewer({
   function openComposer(mode: Exclude<Composer, null>) {
     if (!shown) return
     setComposer(mode)
+    kept.begin({
+      mode,
+      anchor: shown.anchor,
+      placement: shown.placement,
+      body:
+        mode === 'suggest' && shown.anchor.type === 'text'
+          ? shown.anchor.quote
+          : '',
+    })
     // Start right away: the tap on the mic is the request to record.
     if (mode === 'voice') void recorder.start()
   }
@@ -231,6 +256,12 @@ export function PdfViewer({
     } else {
       await onCreateNote({ ...draft, kind: 'comment', anchor: shown.anchor })
     }
+    closeComposer()
+  }
+
+  /** Saved, cancelled or discarded: the kept draft goes with the composer. */
+  function closeComposer() {
+    kept.finish()
     clear()
   }
 
@@ -311,11 +342,25 @@ export function PdfViewer({
           cleanUp={composer === 'typed' ? null : cleanUp}
           autoTranscribe={composer === 'typed' ? null : autoTranscribe}
           onSave={saveNote}
-          onCancel={clear}
+          onCancel={closeComposer}
+          restored={kept.restored}
+          onDraftChange={drafts ? kept.onDraftChange : undefined}
+          onDiscardDraft={closeComposer}
         />
       )}
     </div>
   )
+}
+
+/** The anchor of a draft restored at mount, as a pending anchor. */
+function restoredPending(drafts: DraftKeeper | null): PendingAnchor | null {
+  const restored = drafts?.restored
+  if (!restored || restored.anchor.type === 'block-text') return null
+  return {
+    tool: restored.anchor.type === 'region' ? 'region' : 'select',
+    anchor: restored.anchor,
+    placement: restored.placement,
+  }
 }
 
 /**

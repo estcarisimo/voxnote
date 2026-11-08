@@ -368,3 +368,16 @@
     padding-bottom: 12px;
   }
 }
+
+.open-pdf-storage {
+  max-width: 560px;
+  margin: 8px auto 0;
+  font-size: 0.85rem;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.open-pdf-storage--denied,
+.open-pdf-storage--unavailable {
+  opacity: 1;
+}

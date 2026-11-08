@@ -66,3 +66,26 @@
   margin: 6px 0 0;
   font-size: 0.85rem;
 }
+
+.recent-documents-interrupted > button:first-child {
+  border-color: var(--accent);
+}
+
+.recent-documents-interrupted .recent-documents-action {
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-documents .recent-documents-forget {
+  display: inline;
+  width: auto;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

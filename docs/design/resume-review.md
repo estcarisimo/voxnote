@@ -2,8 +2,8 @@
 
 Status: decided 2026-11-07. Scope: the portable answer that works across
 browsers and devices. Same-browser crash recovery (the stored document bytes,
-composer drafts, a "Resume" offer for the last open document) is a separate
-piece and is not designed here.
+composer drafts, a "Resume" offer for the last open document) is designed in
+`docs/design/crash-recovery.md`; since PR #31 it feeds this list.
 
 ## The question
 
@@ -47,9 +47,10 @@ What this slice builds:
   an import), so the user knows
   which file to reopen. The name comes from a small `documentMeta` record
   (id, name, kind, lastAnnotatedAt) written in the same transaction as each
-  annotation. Tapping an entry asks for the file; once crash recovery stores
-  document bytes, it reopens from them through the `StoredDocuments` seam
-  (`src/core/storedDocuments.ts`).
+  annotation. Tapping an entry reopens it from the bytes crash recovery
+  keeps, through the `StoredDocuments` seam (`src/core/storedDocuments.ts`),
+  or asks for the file when no copy is kept. The document left open by a
+  crash is listed first, as **Resume _name_**.
 
 ## Options weighed
 
@@ -101,8 +102,6 @@ resumes one's own review.
 ## Deferred, in order
 
 1. The `.voxnote` review package with recordings, as above.
-2. Reopen from stored bytes in Recent documents, once crash recovery's
-   `documents` store lands (the seam is in place; only the implementation of
-   `StoredDocuments` changes).
+2. ~~Reopen from stored bytes in Recent documents~~: done in PR #31.
 3. A per-entry "Forget this document" in Recent documents (today the browser's
    site-data controls remove everything at once).

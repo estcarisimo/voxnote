@@ -343,4 +343,121 @@ describe('OpenPdf', () => {
     expect(onDraftXml).toHaveBeenCalledWith(xml)
     expect(onFile).not.toHaveBeenCalled()
   })
+
+  it('lists the interrupted document first under Continue a review, reopened only on a tap', () => {
+    const onResumeInterrupted = vi.fn()
+    const onForgetInterrupted = vi.fn()
+    const onFile = vi.fn()
+    const resumable = {
+      documentId: 'a'.repeat(64),
+      name: 'thesis.pdf',
+      page: 12,
+      openedAt: '2026-11-07T09:41:00.000Z',
+    }
+    render(
+      <OpenPdf
+        {...props}
+        onFile={onFile}
+        recentDocuments={[
+          {
+            id: 'a'.repeat(64),
+            name: 'thesis.pdf',
+            kind: 'pdf',
+            lastAnnotatedAt: '2026-11-07T09:00:00.000Z',
+            count: 3,
+            stored: true,
+          },
+          {
+            id: 'b'.repeat(64),
+            name: 'other.pdf',
+            kind: 'pdf',
+            lastAnnotatedAt: '2026-11-06T09:00:00.000Z',
+            count: 1,
+            stored: false,
+          },
+        ]}
+        interrupted={resumable}
+        onResumeInterrupted={onResumeInterrupted}
+        onForgetInterrupted={onForgetInterrupted}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Continue a review' })
+    const rows = within(section).getAllByRole('listitem')
+    // One feature: the interrupted document is the first row, not a second
+    // entry for the same file.
+    expect(rows).toHaveLength(2)
+    expect(rows[0].textContent).toContain('at page 12')
+    expect(rows[0].textContent).toContain('2026-11-07 09:41 UTC')
+    expect(rows[1].textContent).toContain('other.pdf')
+    expect(onResumeInterrupted).not.toHaveBeenCalled()
+    fireEvent.click(within(rows[0]).getByText('Resume thesis.pdf'))
+    expect(onResumeInterrupted).toHaveBeenCalledWith(resumable)
+    fireEvent.click(
+      within(rows[0]).getByRole('button', { name: 'Forget its copy' }),
+    )
+    expect(onForgetInterrupted).toHaveBeenCalledWith(resumable)
+    expect(onFile).not.toHaveBeenCalled()
+  })
+
+  it('shows Continue a review for an interrupted document without notes', () => {
+    render(
+      <OpenPdf
+        {...props}
+        recentDocuments={[]}
+        interrupted={{
+          documentId: 'c'.repeat(64),
+          name: 'draft.md',
+          page: null,
+          openedAt: '2026-11-07T09:41:00.000Z',
+        }}
+        onResumeInterrupted={vi.fn()}
+      />,
+    )
+    const section = screen.getByRole('region', { name: 'Continue a review' })
+    expect(section.textContent).toContain('Resume draft.md')
+    expect(section.textContent).not.toContain('at page')
+  })
+
+  it('shows whether storage is persistent and how much is used', () => {
+    const status = {
+      usage: 1_234_567,
+      quota: 10e9,
+      checkedAt: '2026-11-08T01:02:00.000Z',
+    }
+    const { rerender } = render(
+      <OpenPdf
+        {...props}
+        storage={{ ...status, persistence: 'granted', requested: true }}
+      />,
+    )
+    expect(document.querySelector('.open-pdf-storage')?.textContent).toBe(
+      "Storage: persistent (asked 2026-11-08 01:02 UTC). This browser has marked VoxNote's data as persistent, so it should not evict it to free space. Using 1.2 MB of about 10.0 GB.",
+    )
+    rerender(
+      <OpenPdf
+        {...props}
+        storage={{ ...status, persistence: 'denied', requested: true }}
+      />,
+    )
+    const denied = screen.getByRole('note').textContent
+    expect(denied).toContain('persistence refused (asked 2026-11-08 01:02 UTC)')
+    expect(denied).toContain('after seven days')
+    expect(denied).toContain('Home Screen')
+    rerender(
+      <OpenPdf
+        {...props}
+        storage={{
+          ...status,
+          usage: null,
+          quota: null,
+          persistence: 'unavailable',
+          requested: true,
+        }}
+      />,
+    )
+    expect(screen.getByRole('note').textContent).toContain(
+      'offers no way to request persistent storage',
+    )
+    expect(screen.getByRole('note').textContent).toContain('Usage unknown')
+  })
 })

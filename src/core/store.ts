@@ -91,13 +91,22 @@ export interface AnnotationStore {
   close(): void
 }
 
-// The crash-recovery work also bumps this; whichever lands second renumbers
-// and keeps both stores' guards.
-const DB_VERSION = 3
+/**
+ * v1 annotations, v2 audio, v3 documentMeta (resume a review, PR #30),
+ * v4 documents, session and drafts (crash recovery, PR #31). Every store is
+ * created behind its own guard, so any older database, including one built
+ * by an unreleased branch that created the v4 stores at version 3, upgrades
+ * to the same schema.
+ */
+export const DB_VERSION = 4
 const ANNOTATIONS = 'annotations'
 const AUDIO = 'audio'
 const DOCUMENT_META = 'documentMeta'
 const BY_DOCUMENT = 'documentId'
+/** Crash recovery; see docs/design/crash-recovery.md and recoveryStore.ts. */
+export const DOCUMENTS = 'documents'
+export const SESSION = 'session'
+export const DRAFTS = 'drafts'
 
 export function openDatabase(
   dbName = 'voxnote',
@@ -107,8 +116,8 @@ export function openDatabase(
     const request = factory.open(dbName, DB_VERSION)
     request.onupgradeneeded = () => {
       const db = request.result
-      // v1: annotations. v2: audio. v3: documentMeta. The guards make the
-      // upgrade idempotent.
+      // v1: annotations. v2: audio. v3: documentMeta. v4: documents,
+      // session, drafts. The guards make the upgrade idempotent.
       if (!db.objectStoreNames.contains(ANNOTATIONS)) {
         const store = db.createObjectStore(ANNOTATIONS, { keyPath: 'id' })
         store.createIndex(BY_DOCUMENT, 'documentId', { unique: false })
@@ -121,6 +130,15 @@ export function openDatabase(
         // Documents annotated before v3 get a record without a name, dated
         // by their latest annotation, so they are listed from the start.
         backfillDocumentMeta(request.transaction!, meta)
+      }
+      if (!db.objectStoreNames.contains(DOCUMENTS)) {
+        db.createObjectStore(DOCUMENTS, { keyPath: 'id' })
+      }
+      if (!db.objectStoreNames.contains(SESSION)) {
+        db.createObjectStore(SESSION, { keyPath: 'key' })
+      }
+      if (!db.objectStoreNames.contains(DRAFTS)) {
+        db.createObjectStore(DRAFTS, { keyPath: 'documentId' })
       }
     }
     let settled = false
@@ -406,47 +424,7 @@ class IndexedDbAnnotationStore implements AnnotationStore {
     mode: IDBTransactionMode,
     operation: (tx: IDBTransaction) => IDBRequest<T>,
   ): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction(stores, mode)
-      let result: T | undefined
-      let settled = false
-      const fail = (error: Error) => {
-        if (settled) return
-        // An abort on purpose says why, whichever event reports it first.
-        error = abortReasons.get(transaction) ?? error
-        settled = true
-        reject(error)
-      }
-      let request: IDBRequest<T>
-      try {
-        request = operation(transaction)
-      } catch (err: unknown) {
-        // A request that throws synchronously (DataError, DataCloneError)
-        // leaves the earlier requests queued; without this the transaction
-        // would commit them alone.
-        transaction.abort()
-        fail(
-          new Error(
-            `IndexedDB ${mode} failed: ${err instanceof Error ? err.message : String(err)}`,
-          ),
-        )
-        return
-      }
-      request.onsuccess = () => {
-        result = request.result
-      }
-      request.onerror = () => fail(toError(request.error, mode))
-      transaction.onabort = () =>
-        fail(
-          abortReasons.get(transaction) ?? toError(transaction.error, 'abort'),
-        )
-      transaction.onerror = () => fail(toError(transaction.error, mode))
-      transaction.oncomplete = () => {
-        if (settled) return
-        settled = true
-        resolve(result as T)
-      }
-    })
+    return runTransaction(this.db, stores, mode, operation)
   }
 }
 
@@ -532,6 +510,59 @@ function isAudioRecord(value: unknown): value is AudioRecord {
   if (typeof value !== 'object' || value === null) return false
   const r = value as Record<string, unknown>
   return typeof r.id === 'string' && r.blob instanceof Blob
+}
+
+/**
+ * Runs requests in one transaction; settles when it commits with the result
+ * of the request `operation` returned. Any request error aborts the
+ * transaction, so a multi-store write is all or nothing. Shared with the
+ * crash-recovery store.
+ */
+export function runTransaction<T>(
+  db: IDBDatabase,
+  stores: string[],
+  mode: IDBTransactionMode,
+  operation: (tx: IDBTransaction) => IDBRequest<T>,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(stores, mode)
+    let result: T | undefined
+    let settled = false
+    const fail = (error: Error) => {
+      if (settled) return
+      // An abort on purpose says why, whichever event reports it first.
+      error = abortReasons.get(transaction) ?? error
+      settled = true
+      reject(error)
+    }
+    let request: IDBRequest<T>
+    try {
+      request = operation(transaction)
+    } catch (err: unknown) {
+      // A request that throws synchronously (DataError, DataCloneError)
+      // leaves the earlier requests queued; without this the transaction
+      // would commit them alone.
+      transaction.abort()
+      fail(
+        new Error(
+          `IndexedDB ${mode} failed: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      )
+      return
+    }
+    request.onsuccess = () => {
+      result = request.result
+    }
+    request.onerror = () => fail(toError(request.error, mode))
+    transaction.onabort = () =>
+      fail(abortReasons.get(transaction) ?? toError(transaction.error, 'abort'))
+    transaction.onerror = () => fail(toError(transaction.error, mode))
+    transaction.oncomplete = () => {
+      if (settled) return
+      settled = true
+      resolve(result as T)
+    }
+  })
 }
 
 function toError(error: DOMException | null, context: string): Error {
