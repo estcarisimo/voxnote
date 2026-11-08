@@ -162,6 +162,9 @@ export function PdfPage({
       if (cancelled) return
 
       setGeometry(createPageGeometry(pageNumber, root, textLayerDiv, viewport))
+      // A page draws many times per session: a later success clears an
+      // earlier failure.
+      setError(null)
     }
 
     const start = setTimeout(() => {
@@ -183,6 +186,8 @@ export function PdfPage({
       setGeometry(null)
       // Zero-size backing store: the browser frees the pixels now instead
       // of keeping them for a page that is off screen or about to redraw.
+      // The cost: during a drag-resize the visible pages stay blank until
+      // the width has held for RENDER_DELAY_MS.
       if (canvasElement) {
         canvasElement.width = 0
         canvasElement.height = 0

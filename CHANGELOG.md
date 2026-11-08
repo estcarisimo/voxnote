@@ -27,10 +27,12 @@ All notable changes to this project are documented here. The format follows
   scrolling. With this change, canvases use 35 MB, the first page is
   readable in 0.52 to 0.59 s with one task of 57 to 63 ms, the fast scroll
   has at most one long task (55 ms), and 30 highlights saved across the
-  document take a median of 13 to 20 ms each instead of 108 ms. Markdown
-  documents were not affected: a 7,864-line file showed no long task while
-  scrolling, saving or exporting, before or after. Not yet checked on a real
-  iPad.
+  document take a median of 13 to 23 ms each instead of 108 to 131 ms. A
+  rerun at 01:19 to 01:50 UTC confirmed the save count (the header reached
+  **Annotations (30)** on both builds) and `main` crashed once more, 3
+  crashes in 5 runs. Markdown documents were not affected: a 7,864-line
+  file showed no long task while scrolling, saving or exporting, before or
+  after. Not yet checked on a real iPad.
 
 ### Changed
 

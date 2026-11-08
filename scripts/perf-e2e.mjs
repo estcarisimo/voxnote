@@ -478,11 +478,12 @@ try {
       await waitFor(`!${toolbar}`, 5000, 'toolbar to close')
       perSave.push(Math.round((await now()) - t0))
     }
+    // The toolbar closing is not proof of a save: the panel's count is.
     await waitFor(
-      `[...document.querySelectorAll('header button')].some(b => b.textContent.includes('${HIGHLIGHTS}'))`,
+      `[...document.querySelectorAll('header button')].some(b => b.textContent.trim() === 'Annotations (${HIGHLIGHTS})')`,
       10000,
-      'annotation count',
-    ).catch(() => {})
+      `Annotations (${HIGHLIGHTS}) in the header`,
+    )
     return {
       maxSaveMs: Math.max(...perSave),
       medianSaveMs: perSave.sort((a, b) => a - b)[perSave.length >> 1],

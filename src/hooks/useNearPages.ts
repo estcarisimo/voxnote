@@ -10,7 +10,9 @@ export const PAGE_ATTRIBUTE = 'data-page-number'
  * the others can stay empty boxes of the right size.
  *
  * Page elements are found as the container's descendants with
- * `data-page-number`, once `count` of them exist.
+ * `data-page-number`, once `count` of them exist. The set of elements is
+ * read once: a new document needs a remount (App keys the viewer by
+ * document id).
  */
 export function useNearPages(
   containerRef: RefObject<HTMLElement | null>,
@@ -27,6 +29,10 @@ export function useNearPages(
         'This browser lacks IntersectionObserver, which page rendering needs',
       )
     }
+    const pages = container.querySelectorAll(`[${PAGE_ATTRIBUTE}]`)
+    if (pages.length !== count) {
+      throw new Error(`Expected ${count} page elements, found ${pages.length}`)
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         setNear((previous) => {
@@ -41,10 +47,6 @@ export function useNearPages(
       },
       { root: container, rootMargin: margin },
     )
-    const pages = container.querySelectorAll(`[${PAGE_ATTRIBUTE}]`)
-    if (pages.length !== count) {
-      throw new Error(`Expected ${count} page elements, found ${pages.length}`)
-    }
     for (const page of pages) observer.observe(page)
     return () => {
       observer.disconnect()
