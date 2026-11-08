@@ -8,6 +8,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Highlights on two-column pages no longer spill into the other column.**
+  pdf.js sizes each text layer span through CSS variables it writes on the
+  span (`--font-height`, `--scale-x`) and leaves the rules that apply them
+  to its stylesheet; `src/components/PdfPage.css` had the layout rules but
+  not those, so every span kept the browser's default 16 px font and no
+  horizontal scaling. A span's glyph box was then wider than the printed
+  line (about 30 % on a 9 pt two-column paper), the selection ran past the
+  text, and a highlight's rectangles reached into the next column. The
+  stylesheet now carries pdf.js's span sizing rules, and the page sets
+  `--user-unit` next to `--scale-factor` as pdf.js's viewer does. Measured
+  with the new `scripts/browser-text-layer-e2e.mjs` on 2026-11-08 (UTC) in
+  headless Chromium 155 on page 2 of a two-column ACM paper (162 spans):
+  before, the median span was 30 % wider than its text and the worst wide
+  span 71 %; after, the median is 0.0 % and the worst wide span 0.8 %.
 - **Large PDFs no longer freeze or crash the tab.** The viewer drew every
   page at once: canvas, text layer and all. Now only pages within one screen
   of the viewport hold a canvas and a text layer (an IntersectionObserver in
