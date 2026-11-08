@@ -177,14 +177,43 @@ The review flow is select, act, export:
      comments, suggestions (original and replacement) and voice notes with
      their raw transcripts; a polished body is labeled with its provider and
      model, export time labeled UTC.
-   - **JSON** → `<name>.voxnote.json`, the document name, kind, SHA-256 id,
-     page count (block count for a Markdown document) and the annotations as
-     stored, without audio.
+   - **JSON** → `<name>.voxnote.json`, the document name, kind, size in
+     bytes, SHA-256 id, page count (block count for a Markdown document), the
+     VoxNote version and UTC export time, and the annotations as stored,
+     without audio. **Import notes…** reads it back (see below).
+
+### Continuing a review
+
+You annotate a PDF, tap **JSON** to download `<name>.voxnote.json`, and
+three days later want to carry on, maybe on another device or browser:
+open VoxNote there, open the same PDF, tap **Import notes…** (next to the
+exports, or on the landing) and pick that JSON, and continue where you were.
+In the same browser you need nothing at all: reopening the file restores
+everything from this browser's storage, and **Continue a review** on the
+landing lists the documents you have notes for.
+
+Two cases do not work. A different browser or device **without the
+export**: notes live only in the browser where you made them, so keep the
+JSON. And **a new version of the PDF**: notes are matched to the file by
+the SHA-256 of its bytes, so an edited or regenerated file (different
+bytes, different hash) is a different document; carrying notes across
+versions is out of scope. A renamed copy of the same file works.
+
+An import never overwrites silently: identical notes are skipped, new ones
+added, and for a note that differs you choose to keep yours or take the
+file's. Recordings are not in the JSON; voice notes come back with their
+transcripts. Why JSON and not the annotated PDF, and what a future
+`.voxnote` package with audio would add:
+[docs/design/resume-review.md](docs/design/resume-review.md).
 
 ## 🔐 Privacy and keys
 
-- **Local-first by default.** Documents, annotations and recordings are
-  stored in your browser's IndexedDB on this origin. The site has no server,
+- **Local-first by default.** Annotations and recordings are stored in
+  your browser's IndexedDB on this origin, with, for each document you
+  annotated, its file name, kind and the UTC time its notes were last saved
+  (an edit or an import; for
+  **Continue a review**). An imported notes file is merged there and not
+  kept. The site has no server,
   and documents never leave the browser. A Markdown file's images are never
   loaded, so opening one makes no request to any host it names.
 - **Visit counting.** The live site counts visits with Google Analytics 4,

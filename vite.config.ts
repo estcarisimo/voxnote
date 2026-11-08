@@ -1,10 +1,17 @@
 /// <reference types="vitest/config" />
+import { readFileSync } from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// The version recorded in exports, so a file says which build wrote it.
+const { version } = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version: string }
+
 // https://vite.dev/config/
 export default defineConfig(({ command, isPreview }) => ({
+  define: { __APP_VERSION__: JSON.stringify(version) },
   // GitHub Pages serves the site from https://estcarisimo.github.io/voxnote/,
   // so production builds (and `npm run preview`, which serves them) live under
   // /voxnote/. `npm run dev` and the tests keep the root path.

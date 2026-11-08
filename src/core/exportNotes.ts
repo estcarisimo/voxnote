@@ -19,13 +19,16 @@ import {
 import { cleanUpLabel } from './cleanUp'
 import { HIGHLIGHT_PALETTE } from './palette'
 import { placeLabel } from './review'
+import { APP_VERSION } from './version'
 
 /**
  * Version of the JSON export envelope, independent of the annotation schema.
  * v1: PDF documents only (`pageCount`). v2: `kind`, with `blockCount` for a
- * Markdown document.
+ * Markdown document. v3: the document's `size` in bytes and the `app` that
+ * wrote the file, so an import can say exactly which file to open. The
+ * reader (importNotes.ts) accepts all three.
  */
-export const NOTES_EXPORT_SCHEMA_VERSION = 2
+export const NOTES_EXPORT_SCHEMA_VERSION = 3
 
 /**
  * What the export needs to know about the document, not the pdf.js object
@@ -38,26 +41,41 @@ export type ExportDocument =
       /** File name as opened, e.g. "paper.pdf". */
       name: string
       id: string
+      /** The file's size in bytes. */
+      size: number
       pageCount: number
     }
   | {
       kind: 'markdown'
       name: string
       id: string
+      size: number
       /** Top-level blocks; anchors count them like pages. */
       blockCount: number
     }
 
+/** What annotations are checked against: the id and how many containers. */
+export type DocumentShape =
+  | { kind: 'pdf'; id: string; pageCount: number }
+  | { kind: 'markdown'; id: string; blockCount: number }
+
+/** Which app wrote an export. */
+export interface ExportApp {
+  name: 'VoxNote'
+  /** package.json version of the build. */
+  version: string
+}
+
 /** The document fields the JSON carries, and nothing a caller added. */
 function describeDocument(document: ExportDocument): ExportDocument {
-  const { name, id } = document
+  const { name, id, size } = document
   return document.kind === 'pdf'
-    ? { kind: 'pdf', name, id, pageCount: document.pageCount }
-    : { kind: 'markdown', name, id, blockCount: document.blockCount }
+    ? { kind: 'pdf', name, id, size, pageCount: document.pageCount }
+    : { kind: 'markdown', name, id, size, blockCount: document.blockCount }
 }
 
 /** How many containers (pages or top-level blocks) the document has. */
-export function containerCount(document: ExportDocument): number {
+export function containerCount(document: DocumentShape): number {
   return document.kind === 'pdf' ? document.pageCount : document.blockCount
 }
 
@@ -65,6 +83,7 @@ export interface NotesExport {
   schemaVersion: typeof NOTES_EXPORT_SCHEMA_VERSION
   /** UTC, ISO 8601. */
   exportedAt: string
+  app: ExportApp
   document: ExportDocument
   annotations: Annotation[]
 }
@@ -73,11 +92,16 @@ export function exportJson(
   document: ExportDocument,
   annotations: readonly Annotation[],
   now: Date = new Date(),
+  appVersion: string = APP_VERSION,
 ): string {
+  if (!Number.isInteger(document.size) || document.size < 1) {
+    throw new Error(`Invalid document size: ${document.size}`)
+  }
   const sorted = validatedAndSorted(document, annotations)
   const payload: NotesExport = {
     schemaVersion: NOTES_EXPORT_SCHEMA_VERSION,
     exportedAt: now.toISOString(),
+    app: { name: 'VoxNote', version: appVersion },
     document: describeDocument(document),
     annotations: sorted,
   }
@@ -119,8 +143,8 @@ export function exportMarkdown(
  * annotations in reading order: page, then top to bottom, then createdAt,
  * then id so equal positions still sort the same way every time.
  */
-function validatedAndSorted(
-  document: ExportDocument,
+export function validatedAndSorted(
+  document: DocumentShape,
   annotations: readonly Annotation[],
 ): Annotation[] {
   const count = containerCount(document)
