@@ -60,6 +60,7 @@ import { useDraft } from './hooks/useDraft'
 import { useHighlightColor } from './hooks/useHighlightColor'
 import { useProviders } from './hooks/useProviders'
 import { useRecoveryStore } from './hooks/useRecoveryStore'
+import { useStorageStatus } from './hooks/useStorageStatus'
 import { useSessionPage } from './hooks/useSessionPage'
 import { useWindowErrors } from './hooks/useWindowErrors'
 import { AiKeysButton } from './components/AiKeysButton'
@@ -107,7 +108,14 @@ function App() {
   // The document that was open when the page last went away, if kept.
   const [resumable, setResumable] = useState<Resumable | null>(null)
   useWindowErrors(setError)
-  useSessionPage(recovery.store, doc?.kind === 'pdf' ? doc.id : null, setError)
+  const storage = useStorageStatus()
+  // The document whose copy is kept: only it may be named by the session.
+  const [keptId, setKeptId] = useState<string | null>(null)
+  useSessionPage(
+    recovery.store,
+    doc?.kind === 'pdf' && doc.id === keptId ? doc.id : null,
+    setError,
+  )
   const viewerRef = useRef<PdfViewerHandle>(null)
   const markdownViewerRef = useRef<MarkdownViewerHandle>(null)
   const store = useAnnotations(doc?.id ?? null)
@@ -135,9 +143,14 @@ function App() {
   // On the landing, offer the document of an unclean exit. Close clears the
   // session, so this only finds one after a crash, a kill or a reload.
   const landing = doc === null
+  const refreshStorage = storage.refresh
   useEffect(() => {
+    if (!landing) return
+    refreshStorage().catch((err: unknown) => {
+      setError(`Could not read the storage status: ${messageOf(err)}`)
+    })
     const store = recovery.store
-    if (!store || !landing) return
+    if (!store) return
     let live = true
     findResumable(store).then(
       (found) => live && setResumable(found),
@@ -147,7 +160,7 @@ function App() {
     return () => {
       live = false
     }
-  }, [recovery.store, landing])
+  }, [recovery.store, landing, refreshStorage])
 
   // A restored draft on a region reopens with the Region tool, so its
   // composer is not dropped as belonging to another tool.
@@ -186,6 +199,18 @@ function App() {
       }
       setError(message)
       return
+    }
+    setKeptId(opened.id)
+    // The first write asks the browser not to evict what it just stored.
+    try {
+      const outcome = await storage.ensurePersistent()
+      if (outcome.persistence === 'unavailable') {
+        setError(
+          'This browser offers no way to request persistent storage (navigator.storage.persist is missing), so it may delete your annotations, recordings and kept documents. Safari does so after seven days of use without opening VoxNote, unless VoxNote is added to the Home Screen. Export your notes to keep a copy.',
+        )
+      }
+    } catch (err: unknown) {
+      setError(`Could not request persistent storage: ${messageOf(err)}`)
     }
     try {
       await store.putSession({
@@ -330,6 +355,8 @@ function App() {
   }
 
   function closeDocument() {
+    // Reopening the same document looks at its draft again.
+    setToolSetFor(null)
     // A deliberate close is not a crash: nothing to resume next time.
     recovery.store?.clearSession().catch((err: unknown) => {
       setError(`Could not clear the session: ${messageOf(err)}`)
@@ -444,6 +471,7 @@ function App() {
         <OpenPdf
           onFile={(file) => void openFile(file)}
           resumable={resumable}
+          storage={storage.status}
           onResume={(target) => void resume(target)}
           onForget={(target) => void forget(target)}
           onUrl={(url) => void openUrl(url)}

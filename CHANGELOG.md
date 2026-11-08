@@ -33,6 +33,14 @@ All notable changes to this project are documented here. The format follows
   to end with `scripts/browser-crash-e2e.mjs` (headless Chromium 155,
   `Page.crash` twice). README privacy section: what is kept and how to clear
   it.
+- **Persistent storage.** The first write of each visit asks the browser not
+  to evict VoxNote's data (`navigator.storage.persist()`, skipped when
+  already persistent); the landing shows the outcome and the usage from
+  `navigator.storage.estimate()` (`src/core/storagePersistence.ts`). A
+  browser without the API is reported in the error banner instead of being
+  treated as safe. The design note and README state Safari's seven-day
+  eviction rule and the Home Screen exemption, with the WebKit sources and
+  the date they were read.
 
 ### Changed
 

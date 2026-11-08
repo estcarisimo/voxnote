@@ -54,6 +54,14 @@ export function useDraft(
 ): DraftKeeper {
   const { store } = source
   const [loaded, setLoaded] = useState<Loaded | null>(null)
+  // Every open of a document reads its draft again: closing and reopening
+  // the same file must not reuse what was read the first time, which may
+  // have been saved, discarded or replaced since.
+  const [seen, setSeen] = useState(documentId)
+  if (seen !== documentId) {
+    setSeen(documentId)
+    setLoaded(null)
+  }
   const [error, setError] = useState<string | null>(null)
   const current = useRef<Draft | null>(null)
   const dirty = useRef<string | null>(null)

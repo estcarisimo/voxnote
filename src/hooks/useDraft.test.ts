@@ -161,4 +161,43 @@ describe('useDraft', () => {
     expect(result.current.ready).toBe(true)
     expect(result.current.restored).toBeNull()
   })
+
+  it('reads the draft again when the same document is reopened', async () => {
+    const store = memoryRecoveryStore()
+    store.drafts.set(DOC, {
+      documentId: DOC,
+      mode: 'typed',
+      anchor,
+      placement,
+      body: 'old',
+      updatedAt: '2026-11-07T10:00:00.000Z',
+    })
+    const { result, rerender } = renderHook(
+      ({ id }) => useDraft(id, { store, error: null }),
+      { initialProps: { id: DOC as string | null } },
+    )
+    await settle()
+    expect(result.current.restored?.body).toBe('old')
+
+    // Saved (or discarded), closed, reopened: it must not come back.
+    act(() => result.current.remove())
+    await settle()
+    rerender({ id: null })
+    rerender({ id: DOC })
+    expect(result.current.ready).toBe(false)
+    expect(result.current.restored).toBeNull()
+    await settle()
+    expect(result.current.ready).toBe(true)
+    expect(result.current.restored).toBeNull()
+
+    // A draft kept by Close comes back on the next reopen.
+    act(() =>
+      result.current.begin({ mode: 'typed', anchor, placement, body: 'new' }),
+    )
+    rerender({ id: null })
+    await settle()
+    rerender({ id: DOC })
+    await settle()
+    expect(result.current.restored?.body).toBe('new')
+  })
 })

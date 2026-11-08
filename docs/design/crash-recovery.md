@@ -57,17 +57,49 @@ document stays usable, and the message says what will not be recoverable.
 - **Draft restored.** When a document opens and it has a draft, the composer
   reopens on its anchor with the body, the recording and the transcript, and
   shows **Draft restored (saved _time_ UTC)** with **Discard draft**. Save or
-  Cancel deletes the draft; closing the document keeps it.
+  Cancel deletes the draft; closing the document keeps it. Switching between
+  the Text and Region tools closes the composer like Close does: the draft
+  stays stored and comes back on the next open of the document, unless
+  another composer is opened first: that one replaces it, or deletes it if
+  left empty.
 - **Errors never blank the app.** An error boundary around the viewer shows
   the message and **Reload**, and never touches IndexedDB; a second boundary
   wraps the whole app. `error` and `unhandledrejection` on `window` are shown in
   the existing error banner instead of only reaching the console.
 
-## 4. Limits
+## 4. Eviction and persistent storage
 
-- Storage quota is the browser's. Safari may evict script-written storage after
-  seven days without a visit unless the app is installed to the home screen;
-  this note does not change that, and no claim is made beyond it.
+Everything above, and the annotations themselves, lives in IndexedDB, which
+browsers keep in a _best-effort_ mode by default: they may delete it.
+
+- **Safari's seven-day rule.** WebKit deletes "all of a website's
+  script-writable storage after seven days of Safari use without user
+  interaction on the site", IndexedDB, LocalStorage and service worker
+  registrations and cache included. "Web applications added to the home
+  screen are not part of Safari and thus have their own counter of days of
+  use", and WebKit does "not expect the first-party in such a web application
+  to have its website data deleted" ([WebKit, 2020-03-24][wk-itp]). Read on
+  2026-11-08 (UTC).
+- **`navigator.storage.persist()`.** WebKit grants it "based on heuristics
+  like whether the website is opened as a Home Screen Web App"; without it
+  an origin is in best-effort mode, where data can be evicted when the site
+  has not been used for some time, under storage pressure or above quota
+  ([WebKit, 2023-08-10][wk-storage]). Read on 2026-11-08 (UTC). Chromium and
+  Firefox have their own heuristics; none is measured here.
+- **What VoxNote does.** The first write of a page load (keeping the opened
+  document) calls `persist()` unless `persisted()` is already true. The
+  landing shows the outcome (persistent; best-effort with "persistence
+  refused" and the UTC time it was asked; or no API) and the usage from
+  `estimate()`, or says the browser gives no estimate. A browser without
+  `persist()` is reported in the error banner, never treated as granted.
+  Installing VoxNote to the Home Screen remains the advice for iPad.
+
+[wk-itp]: https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/
+[wk-storage]: https://webkit.org/blog/14403/updates-to-storage-policy/
+
+## 5. Limits
+
+- Storage quota is the browser's; a write over quota is shown as an error.
 - A partial recording recovered after a crash may report no duration in some
   players (WebM chunks without a final cue index); it plays from the start.
 - Verified on 2026-11-08 with `scripts/browser-crash-e2e.mjs` (headless

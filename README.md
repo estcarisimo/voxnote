@@ -200,6 +200,17 @@ The review flow is select, act, export:
   (site settings → delete data/storage for the site); that also deletes your
   annotations and saved API keys. A failed write, such as a full quota, is
   shown on screen, never skipped silently.
+- **Eviction.** Browsers may delete a site's local data. Safari deletes all
+  of it (IndexedDB included) after seven days of Safari use without opening
+  the site, but not for a web app added to the Home Screen, which keeps its
+  own count of days of use ([WebKit, 2020-03-24](https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/),
+  read 2026-11-08 UTC). On the first save of each visit VoxNote asks the
+  browser for persistent storage (`navigator.storage.persist()`); WebKit
+  grants it by heuristics such as running as a Home Screen web app
+  ([WebKit, 2023-08-10](https://webkit.org/blog/14403/updates-to-storage-policy/)).
+  The landing shows whether storage is persistent and how much is used; a
+  browser without the API is reported as such. On an iPad, add VoxNote to
+  the Home Screen and export your notes from time to time.
 - **Visit counting.** The live site counts visits with Google Analytics 4,
   without cookies: the build reads the measurement id from the repository
   variable `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only,

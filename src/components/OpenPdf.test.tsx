@@ -302,4 +302,47 @@ describe('OpenPdf', () => {
     render(<OpenPdf {...props} resumable={null} onResume={vi.fn()} />)
     expect(screen.queryByRole('region', { name: 'Resume' })).toBeNull()
   })
+
+  it('shows whether storage is persistent and how much is used', () => {
+    const status = {
+      usage: 1_234_567,
+      quota: 10e9,
+      checkedAt: '2026-11-08T01:02:00.000Z',
+    }
+    const { rerender } = render(
+      <OpenPdf
+        {...props}
+        storage={{ ...status, persistence: 'granted', requested: true }}
+      />,
+    )
+    expect(document.querySelector('.open-pdf-storage')?.textContent).toBe(
+      "Storage: persistent (asked 2026-11-08 01:02 UTC). This browser will not delete VoxNote's data on its own. Using 1.2 MB of about 10.0 GB.",
+    )
+    rerender(
+      <OpenPdf
+        {...props}
+        storage={{ ...status, persistence: 'denied', requested: true }}
+      />,
+    )
+    const denied = screen.getByRole('note').textContent
+    expect(denied).toContain('persistence refused (asked 2026-11-08 01:02 UTC)')
+    expect(denied).toContain('after seven days')
+    expect(denied).toContain('Home Screen')
+    rerender(
+      <OpenPdf
+        {...props}
+        storage={{
+          ...status,
+          usage: null,
+          quota: null,
+          persistence: 'unavailable',
+          requested: true,
+        }}
+      />,
+    )
+    expect(screen.getByRole('note').textContent).toContain(
+      'offers no way to request persistent storage',
+    )
+    expect(screen.getByRole('note').textContent).toContain('Usage unknown')
+  })
 })

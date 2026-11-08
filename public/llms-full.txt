@@ -32,7 +32,7 @@ Exports are downloads the user starts. Nothing is uploaded or published.
 
 ## Storage
 
-PDFs, annotations and recordings are stored in the browser's IndexedDB on the site's origin, keyed by the document's SHA-256, and come back when the same file is opened again. Documents never leave the browser. For crash recovery the app also keeps a copy of each opened document, a session record (the open document and page) and the draft of an unsaved comment, recording included; after a crash or a killed tab the landing offers Resume (one tap, never automatic) and the composer comes back with Draft restored. Close clears the session; clearing the site's data removes everything.
+PDFs, annotations and recordings are stored in the browser's IndexedDB on the site's origin, keyed by the document's SHA-256, and come back when the same file is opened again. Documents never leave the browser. For crash recovery the app also keeps a copy of each opened document, a session record (the open document and page) and the draft of an unsaved comment, recording included; after a crash or a killed tab the landing offers Resume (one tap, never automatic) and the composer comes back with Draft restored. Close clears the session; clearing the site's data removes everything. On the first write of each visit the app requests persistent storage (navigator.storage.persist()) and the landing shows the outcome and usage; Safari otherwise deletes a site's storage after seven days of use without visiting it, except for a web app added to the Home Screen.
 
 ## Transcription and polish (opt-in, the user's own keys)
 

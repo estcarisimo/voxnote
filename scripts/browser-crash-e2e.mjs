@@ -393,6 +393,16 @@ try {
     JSON.stringify((await three.evaluate(recoveryState)).session),
   )
   console.log(
+    'tab 3: landing storage line:',
+    JSON.stringify(
+      await three.evaluate(
+        `document.querySelector('.open-pdf-storage')?.textContent ?? null`,
+      ),
+    ),
+    '| persisted():',
+    await three.evaluate('navigator.storage.persisted()'),
+  )
+  console.log(
     'console errors / exceptions:',
     problems.length ? problems : 'none',
   )

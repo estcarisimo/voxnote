@@ -6,6 +6,7 @@ import {
   type FormEvent,
 } from 'react'
 import { isDraftXmlFile, parseHttpUrl } from '../core/remotePdf'
+import { formatBytes, type StorageStatus } from '../core/storagePersistence'
 import { loadAnalytics } from './analytics'
 import { GitHubLink, REPOSITORY_URL } from './GitHubLink'
 import './OpenPdf.css'
@@ -27,6 +28,8 @@ interface OpenPdfProps {
   onResume?: (target: Resumable) => void
   /** Drops the kept copy and the session; annotations stay. */
   onForget?: (target: Resumable) => void
+  /** Whether the browser may evict local data, and how much is used. */
+  storage?: StorageStatus | null
   /** A PDF or Markdown file to download from that URL, straight from the browser. */
   onUrl: (url: URL) => void
   /** An Internet-Draft's XML source, to compile into a PDF after consent. */
@@ -47,6 +50,32 @@ const PROVIDER_KEY_PAGES = {
   anthropic: 'https://platform.claude.com/settings/keys',
   xai: 'https://console.x.ai/team/default/api-keys',
 } as const
+
+/** Whether local data is safe from eviction, and how much there is. */
+function StorageLine({ status }: { status: StorageStatus }) {
+  const asked = status.requested
+    ? ` (asked ${status.checkedAt.slice(0, 10)} ${status.checkedAt.slice(11, 16)} UTC)`
+    : ''
+  const mode =
+    status.persistence === 'granted'
+      ? `Storage: persistent${asked}. This browser will not delete VoxNote's data on its own.`
+      : status.persistence === 'denied'
+        ? `Storage: best-effort${status.requested ? `, persistence refused${asked}` : ''}. The browser may delete VoxNote's data to free space; Safari deletes it after seven days of use without opening VoxNote, unless VoxNote is added to the Home Screen.`
+        : "Storage: this browser offers no way to request persistent storage, so it may delete VoxNote's data; Safari does after seven days of use without opening VoxNote, unless VoxNote is added to the Home Screen."
+  const usage =
+    status.usage !== null && status.quota !== null
+      ? ` Using ${formatBytes(status.usage)} of about ${formatBytes(status.quota)}.`
+      : ' Usage unknown: this browser gives no estimate.'
+  return (
+    <p
+      className={`open-pdf-storage open-pdf-storage--${status.persistence}`}
+      role={status.persistence === 'granted' ? undefined : 'note'}
+    >
+      {mode}
+      {usage}
+    </p>
+  )
+}
 
 function KeyLink({ href, children }: { href: string; children: string }) {
   return (
@@ -78,6 +107,7 @@ export function OpenPdf({
   resumable = null,
   onResume,
   onForget,
+  storage = null,
   onUrl,
   onDraftXml,
   error,
@@ -273,6 +303,8 @@ export function OpenPdf({
           counted with Google Analytics for statistical purposes, without
           cookies.
         </p>
+
+        {storage && <StorageLine status={storage} />}
 
         <section className="open-pdf-start" aria-labelledby="get-started">
           <h2 id="get-started">Get started</h2>
