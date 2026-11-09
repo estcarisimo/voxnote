@@ -16,6 +16,42 @@ All notable changes to this project are documented here. The format follows
   a color pick left the viewer to re-read a selection that was gone. The
   toolbar now holds the selected range on press and puts it back after the
   tap, so a color pick followed by Highlight works in one pass.
+- **Text selection and highlights line up on pages with a `/Rotate` entry.**
+  pdf.js places every text layer span in the unrotated page frame and turns
+  the whole layer with three stylesheet rules keyed on the
+  `data-main-rotation` attribute it writes on the layer;
+  `src/components/PdfPage.css` had no copy of them, so on a page stored
+  sideways the canvas was drawn rotated and the text layer was not: no span
+  sat on its glyphs, a selection ran across other lines, and a highlight
+  landed away from the text. The stylesheet now carries pdf.js's three
+  rules, scoped to the page's text layer, with the same values. The
+  selection-to-PDF mapping (`src/components/geometry.ts`) already followed
+  the page's rotation through the viewport, now covered by a test with a
+  `/Rotate 90` page. Measured with `scripts/browser-text-layer-e2e.mjs`,
+  which now maps each printed item through the rotated viewport, on
+  2026-11-08 (UTC) in headless Chromium 155 against `npm run dev`, on the
+  four-page PDF from the new `scripts/rotated-pages-pdf.mjs` (six lines a
+  page, `/Rotate` 0, 90, 180 and 270): before, on the pages rotated 90 and
+  270 the median span was 94 % shorter along the text than its glyphs and
+  the worst span started 367 % and 600 % of its length away from them; at
+  180 the lengths were right and the worst span started 321 % away. After,
+  on every page the worst length error is 0.1 % and the worst start offset
+  0.3 % of the text length; the unrotated page is unchanged (0.1 % and
+  0.0 %). Logs: `docs/measurements/2026-11-08-rotated-text-layer/`.
+- **Highlights on two-column pages no longer spill into the other column.**
+  pdf.js sizes each text layer span through CSS variables it writes on the
+  span (`--font-height`, `--scale-x`) and leaves the rules that apply them
+  to its stylesheet; `src/components/PdfPage.css` had the layout rules but
+  not those, so every span kept the browser's default 16 px font and no
+  horizontal scaling. A span's glyph box was then wider than the printed
+  line (about 30 % on a 9 pt two-column paper), the selection ran past the
+  text, and a highlight's rectangles reached into the next column. The
+  stylesheet now carries pdf.js's span sizing rules, and the page sets
+  `--user-unit` next to `--scale-factor` as pdf.js's viewer does. Measured
+  with the new `scripts/browser-text-layer-e2e.mjs` on 2026-11-08 (UTC) in
+  headless Chromium 155 on page 2 of a two-column ACM paper (162 spans):
+  before, the median span was 30 % wider than its text and the worst wide
+  span 71 %; after, the median is 0.0 % and the worst wide span 0.8 %.
 - **Large PDFs no longer freeze or crash the tab.** The viewer drew every
   page at once: canvas, text layer and all. Now only pages within one screen
   of the viewport hold a canvas and a text layer (an IntersectionObserver in

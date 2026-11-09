@@ -157,7 +157,10 @@ export function PdfPage({
       if (cancelled) return
 
       textLayerDiv.replaceChildren()
+      // The text layer's CSS (PdfPage.css) turns PDF units into CSS pixels
+      // with these two, as pdf.js's own viewer sets them.
       textLayerDiv.style.setProperty('--scale-factor', String(scale))
+      textLayerDiv.style.setProperty('--user-unit', String(viewport.userUnit))
       textLayer = new TextLayer({
         textContentSource: page.streamTextContent(),
         container: textLayerDiv,
