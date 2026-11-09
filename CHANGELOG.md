@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Picking a highlight color no longer loses the selection toolbar on a
+  tap.** The toolbar lives only as long as the text selection under it, and
+  a touch or Pencil tap on one of its buttons collapses that selection on
+  iPadOS (canceling pointerdown keeps it through a mouse click only).
+  Highlight and Comment act on the anchor at once, so they never noticed;
+  a color pick left the viewer to re-read a selection that was gone. The
+  toolbar now holds the selected range on press and puts it back after the
+  tap, so a color pick followed by Highlight works in one pass.
 - **Large PDFs no longer freeze or crash the tab.** The viewer drew every
   page at once: canvas, text layer and all. Now only pages within one screen
   of the viewport hold a canvas and a text layer (an IntersectionObserver in
