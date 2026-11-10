@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Providers } from '../hooks/useProviders'
 import {
@@ -18,6 +25,7 @@ function providersWith(overrides: Partial<Providers> = {}): Providers {
     saveTextSettings: vi.fn(),
     hasKey: () => false,
     setKey: vi.fn(async () => {}),
+    configureLocal: vi.fn(async () => {}),
     removeKey: vi.fn(async () => {}),
     readKey: vi.fn(async () => null),
     ...overrides,
@@ -105,6 +113,8 @@ describe('ProviderSettings (AI keys)', () => {
       'xai',
       'deepgram',
       'groq',
+      'local-stt',
+      'local-text',
     ])
     expect(select.options[0]?.textContent).toMatch(
       /Anthropic \(Claude\) — polish/,
@@ -126,10 +136,12 @@ describe('ProviderSettings (AI keys)', () => {
       'xai',
       'deepgram',
       'groq',
+      'local-stt',
+      'local-text',
     ])
     render(<ProviderSettings providers={providers} onClose={() => {}} />)
     expect(screen.queryByRole('button', { name: 'Add key' })).toBeNull()
-    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+    expect(screen.getAllByRole('listitem')).toHaveLength(7)
   })
 
   it('survives the render between storing the last key and collapsing the row', async () => {
@@ -140,6 +152,8 @@ describe('ProviderSettings (AI keys)', () => {
       'anthropic',
       'deepgram',
       'groq',
+      'local-stt',
+      'local-text',
     ])
     let finishSave: () => void = () => {}
     const providers = providersWith({
@@ -163,7 +177,7 @@ describe('ProviderSettings (AI keys)', () => {
     rerender(
       <ProviderSettings providers={{ ...providers }} onClose={() => {}} />,
     )
-    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+    expect(screen.getAllByRole('listitem')).toHaveLength(7)
     expect(screen.queryByRole('form', { name: 'Add key' })).toBeNull()
     await act(async () => {
       finishSave()
@@ -432,5 +446,110 @@ describe('ProviderSettings (AI keys)', () => {
       />,
     )
     expect(document.activeElement).toBe(keyField)
+  })
+
+  it('sets up a local server: address, model and an optional key, no key required', async () => {
+    const providers = providersWith({ hasKey: () => false })
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    const form = openAddRow()
+    fireEvent.change(within(form).getByLabelText('Provider'), {
+      target: { value: 'local-text' },
+    })
+    expect(within(form).getByText(/Ollama, LM Studio/)).toBeTruthy()
+    const address = within(form).getByLabelText(/Server address/)
+    const model = within(form).getByLabelText('Model')
+    expect(within(form).getByLabelText(/API key \(optional/)).toBeTruthy()
+
+    fireEvent.change(address, { target: { value: 'localhost:11434' } })
+    fireEvent.change(model, { target: { value: 'llama3.2:3b' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/http/)
+    expect(providers.configureLocal).not.toHaveBeenCalled()
+
+    fireEvent.change(address, {
+      target: { value: 'http://localhost:11434/v1/' },
+    })
+    fireEvent.change(model, { target: { value: 'bad name' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/model name/)
+
+    fireEvent.change(model, { target: { value: 'llama3.2:3b' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(providers.configureLocal).toHaveBeenCalledWith(
+        'local-text',
+        { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2:3b' },
+        '',
+      ),
+    )
+    expect(providers.setKey).not.toHaveBeenCalled()
+  })
+
+  it('shows a configured local server by its address and model, without a key mask', () => {
+    const local = { baseUrl: 'http://localhost:8080/v1', model: 'whisper-1' }
+    const providers = providersWith({
+      hasKey: (id) => id === 'local-stt',
+      settings: {
+        provider: 'local-stt',
+        model: 'whisper-1',
+        language: '',
+        local,
+      },
+    })
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    const row = screen.getByRole('listitem', {
+      name: 'Local speech-to-text server settings',
+    })
+    expect(row.textContent).toMatch(/http:\/\/localhost:8080\/v1 · whisper-1/)
+    expect(row.textContent).toMatch(/Used for speech-to-text/)
+    expect(row.textContent).not.toMatch(/••••/)
+    expect(within(row).queryByLabelText('Speech-to-text model')).toBeNull()
+  })
+
+  it('keeps a local text server when polish moves between cloud keys', () => {
+    const local = { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2:3b' }
+    const keyed = new Set<ProviderId>(['anthropic', 'openai', 'local-text'])
+    const providers = providersWith({
+      hasKey: (id) => keyed.has(id),
+      textSettings: { provider: 'local-text', model: 'llama3.2:3b', local },
+    })
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    const select = screen.getByLabelText('Use for polish')
+    fireEvent.change(select, { target: { value: 'anthropic' } })
+    expect(providers.saveTextSettings).toHaveBeenLastCalledWith({
+      provider: 'anthropic',
+      model: '',
+      local,
+    })
+    fireEvent.change(select, { target: { value: 'openai' } })
+    expect(providers.saveTextSettings).toHaveBeenLastCalledWith({
+      provider: 'openai',
+      model: '',
+      local,
+    })
+  })
+
+  it('hands polish to the local server, with its settings, when the cloud key in use is removed', async () => {
+    const local = { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2:3b' }
+    const keyed = new Set<ProviderId>(['anthropic', 'local-text'])
+    const providers = providersWith({
+      hasKey: (id) => keyed.has(id),
+      textSettings: { provider: 'anthropic', model: 'claude-opus-5-5', local },
+      removeKey: vi.fn(async (id: ProviderId) => {
+        keyed.delete(id)
+      }),
+    })
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove Anthropic (Claude) key' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await waitFor(() =>
+      expect(providers.saveTextSettings).toHaveBeenLastCalledWith({
+        provider: 'local-text',
+        model: '',
+        local,
+      }),
+    )
   })
 })

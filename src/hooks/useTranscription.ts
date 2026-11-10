@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Transcript } from '../core/annotations'
+import { hostOf } from '../providers/local'
 import {
   createConsent,
   isConsentValid,
@@ -12,6 +13,7 @@ import type {
 } from '../components/TranscribeDialog'
 import {
   createProvider,
+  isLocalProviderId,
   PROVIDER_LABELS,
   type SttProviderId,
   type SttSettings,
@@ -154,7 +156,23 @@ export function useTranscription(
         )
       }
       const apiKey = await providers.readKey(current.providerId)
-      if (!apiKey) {
+      // A local server set up again while the dialog was open may have a new
+      // address and key: never send that key to the host the dialog named.
+      const local = providers.settings.local
+      if (
+        isLocalProviderId(current.providerId) &&
+        (!local || hostOf(local.baseUrl) !== current.provider.endpointHost)
+      ) {
+        throw new Error(
+          'The local server changed after this dialog opened; try again',
+        )
+      }
+      // A local server may have no key: "" means send none; null, nothing
+      // configured at all.
+      if (
+        apiKey === null ||
+        (apiKey === '' && !isLocalProviderId(current.providerId))
+      ) {
         throw new Error('The key is missing; add it in AI keys')
       }
       return transcribe(current.provider, transcriptionRequest, {

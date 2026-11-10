@@ -8,15 +8,24 @@
  * - gtag is loaded from the landing view only, once, and sends a single
  *   `page_view`. No custom events; never a file name, document id,
  *   annotation or transcript.
- * - Consent defaults deny analytics and ad storage and every ad signal, so
- *   GA4 sets no cookies and counts the visit with a cookieless ping.
+ * - Analytics storage is granted and ad storage and every ad signal are
+ *   denied, changed 2026-11-10. With analytics storage denied (the setting
+ *   in the code from 2026-10-29, live from
+ *   2026-10-30 to 2026-11-10) GA4 sends only cookieless pings, which
+ *   Google keeps for behavioral modeling and does not show in reports
+ *   unless a property has enough denied traffic to model: the live site
+ *   counted nothing visible. GA4 now sets its first-party `_ga` and
+ *   `_ga_<id>` cookies on this origin; no ad cookie, no Google signals.
  */
 
 const GTAG_SRC = 'https://www.googletagmanager.com/gtag/js?id='
 
-/** Denies every storage and ad signal; GA4 then counts with a cookieless ping. */
+/**
+ * Grants analytics storage only, so a visit is counted in GA4's reports;
+ * ad storage and every ad signal stay denied.
+ */
 export const CONSENT_DEFAULT = {
-  analytics_storage: 'denied',
+  analytics_storage: 'granted',
   ad_storage: 'denied',
   ad_user_data: 'denied',
   ad_personalization: 'denied',
@@ -46,7 +55,7 @@ function gtag(..._args: unknown[]): void {
 }
 
 /**
- * Injects gtag.js for `measurementId` and queues one cookieless page view.
+ * Injects gtag.js for `measurementId` and queues one page view.
  * Returns true when the script was added, false when the id is empty or
  * the script is already on the page.
  */

@@ -6,6 +6,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Local models.** Two new entries under **AI keys**, **Local
+  speech-to-text server** and **Local text model server**, for a model you
+  run yourself behind an OpenAI-compatible API: whisper.cpp
+  (`whisper-server --inference-path /v1/audio/transcriptions --convert`),
+  faster-whisper-server or LocalAI for transcription; Ollama, LM Studio,
+  llama.cpp or vLLM for polish. Each takes a base URL (up to `/v1`), a model
+  name and an optional key; VoxNote then calls
+  `<base>/audio/transcriptions` or `<base>/chat/completions`. The consent
+  dialogs name the server's address and say "on this device" only for a
+  loopback address; the dialog warns when the browser will block a plain
+  `http://` address from the https site; an unreachable server fails with
+  the likely causes (not running, no CORS, mixed content). The README has a
+  new "Local models" section, including how to use Superwhisper, which has
+  no HTTP API, as a dictation keyboard. Verified with unit tests and in
+  headless Chromium against a stand-in server; no real local model run
+  recorded yet.
+
+### Changed
+
+- **Visit counting now shows up in Google Analytics.** The tag denied
+  analytics storage, so GA4 sent only cookieless pings, which Google keeps
+  for modeling and does not report for a site this small: from 2026-10-30
+  the reports stayed empty. Analytics storage is now granted, so GA4 sets
+  its first-party `_ga` cookies; ad storage, ad signals, Google signals and
+  ad personalization stay off. The landing's privacy line and the README
+  say so.
+- **README status updated** with what has been tried on a real iPad (PWA
+  install, Safari recording, a real transcription) and the exported PDF in
+  other viewers, as reported by the maintainer on 2026-11-10; removed the
+  stale note that a Markdown file cannot be opened from a link.
+
 ### Fixed
 
 - **Picking a highlight color no longer loses the selection toolbar on a

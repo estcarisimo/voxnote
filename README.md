@@ -29,8 +29,8 @@ what to read) and
 project in one file). See [Discoverability](#-discoverability).
 
 On an iPad, open the link in Safari, tap **Share**, then **Add to Home
-Screen** to install it as an app. Install on a real iPad has not been verified
-yet (see [Status](#-status-and-caveats)).
+Screen** to install it as an app (reported working on a real iPad on
+2026-11-10; see [Status](#-status-and-caveats)).
 
 > **Status:** early (milestones M0–M1). The name is a working name pending
 > availability and trademark checks. See [ROADMAP.md](ROADMAP.md).
@@ -55,10 +55,13 @@ yet (see [Status](#-status-and-caveats)).
   **Suggest** (edit the passage as it should read, Google Docs style, typed
   or dictated)
 - 🗣️ **Opt-in transcription**: **Transcribe…** sends a recording to OpenAI,
-  Deepgram or Groq (hosted Whisper) with your own API key, only after a consent dialog that says exactly what
-  is sent and to which host; the raw transcript is kept verbatim
+  Deepgram or Groq (hosted Whisper) with your own API key, or to a
+  [Whisper server you run yourself](#-local-models), only after a consent
+  dialog that says exactly what is sent and to which host; the raw
+  transcript is kept verbatim
 - 🧹 **Opt-in polish**: **Polish…** asks a text model (OpenAI, Anthropic
-  Claude or xAI Grok, each with your own key) to fix punctuation, casing,
+  Claude or xAI Grok, each with your own key, or a
+  [local model](#-local-models) such as Ollama) to fix punctuation, casing,
   fillers and technical terms in a raw transcript; the consent dialog names
   the host and model and shows the exact prompt, the raw text and the
   proposal sit side by side, and only **Accept** changes the note. The raw
@@ -79,31 +82,39 @@ yet (see [Status](#-status-and-caveats)).
 
 ### 🚧 Status and caveats
 
-Everything above works on `main` today, with these limits, all tracked in
+Everything above works on `main` today. What has been tried by hand, and
+what has not, as of 2026-11-10 (UTC); open items are tracked in
 [ROADMAP.md](ROADMAP.md):
 
-- **No real transcription has been measured.** The OpenAI, Deepgram and
-  Groq providers are verified against mocked endpoints only (whether
-  Deepgram and Groq accept calls straight from a browser is unknown until a
-  real call); there are no accuracy or latency
-  figures, and there will be none here without the dataset, parameters,
-  provider version and date behind them.
+- **Working on a real iPad** (reported by the maintainer): Apple Pencil
+  selection (reported 2026-10-29); the color pick → Highlight flow
+  (2026-11-09); installing the PWA from Safari with **Add to Home Screen**,
+  recording a voice note in Safari, and a real transcription with the
+  maintainer's own key (all three reported 2026-11-10). The iPad model and
+  iPadOS version were not recorded.
+- **Exported PDFs** are checked with poppler and qpdf, and reported to open
+  correctly in other PDF viewers (2026-11-10; which viewers was not
+  recorded).
+- **Transcription quality is unmeasured.** A real call works, but there are
+  no accuracy or latency figures, and there will be none here without the
+  dataset, parameters, provider version and date behind them. The provider
+  of that first real call was not recorded; any of OpenAI, Deepgram and
+  Groq not yet called for real is verified against mocked endpoints only.
 - **No real polish call has been made.** The OpenAI, Anthropic and xAI
   text adapters are verified against mocked endpoints only; whether each
   vendor accepts calls straight from a browser, and the quality, latency and
   cost of the polished text, are unmeasured.
-- **Real-iPad confirmation is pending.** Pen-drag selection is verified
-  headless with emulated pen events; installing the PWA and recording in
-  Safari (its MP4 audio path and real permission prompt) are untested on an
-  iPad. The offline shell is checked in desktop Chromium only.
-- Exported PDFs are checked with poppler and qpdf; Preview, Acrobat, PDF
-  Expert and Chrome are still to check.
+- **Local servers** (new, 2026-11-10) are verified in headless Chromium
+  against a stand-in OpenAI-compatible server on `127.0.0.1` (record →
+  **Transcribe…** → the transcript fills the comment; without CORS headers
+  the error names the cause) and with unit tests for polish. No real
+  whisper.cpp, Ollama or LM Studio run has been recorded yet.
 - **Private** / **For author** is a label for your own triage: no export
   filters on it yet.
 - **Markdown review is new (2026-11-05)** and verified with unit and
-  component tests only: not yet tried on an iPad. There is no annotated
-  copy of the Markdown source yet (the notes export as Markdown report and
-  JSON), and a Markdown file cannot be opened from a link yet.
+  component tests and in headless Chromium: not yet tried on an iPad. There
+  is no annotated copy of the Markdown source yet (the notes export as
+  Markdown report and JSON).
 
 ## 🚀 Quick Start
 
@@ -168,7 +179,9 @@ The review flow is select, act, export:
 5. **Keys** for transcription and polish go under **AI keys** (the key
    icon in the header): tap **Add key**, pick the provider, paste the key,
    **Save**. The row then shows what the key is used for; the trash button
-   removes it after a confirmation.
+   removes it after a confirmation. For a model you run yourself, pick
+   **Local speech-to-text server** or **Local text model server** instead
+   and enter its address and model name (see [Local models](#-local-models)).
 6. **Export** from the header:
    - **Export PDF** (PDF documents only) → a copy of the document with
      native annotations. The original file is never modified.
@@ -248,16 +261,21 @@ transcripts. Why JSON and not the annotated PDF, and what a future
   The landing shows whether storage is persistent and how much is used; a
   browser without the API is reported as such. On an iPad, add VoxNote to
   the Home Screen and export your notes from time to time.
-- **Visit counting.** The live site counts visits with Google Analytics 4,
-  without cookies: the build reads the measurement id from the repository
-  variable `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only,
-  denies analytics and ad storage and every ad signal by default, and sends a
-  page view. The app defines no custom events; GA4's default "enhanced
-  measurement" also reports scroll depth and engagement time on the landing
-  (seen in the network log on 2026-10-30). Never a file name, document id,
-  annotation or transcript. A build without the variable (your own checkout,
-  a fork) ships no analytics at all. Counting on the live site started on
-  2026-10-30, when the variable was set and `main` was deployed again.
+- **Visit counting.** The live site counts visits with Google Analytics 4:
+  the build reads the measurement id from the repository variable
+  `VITE_GA_MEASUREMENT_ID`, loads gtag.js from the landing view only, grants
+  analytics storage, denies ad storage and every ad signal, turns off Google
+  signals and ad personalization, and sends a page view. GA4 therefore sets
+  its own first-party analytics cookies on this site (`_ga` and
+  `_ga_<id>`), and no advertising cookie. The app defines no custom events;
+  GA4's default "enhanced measurement" also reports scroll depth and
+  engagement time on the landing (seen in the network log on 2026-10-30).
+  Never a file name, document id, annotation or transcript. A build without
+  the variable (your own checkout, a fork) ships no analytics at all.
+  From 2026-10-30 to 2026-11-10 the tag denied analytics storage too, so
+  GA4 sent only cookieless pings (`gcs=G100`); Google uses those for
+  modeling and does not show them in reports until a property has enough
+  denied traffic, so that period counted nothing visible.
 - **Keys are yours.** API keys are added under **AI keys** (the key icon in
   the header) and stored AES-GCM encrypted at rest, with a non-extractable
   key kept in IndexedDB. A saved key is never shown again, not even
@@ -266,8 +284,10 @@ transcripts. Why JSON and not the annotated PDF, and what a future
 - **Consent before anything leaves.** Audio is sent only after the consent
   dialog, which states what is sent (the recording, optionally the quoted
   passage as a vocabulary hint, the language hint) and to which host, and
-  only to the provider you picked. Nothing is uploaded until you tap
-  **Send to …** (OpenAI, Deepgram or Groq). A polish sends the raw transcript text (optionally
+  only to the provider you picked. A local server is no exception: the
+  dialog names its address, and says "on this device" only for
+  `localhost`, `127.0.0.1` or `[::1]`. Nothing is uploaded until you tap
+  **Send to …** (OpenAI, Deepgram, Groq or your local server). A polish sends the raw transcript text (optionally
   the quoted passage, to spell terms) to the text provider you picked, with
   `store: false` on OpenAI and xAI, only after you tap **Send to …**.
 - **Nothing is published automatically.** Exports are downloads you start.
@@ -305,6 +325,19 @@ Polish (optional):
 | Provider | OpenAI (default), Anthropic (Claude) or xAI (Grok)                                                               |
 | Model    | OpenAI `gpt-6.1-terra` (default); Anthropic `claude-opus-5-5` (default); xAI `grok-4.7` (default); others listed |
 
+Local servers (optional; see [Local models](#-local-models)):
+
+| Setting        | Values                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Server address | The base URL up to `/v1`, `http://` or `https://`, e.g. `http://localhost:8080/v1` or `http://localhost:11434/v1` |
+| Model          | The name the server expects, e.g. `whisper-1`, `Systran/faster-whisper-small` or `llama3.2:3b`                    |
+| API key        | Optional; most local servers take none. Sent as `Authorization: Bearer` only when saved                           |
+
+Setting up a local server picks it for its role; the **Use for…** select
+switches back. The address and model are kept in this browser's
+`localStorage` with the other settings, the key (if any) encrypted with the
+other keys.
+
 API keys: one per provider (OpenAI, Anthropic, xAI, Deepgram, Groq), your own, encrypted at
 rest in the browser and sent only in the request you confirm, straight to
 that provider. Adding a key for a provider that can serve a role nobody else
@@ -329,6 +362,79 @@ page wins over this table.
 
 Whether Deepgram and Groq accept calls straight from a browser (CORS) is
 still unverified: no real call has been made to either.
+
+## 🏠 Local models
+
+You can keep audio and text off any vendor's servers by running the models
+yourself. VoxNote talks to any server that implements the OpenAI HTTP API:
+`POST <address>/audio/transcriptions` for speech-to-text and
+`POST <address>/chat/completions` for polish. Add it under **AI keys** →
+**Add key** → **Local speech-to-text server** or **Local text model
+server**, with the server address (up to `/v1`) and the model name.
+
+**Superwhisper and other dictation apps.** Superwhisper runs Whisper on
+your Mac, iPhone or iPad, but it is a dictation app: it types into whatever
+text field has the focus and offers no HTTP API that VoxNote could call
+(none found in its documentation, 2026-11-10). Use it as a keyboard: pick
+**Comment** (or **Suggest**) instead of **Voice**, then dictate into the
+text box with Superwhisper. The text is a typed comment to VoxNote: no
+recording is kept, nothing goes through VoxNote's consent dialog (it goes
+wherever Superwhisper sends it, on-device for its local models), and
+**Polish…** is not offered, since there is no raw transcript.
+
+**Speech-to-text servers** (one of):
+
+- [whisper.cpp](https://github.com/ggml-org/whisper.cpp) `whisper-server`:
+  its default route is `/inference`, so start it with the OpenAI path, and
+  with `--convert` (needs `ffmpeg`), because browsers record WebM/Opus
+  (Chrome, Firefox) or MP4 (Safari), which whisper.cpp does not read by
+  itself:
+  ```bash
+  whisper-server -m models/ggml-large-v3-turbo.bin --port 8080 \
+    --inference-path /v1/audio/transcriptions --convert
+  ```
+  Address `http://localhost:8080/v1`; the model name is not used by
+  whisper.cpp, so any name such as `whisper-1` works.
+- [faster-whisper-server / Speaches](https://github.com/speaches-ai/speaches)
+  or [LocalAI](https://localai.io/features/audio-to-text/): they serve
+  `/v1/audio/transcriptions` natively; use the address and the model name
+  their docs give (for example `Systran/faster-whisper-small`).
+
+**Text models for polish** (one of):
+
+- [Ollama](https://docs.ollama.com/api/openai-compatibility): allow this
+  site as an origin, then pull a model:
+  ```bash
+  OLLAMA_ORIGINS=https://estcarisimo.github.io ollama serve
+  ollama pull llama3.2:3b
+  ```
+  Address `http://localhost:11434/v1`, model `llama3.2:3b`.
+- LM Studio: start its local server and turn on CORS in the server
+  settings; address `http://localhost:1234/v1`, model as LM Studio lists it.
+- llama.cpp's `llama-server` or vLLM: both serve `/v1/chat/completions`.
+
+**What the browser requires**, whichever server you pick:
+
+1. **CORS.** The server must answer with `Access-Control-Allow-Origin`
+   naming `https://estcarisimo.github.io` (or `*`) and allow the
+   `authorization` and `content-type` headers. Without it the browser
+   blocks the answer; VoxNote shows "Could not reach … (CORS)".
+2. **HTTPS, unless it is on the same device.** The live site is served over
+   https, and browsers block plain `http://` requests from an https page.
+   Chrome and Firefox make an exception for `localhost`, `127.0.0.1` and
+   `[::1]`; whether Safari does has not been verified here, so on an iPad
+   prefer an `https://` address. A model on the same
+   computer as the browser works over `http://localhost`. A model on
+   another machine, such as your Mac reached from an iPad, needs an
+   `https://` address: put a reverse proxy with a certificate in front of
+   it, or use [Tailscale Serve](https://tailscale.com/kb/1312/serve)
+   (`https://<machine>.<tailnet>.ts.net`). The AI keys dialog warns when an
+   address will be blocked. Alternatively run VoxNote from source on that
+   machine (`npm run dev -- --host`), which serves plain http; then note
+   that `crypto.subtle` (needed for the encrypted key store) exists only on
+   `localhost` or https origins.
+3. **Recent Chrome versions may ask** for permission to access devices on your local
+   network the first time a public site calls a private address.
 
 Build-time: `npm run build` targets the GitHub Pages path `/voxnote/`, so
 `npm run preview` serves the build at `http://localhost:4173/voxnote/`; the
@@ -358,7 +464,8 @@ src/
 │                 #   polish
 └── providers/    # Speech-to-text and text-model adapters: OpenAI,
                   #   Deepgram and Groq transcription; OpenAI, Anthropic
-                  #   and xAI polish
+                  #   and xAI polish; local OpenAI-compatible servers
+                  #   for both (local.ts)
 public/           # PWA manifest and icons, llms.txt, robots.txt, sitemap.xml
 ```
 

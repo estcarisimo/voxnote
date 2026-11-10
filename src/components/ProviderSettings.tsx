@@ -2,7 +2,15 @@ import { useRef, useState, type FormEvent } from 'react'
 import { useDialogFocus } from '../hooks/useDialogFocus'
 import type { Providers } from '../hooks/useProviders'
 import {
+  isLocalModelName,
+  LOCAL_STT_EXAMPLE,
+  LOCAL_TEXT_EXAMPLE,
+  mixedContentProblem,
+  normalizeBaseUrl,
+} from '../providers/local'
+import {
   isLanguageHint,
+  isLocalProviderId,
   isSttProviderId,
   isTextProviderId,
   PROVIDER_IDS,
@@ -94,8 +102,9 @@ export function ProviderSettings({
 
   function pickForCleanUp(id: TextProviderId) {
     if (id === textSettings.provider) return
-    // The model falls back to the new provider's default.
-    providers.saveTextSettings({ provider: id, model: '' })
+    // The model falls back to the new provider's default; a configured
+    // local server is kept, so the select can switch back to it.
+    providers.saveTextSettings({ ...textSettings, provider: id, model: '' })
   }
 
   /**
@@ -155,7 +164,10 @@ export function ProviderSettings({
                 id={id}
                 providers={providers}
                 activeRoles={activeRolesOf(id)}
-                onRemoved={() => releaseRolesOf(id)}
+                // A local server's removal moves its role in useProviders.
+                onRemoved={() => {
+                  if (!isLocalProviderId(id)) releaseRolesOf(id)
+                }}
               />
             ))}
           </ul>
@@ -212,7 +224,8 @@ export function ProviderSettings({
             candidates={missing}
             providers={providers}
             onSaved={(id) => {
-              pickRolesFor(id)
+              // Setting up a local server already picks it for its role.
+              if (!isLocalProviderId(id)) pickRolesFor(id)
               setAdding(false)
             }}
             onCancel={() => setAdding(false)}
@@ -309,6 +322,12 @@ function KeyRow({
   const [error, setError] = useState<string | null>(null)
   const label = PROVIDER_LABELS[id]
   const { settings, textSettings } = providers
+  const local =
+    id === 'local-stt'
+      ? settings.local
+      : id === 'local-text'
+        ? textSettings.local
+        : undefined
   const canDo = rolesOf(id)
   const usedFor =
     activeRoles.length > 0
@@ -329,23 +348,35 @@ function KeyRow({
   }
 
   return (
-    <li className="keys-row" aria-label={`${label} key`}>
+    <li
+      className="keys-row"
+      aria-label={local ? `${label} settings` : `${label} key`}
+    >
       <div className="keys-row-head">
         <div className="keys-row-text">
           <strong>{label}</strong>
-          <span className="keys-row-uses">
-            <span className="keys-mask" aria-hidden="true">
-              ••••
+          {local ? (
+            <span className="keys-row-uses">
+              <span className="keys-local">
+                {local.baseUrl} · {local.model}
+              </span>
+              {usedFor}
             </span>
-            {usedFor}
-          </span>
+          ) : (
+            <span className="keys-row-uses">
+              <span className="keys-mask" aria-hidden="true">
+                ••••
+              </span>
+              {usedFor}
+            </span>
+          )}
         </div>
         {!confirming && (
           <button
             type="button"
             className="keys-trash"
-            aria-label={`Remove ${label} key`}
-            title={`Remove ${label} key`}
+            aria-label={local ? `Remove ${label}` : `Remove ${label} key`}
+            title={local ? `Remove ${label}` : `Remove ${label} key`}
             disabled={busy}
             onClick={() => setConfirming(true)}
           >
@@ -356,7 +387,11 @@ function KeyRow({
 
       {confirming && (
         <div className="keys-confirm" role="group" aria-label="Confirm removal">
-          <span>Remove the {label} key from this browser?</span>
+          <span>
+            {local
+              ? `Remove the ${label.toLowerCase()} settings and its key, if any, from this browser?`
+              : `Remove the ${label} key from this browser?`}
+          </span>
           <button
             type="button"
             className="is-danger"
@@ -375,46 +410,50 @@ function KeyRow({
         </div>
       )}
 
-      {activeRoles.includes('speech-to-text') && isSttProviderId(id) && (
-        <label className="keys-model">
-          <span>Speech-to-text model</span>
-          <select
-            value={settings.model}
-            onChange={(e) =>
-              providers.saveSettings({ ...settings, model: e.target.value })
-            }
-          >
-            {STT_MODELS[id].map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {activeRoles.includes('speech-to-text') &&
+        isSttProviderId(id) &&
+        !isLocalProviderId(id) && (
+          <label className="keys-model">
+            <span>Speech-to-text model</span>
+            <select
+              value={settings.model}
+              onChange={(e) =>
+                providers.saveSettings({ ...settings, model: e.target.value })
+              }
+            >
+              {STT_MODELS[id].map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
-      {activeRoles.includes('clean-up') && isTextProviderId(id) && (
-        <label className="keys-model">
-          <span>Polish model</span>
-          <select
-            value={textSettings.model}
-            onChange={(e) =>
-              providers.saveTextSettings({
-                ...textSettings,
-                model: e.target.value,
-              })
-            }
-          >
-            {TEXT_MODELS[id].map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.deprecated
-                  ? `${m.label} (deprecated ${m.deprecated})`
-                  : m.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {activeRoles.includes('clean-up') &&
+        isTextProviderId(id) &&
+        !isLocalProviderId(id) && (
+          <label className="keys-model">
+            <span>Polish model</span>
+            <select
+              value={textSettings.model}
+              onChange={(e) =>
+                providers.saveTextSettings({
+                  ...textSettings,
+                  model: e.target.value,
+                })
+              }
+            >
+              {TEXT_MODELS[id].map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.deprecated
+                    ? `${m.label} (deprecated ${m.deprecated})`
+                    : m.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
       {error && (
         <span role="alert" className="dialog-error">
@@ -444,11 +483,49 @@ function AddKeyRow({
   }
   const [id, setId] = useState<ProviderId>(first)
   const [key, setKey] = useState('')
+  const [baseUrl, setBaseUrl] = useState('')
+  const [model, setModel] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const local = isLocalProviderId(id)
+  const example = id === 'local-stt' ? LOCAL_STT_EXAMPLE : LOCAL_TEXT_EXAMPLE
+  const warning = local ? addressWarning(baseUrl) : null
+
+  async function saveLocal() {
+    if (!isLocalProviderId(id)) throw new Error(`${id} is not a local server`)
+    let url: string
+    try {
+      url = normalizeBaseUrl(baseUrl)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+      return
+    }
+    const name = model.trim()
+    if (!isLocalModelName(name)) {
+      setError(
+        'Enter the model name the server expects, e.g. ' +
+          `${example.model} (letters, digits and . _ : / @ + - only)`,
+      )
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await providers.configureLocal(id, { baseUrl: url, model: name }, key)
+      setKey('')
+      onSaved(id)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault()
+    if (local) {
+      await saveLocal()
+      return
+    }
     if (key.trim() === '') {
       setError('Paste a key before saving')
       return
@@ -486,8 +563,59 @@ function AddKeyRow({
           ))}
         </select>
       </label>
+      {local && (
+        <>
+          <p className="dialog-note">
+            A server you run that speaks the OpenAI API (
+            {id === 'local-stt'
+              ? 'whisper.cpp, faster-whisper-server, LocalAI'
+              : 'Ollama, LM Studio, llama.cpp, vLLM'}
+            ). It must allow this site as an origin (CORS). See the README,
+            “Local models”.
+          </p>
+          <label className="dialog-field">
+            <span>Server address (base URL, up to /v1)</span>
+            <input
+              type="url"
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              value={baseUrl}
+              placeholder={example.baseUrl}
+              onChange={(e) => {
+                setBaseUrl(e.target.value)
+                if (error) setError(null)
+              }}
+              disabled={!providers.ready || busy}
+            />
+          </label>
+          {warning && <p className="dialog-note keys-warning">{warning}</p>}
+          <label className="dialog-field">
+            <span>Model</span>
+            <input
+              type="text"
+              autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              value={model}
+              placeholder={example.model}
+              onChange={(e) => {
+                setModel(e.target.value)
+                if (error) setError(null)
+              }}
+              disabled={!providers.ready || busy}
+            />
+          </label>
+        </>
+      )}
       <label className="dialog-field">
-        <span>{PROVIDER_LABELS[id]} API key</span>
+        <span>
+          {local
+            ? 'API key (optional; most local servers take none)'
+            : `${PROVIDER_LABELS[id]} API key`}
+        </span>
         <input
           type="password"
           autoComplete="off"
@@ -495,7 +623,7 @@ function AddKeyRow({
           autoCorrect="off"
           spellCheck={false}
           value={key}
-          placeholder="Paste your key"
+          placeholder={local ? 'None' : 'Paste your key'}
           onChange={(e) => {
             setKey(e.target.value)
             if (error) setError(null)
@@ -522,6 +650,21 @@ function AddKeyRow({
       </div>
     </form>
   )
+}
+
+/**
+ * A warning for an address the browser will refuse from this page, or
+ * null. Unparseable input gets none here: Save reports it.
+ */
+function addressWarning(input: string): string | null {
+  try {
+    return mixedContentProblem(
+      normalizeBaseUrl(input),
+      window.location.protocol,
+    )
+  } catch {
+    return null
+  }
 }
 
 function TrashIcon() {

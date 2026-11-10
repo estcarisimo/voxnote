@@ -70,12 +70,14 @@ describe('provider registry', () => {
   })
 
   it('creates every text provider with its own host and models, and one key name each', () => {
-    const hosts = TEXT_PROVIDER_IDS.map((id) => {
-      const p = createTextProvider(id)
-      expect(p.id).toBe(id)
-      expect(p.models).toBe(TEXT_MODELS[id])
-      return p.endpointHost
-    })
+    const hosts = TEXT_PROVIDER_IDS.filter((id) => id !== 'local-text').map(
+      (id) => {
+        const p = createTextProvider(id)
+        expect(p.id).toBe(id)
+        expect(p.models).toBe(TEXT_MODELS[id])
+        return p.endpointHost
+      },
+    )
     expect(hosts).toEqual(['api.openai.com', 'api.anthropic.com', 'api.x.ai'])
     expect(new Set(Object.values(SECRET_NAMES)).size).toBe(
       Object.keys(SECRET_NAMES).length,
@@ -83,18 +85,20 @@ describe('provider registry', () => {
   })
 
   it('creates every speech-to-text provider with its own host, models and key', () => {
-    const made = STT_PROVIDER_IDS.map((id) => {
-      const p = createProvider({
-        provider: id,
-        model: DEFAULT_STT_MODELS[id],
-        language: '',
-      })
-      expect(p.id).toBe(id)
-      expect(STT_MODELS[id].some((m) => m.id === DEFAULT_STT_MODELS[id])).toBe(
-        true,
-      )
-      return [p.endpointHost, p.acceptsPrompt, SECRET_NAMES[id]]
-    })
+    const made = STT_PROVIDER_IDS.filter((id) => id !== 'local-stt').map(
+      (id) => {
+        const p = createProvider({
+          provider: id,
+          model: DEFAULT_STT_MODELS[id],
+          language: '',
+        })
+        expect(p.id).toBe(id)
+        expect(
+          STT_MODELS[id].some((m) => m.id === DEFAULT_STT_MODELS[id]),
+        ).toBe(true)
+        return [p.endpointHost, p.acceptsPrompt, SECRET_NAMES[id]]
+      },
+    )
     expect(made).toEqual([
       ['api.openai.com', true, 'openai.apiKey'],
       ['api.deepgram.com', false, 'deepgram.apiKey'],
@@ -121,5 +125,62 @@ describe('provider registry', () => {
       normalizeSettings({ provider: 'deepgram', model: 'whisper-large-v3' })
         .model,
     ).toBe('nova-3')
+  })
+})
+
+describe('local providers in the registry', () => {
+  const local = { baseUrl: 'http://localhost:8080/v1', model: 'whisper-1' }
+
+  it('keeps a local server and uses its model when it is picked', () => {
+    expect(
+      normalizeSettings({
+        provider: 'local-stt',
+        model: 'x',
+        language: '',
+        local,
+      }),
+    ).toEqual({
+      provider: 'local-stt',
+      model: 'whisper-1',
+      language: '',
+      local,
+    })
+    expect(
+      normalizeSettings({
+        provider: 'openai',
+        model: 'whisper-1',
+        language: '',
+        local,
+      }),
+    ).toEqual({ provider: 'openai', model: 'whisper-1', language: '', local })
+  })
+
+  it('falls back to the default when the local server is missing or malformed', () => {
+    expect(
+      normalizeSettings({ provider: 'local-stt', model: 'm', language: '' }),
+    ).toEqual(DEFAULT_SETTINGS)
+    expect(
+      normalizeTextSettings({
+        provider: 'local-text',
+        model: 'm',
+        local: { baseUrl: 'javascript:alert(1)', model: 'm' },
+      }),
+    ).toEqual(DEFAULT_TEXT_SETTINGS)
+  })
+
+  it('creates local providers only with a server', () => {
+    const p = createProvider({
+      provider: 'local-stt',
+      model: 'whisper-1',
+      language: '',
+      local,
+    })
+    expect(p.endpointHost).toBe('localhost:8080')
+    expect(() =>
+      createProvider({ provider: 'local-stt', model: '', language: '' }),
+    ).toThrow(/AI keys/)
+    expect(createTextProvider('local-text', local).id).toBe('local-text')
+    expect(() => createTextProvider('local-text')).toThrow(/AI keys/)
+    expect(SECRET_NAMES['local-stt']).toBe('local-stt.apiKey')
   })
 })

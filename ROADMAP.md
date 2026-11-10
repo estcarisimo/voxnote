@@ -84,7 +84,16 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
       profile, `dl` is the landing URL only. GA4's default enhanced
       measurement adds `scroll` and `user_engagement` events to the page
       view; turning it off is a property setting, not code.
-- [ ] Open and install the deployed PWA on a real iPad.
+      Changed 2026-11-10: GA4 reports showed no traffic, because with
+      analytics storage denied the tag sends only cookieless pings, which
+      Google keeps for modeling and does not report for a property this
+      small. Analytics storage is now granted (first-party `_ga` cookies);
+      ad storage, ad signals, Google signals and ad personalization stay
+      off. Known trade-off, the maintainer's decision: these analytics
+      cookies are set without a consent prompt, which EU ePrivacy/GDPR
+      rules may require for non-essential cookies.
+- [x] Open and install the deployed PWA on a real iPad (reported working by
+      the maintainer on 2026-11-10; iPad model and iPadOS not recorded).
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
       the evidence; the name stays provisional until then.
 
@@ -159,6 +168,16 @@ the success criterion on real iPad hardware.
   has been called for real**: the request shapes, whether each endpoint
   accepts calls straight from a browser (CORS), and transcript quality are
   unverified. Safari's MP4 path is unit-tested only.
+  Update 2026-11-10: a real transcription and recording in Safari on an
+  iPad are reported working by the maintainer (provider not recorded).
+- [x] Local servers, 2026-11-10: "Local speech-to-text server" and "Local
+      text model server" in AI keys, for any OpenAI-compatible server the
+      user runs (whisper.cpp, faster-whisper-server, LocalAI; Ollama, LM
+      Studio, llama.cpp, vLLM), with a base URL, a model name and an
+      optional key (`src/providers/local.ts`). Verified with unit tests and
+      in headless Chromium against a stand-in server on 127.0.0.1 (with and
+      without CORS headers); no real local model run recorded yet. Setup,
+      CORS and HTTPS requirements in the README, "Local models".
 - [x] Editable comment body; the raw transcript is kept verbatim and shown
       read-only next to the editor once a provider fills it.
 - [x] Explicit disclosure before anything leaves the device: the consent
