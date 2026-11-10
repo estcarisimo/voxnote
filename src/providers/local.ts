@@ -124,7 +124,8 @@ export function isLoopback(baseUrl: string): boolean {
 /**
  * Why an https:// page cannot reach this address, or null when it can (as
  * far as the address alone tells): browsers block plain http to anything
- * but a loopback address from a secure page (mixed content).
+ * but a loopback address from a secure page (mixed content). Checked in
+ * Chromium only; Safari's handling of http://localhost is not verified.
  */
 export function mixedContentProblem(
   baseUrl: string,
@@ -150,7 +151,7 @@ function destination(server: LocalServer): string {
 }
 
 function keyClause(): string {
-  return 'with your key if you saved one'
+  return 'with the key saved for it, or no key when none is saved'
 }
 
 /**

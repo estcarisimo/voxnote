@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Transcript } from '../core/annotations'
+import { hostOf } from '../providers/local'
 import {
   createConsent,
   isConsentValid,
@@ -155,6 +156,17 @@ export function useTranscription(
         )
       }
       const apiKey = await providers.readKey(current.providerId)
+      // A local server set up again while the dialog was open may have a new
+      // address and key: never send that key to the host the dialog named.
+      const local = providers.settings.local
+      if (
+        isLocalProviderId(current.providerId) &&
+        (!local || hostOf(local.baseUrl) !== current.provider.endpointHost)
+      ) {
+        throw new Error(
+          'The local server changed after this dialog opened; try again',
+        )
+      }
       // A local server may have no key: "" means send none; null, nothing
       // configured at all.
       if (

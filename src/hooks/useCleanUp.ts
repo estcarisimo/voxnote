@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CleanUpProposal } from '../core/cleanUp'
-import type { LocalServer } from '../providers/local'
+import { hostOf, type LocalServer } from '../providers/local'
 import type { CleanUpFn, CleanUpInput } from '../components/CleanUpDialog'
 import {
   cleanUp,
@@ -135,6 +135,17 @@ export function useCleanUp(
       const current = pendingRef.current
       if (!current) throw new Error('No clean-up is pending')
       const apiKey = await providers.readKey(current.providerId)
+      // A local server set up again while the dialog was open may have a new
+      // address and key: never send that key to the host the dialog named.
+      const local = providers.textSettings.local
+      if (
+        isLocalProviderId(current.providerId) &&
+        (!local || hostOf(local.baseUrl) !== current.provider.endpointHost)
+      ) {
+        throw new Error(
+          'The local server changed after this dialog opened; try again',
+        )
+      }
       // A local server may have no key: "" means send none; null, nothing
       // configured at all.
       if (

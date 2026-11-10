@@ -505,4 +505,51 @@ describe('ProviderSettings (AI keys)', () => {
     expect(row.textContent).not.toMatch(/••••/)
     expect(within(row).queryByLabelText('Speech-to-text model')).toBeNull()
   })
+
+  it('keeps a local text server when polish moves between cloud keys', () => {
+    const local = { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2:3b' }
+    const keyed = new Set<ProviderId>(['anthropic', 'openai', 'local-text'])
+    const providers = providersWith({
+      hasKey: (id) => keyed.has(id),
+      textSettings: { provider: 'local-text', model: 'llama3.2:3b', local },
+    })
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    const select = screen.getByLabelText('Use for polish')
+    fireEvent.change(select, { target: { value: 'anthropic' } })
+    expect(providers.saveTextSettings).toHaveBeenLastCalledWith({
+      provider: 'anthropic',
+      model: '',
+      local,
+    })
+    fireEvent.change(select, { target: { value: 'openai' } })
+    expect(providers.saveTextSettings).toHaveBeenLastCalledWith({
+      provider: 'openai',
+      model: '',
+      local,
+    })
+  })
+
+  it('hands polish to the local server, with its settings, when the cloud key in use is removed', async () => {
+    const local = { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2:3b' }
+    const keyed = new Set<ProviderId>(['anthropic', 'local-text'])
+    const providers = providersWith({
+      hasKey: (id) => keyed.has(id),
+      textSettings: { provider: 'anthropic', model: 'claude-opus-5-5', local },
+      removeKey: vi.fn(async (id: ProviderId) => {
+        keyed.delete(id)
+      }),
+    })
+    render(<ProviderSettings providers={providers} onClose={() => {}} />)
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remove Anthropic (Claude) key' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    await waitFor(() =>
+      expect(providers.saveTextSettings).toHaveBeenLastCalledWith({
+        provider: 'local-text',
+        model: '',
+        local,
+      }),
+    )
+  })
 })

@@ -10,7 +10,8 @@
  *   annotation or transcript.
  * - Analytics storage is granted and ad storage and every ad signal are
  *   denied, changed 2026-11-10. With analytics storage denied (the setting
- *   from 2026-10-29 to 2026-11-10) GA4 sends only cookieless pings, which
+ *   in the code from 2026-10-29, live from
+ *   2026-10-30 to 2026-11-10) GA4 sends only cookieless pings, which
  *   Google keeps for behavioral modeling and does not show in reports
  *   unless a property has enough denied traffic to model: the live site
  *   counted nothing visible. GA4 now sets its first-party `_ga` and

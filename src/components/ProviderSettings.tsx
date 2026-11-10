@@ -102,8 +102,9 @@ export function ProviderSettings({
 
   function pickForCleanUp(id: TextProviderId) {
     if (id === textSettings.provider) return
-    // The model falls back to the new provider's default.
-    providers.saveTextSettings({ provider: id, model: '' })
+    // The model falls back to the new provider's default; a configured
+    // local server is kept, so the select can switch back to it.
+    providers.saveTextSettings({ ...textSettings, provider: id, model: '' })
   }
 
   /**

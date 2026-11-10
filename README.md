@@ -87,10 +87,11 @@ what has not, as of 2026-11-10 (UTC); open items are tracked in
 [ROADMAP.md](ROADMAP.md):
 
 - **Working on a real iPad** (reported by the maintainer): Apple Pencil
-  selection (2026-10-29), installing the PWA from Safari with **Add to Home
-  Screen**, recording a voice note in Safari, a real transcription with the
-  maintainer's own key, and the color pick → Highlight flow (2026-11-09).
-  The iPad model and iPadOS version were not recorded.
+  selection (reported 2026-10-29); the color pick → Highlight flow
+  (2026-11-09); installing the PWA from Safari with **Add to Home Screen**,
+  recording a voice note in Safari, and a real transcription with the
+  maintainer's own key (all three reported 2026-11-10). The iPad model and
+  iPadOS version were not recorded.
 - **Exported PDFs** are checked with poppler and qpdf, and reported to open
   correctly in other PDF viewers (2026-11-10; which viewers was not
   recorded).
@@ -286,7 +287,7 @@ transcripts. Why JSON and not the annotated PDF, and what a future
   only to the provider you picked. A local server is no exception: the
   dialog names its address, and says "on this device" only for
   `localhost`, `127.0.0.1` or `[::1]`. Nothing is uploaded until you tap
-  **Send to …** (OpenAI, Deepgram or Groq). A polish sends the raw transcript text (optionally
+  **Send to …** (OpenAI, Deepgram, Groq or your local server). A polish sends the raw transcript text (optionally
   the quoted passage, to spell terms) to the text provider you picked, with
   `store: false` on OpenAI and xAI, only after you tap **Send to …**.
 - **Nothing is published automatically.** Exports are downloads you start.
@@ -419,8 +420,10 @@ wherever Superwhisper sends it, on-device for its local models), and
    `authorization` and `content-type` headers. Without it the browser
    blocks the answer; VoxNote shows "Could not reach … (CORS)".
 2. **HTTPS, unless it is on the same device.** The live site is served over
-   https, and browsers block plain `http://` requests from an https page,
-   except to `localhost`, `127.0.0.1` and `[::1]`. A model on the same
+   https, and browsers block plain `http://` requests from an https page.
+   Chrome and Firefox make an exception for `localhost`, `127.0.0.1` and
+   `[::1]`; whether Safari does has not been verified here, so on an iPad
+   prefer an `https://` address. A model on the same
    computer as the browser works over `http://localhost`. A model on
    another machine, such as your Mac reached from an iPad, needs an
    `https://` address: put a reverse proxy with a certificate in front of

@@ -89,7 +89,9 @@ Goal: a repository that follows the Open source manifesto and shows a PDF.
       Google keeps for modeling and does not report for a property this
       small. Analytics storage is now granted (first-party `_ga` cookies);
       ad storage, ad signals, Google signals and ad personalization stay
-      off.
+      off. Known trade-off, the maintainer's decision: these analytics
+      cookies are set without a consent prompt, which EU ePrivacy/GDPR
+      rules may require for non-essential cookies.
 - [x] Open and install the deployed PWA on a real iPad (reported working by
       the maintainer on 2026-11-10; iPad model and iPadOS not recorded).
 - [ ] Name clearance check: GitHub, npm, domains, App Store, trademarks. Record
