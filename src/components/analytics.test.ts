@@ -33,7 +33,7 @@ describe('loadAnalytics', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('injects the script and denies storage before the config call', () => {
+  it('injects the script and sets consent before the config call', () => {
     expect(loadAnalytics('G-TEST123')).toBe(true)
     const tags = scripts()
     expect(tags).toHaveLength(1)
@@ -46,7 +46,7 @@ describe('loadAnalytics', () => {
     const calls = queued()
     expect(calls[0]).toEqual(['consent', 'default', CONSENT_DEFAULT])
     expect(CONSENT_DEFAULT).toEqual({
-      analytics_storage: 'denied',
+      analytics_storage: 'granted',
       ad_storage: 'denied',
       ad_user_data: 'denied',
       ad_personalization: 'denied',

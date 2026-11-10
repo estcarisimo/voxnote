@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CleanUpProposal } from '../core/cleanUp'
+import type { LocalServer } from '../providers/local'
 import type { CleanUpFn, CleanUpInput } from '../components/CleanUpDialog'
 import {
   cleanUp,
@@ -8,6 +9,7 @@ import {
 } from '../providers/llm'
 import {
   createTextProvider,
+  isLocalProviderId,
   PROVIDER_LABELS,
   type TextProviderId,
 } from '../providers/registry'
@@ -56,6 +58,7 @@ export function useCleanUp(
   providers: Providers,
   createProviderImpl: (
     provider: TextProviderId,
+    local?: LocalServer,
   ) => TextModelProvider = createTextProvider,
 ): CleanUpFlow {
   const [pending, setPending] = useState<Pending | null>(null)
@@ -104,7 +107,10 @@ export function useCleanUp(
         }
         let provider: TextModelProvider
         try {
-          provider = createProviderImpl(textSettings.provider)
+          provider = createProviderImpl(
+            textSettings.provider,
+            textSettings.local,
+          )
         } catch (err: unknown) {
           reject(err instanceof Error ? err : new Error(String(err)))
           return
@@ -129,7 +135,12 @@ export function useCleanUp(
       const current = pendingRef.current
       if (!current) throw new Error('No clean-up is pending')
       const apiKey = await providers.readKey(current.providerId)
-      if (!apiKey) {
+      // A local server may have no key: "" means send none; null, nothing
+      // configured at all.
+      if (
+        apiKey === null ||
+        (apiKey === '' && !isLocalProviderId(current.providerId))
+      ) {
         throw new Error('The key is missing; add it in AI keys')
       }
       return cleanUp(current.provider, cleanUpRequest, {

@@ -64,6 +64,15 @@
   color: var(--text-h);
 }
 
+.keys-local {
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.dialog .keys-warning {
+  color: var(--danger);
+}
+
 .dialog .keys-trash {
   flex: none;
   display: inline-grid;

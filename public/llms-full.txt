@@ -2,7 +2,7 @@
 
 > Your voice, in the margins. An open-source, AI-native PDF reviewer for iPad and the browser: highlight, comment, record a voice note or suggest a rewording on a PDF without ever editing it.
 
-This file is the full-text companion to https://estcarisimo.github.io/voxnote/llms.txt. It is hand-maintained in the repository (public/llms-full.txt) and describes the project as of 2026-10-30 (UTC). Where it and the README disagree, the README on the main branch wins: https://raw.githubusercontent.com/estcarisimo/voxnote/main/README.md
+This file is the full-text companion to https://estcarisimo.github.io/voxnote/llms.txt. It is hand-maintained in the repository (public/llms-full.txt) and describes the project as of 2026-11-10 (UTC). Where it and the README disagree, the README on the main branch wins: https://raw.githubusercontent.com/estcarisimo/voxnote/main/README.md
 
 Live app: https://estcarisimo.github.io/voxnote/
 Source: https://github.com/estcarisimo/voxnote (MIT license)
@@ -38,17 +38,19 @@ PDFs, annotations and recordings are stored in the browser's IndexedDB on the si
 
 Speech-to-text providers: OpenAI (default model gpt-transcribe), Deepgram (nova-3) and Groq (hosted Whisper, whisper-large-v3-turbo). Text-model providers for Polish: OpenAI (gpt-6.1-terra), Anthropic (claude-opus-5-5) and xAI (grok-4.7). Each adapter includes the disclosure text its consent dialog shows.
 
+Local models: a "Local speech-to-text server" and a "Local text model server" can be set up under AI keys with a base URL (up to /v1), a model name and an optional key. VoxNote calls POST <base>/audio/transcriptions and POST <base>/chat/completions, the OpenAI API shape that whisper.cpp (with --inference-path /v1/audio/transcriptions --convert), faster-whisper-server, LocalAI, Ollama, LM Studio, llama.cpp and vLLM serve. The server must allow the site's origin (CORS), and from the https site a non-localhost address must be https. The consent dialog names the server's address. Dictation apps such as Superwhisper expose no HTTP API; they are used as a keyboard to dictate into a typed comment.
+
 - Keys are added under AI keys (the key icon in the header), stored AES-GCM encrypted at rest with a non-extractable key kept in IndexedDB, and never shown again. They are never in the repository or on a server.
 - Transcribe sends a recording to the chosen provider only after a consent dialog that states what is sent (the recording, optionally the quoted passage as a vocabulary hint, the language hint) and to which host, and only when the user taps Send. Ticking "Also do this automatically for this document" makes Stop send each later recording of that document under that standing consent; the composer shows the state and it can be turned off.
 - The raw transcript is always preserved. It fills the comment only when nothing was typed, and stays visible read-only next to the editor.
 - Polish asks a text model to fix punctuation, casing, fillers and technical terms in a raw transcript. The consent dialog names the host and model and shows the exact prompt; the raw text and the proposal sit side by side; only Accept changes the note body, which is then labeled as polished in the sidebar and the exports. A polish never silently reinterprets a critique.
-- No real transcription or polish call has been measured. The adapters are verified against mocked endpoints only. There are no accuracy, latency, quality or cost figures, and there will be none without the dataset, parameters, provider version and date behind them. Whether Deepgram and Groq accept calls straight from a browser (CORS) is unverified.
+- A real transcription works on the maintainer's iPad (reported 2026-11-10; provider not recorded); no real polish call has been made. Otherwise the adapters are verified against mocked endpoints, and the local-server adapter in headless Chromium against a stand-in server. There are no accuracy, latency, quality or cost figures, and there will be none without the dataset, parameters, provider version and date behind them.
 
 VoxNote is not affiliated with OpenAI, Anthropic, xAI, Deepgram, Groq or any other company it can call. Users pay those vendors directly under their own accounts, and audio goes from the user's device to the provider they chose. The README's configuration section lists each provider's key page, role, default model and the pricing page its figures were read from, with the read date.
 
 ## Visit counting
 
-The live site counts visits with Google Analytics 4, without cookies: consent mode denies analytics and ad storage by default, the tag loads from the landing view only, and it records page views only. Never a file name, document id, annotation or transcript. A build without the VITE_GA_MEASUREMENT_ID variable (a fork, a local checkout) ships no analytics at all.
+The live site counts visits with Google Analytics 4: consent mode grants analytics storage (GA4 sets its first-party _ga cookies) and denies ad storage and every ad signal, the tag loads from the landing view only, and it records page views only. Never a file name, document id, annotation or transcript. A build without the VITE_GA_MEASUREMENT_ID variable (a fork, a local checkout) ships no analytics at all.
 
 ## Running from source
 

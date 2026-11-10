@@ -12,6 +12,7 @@ import type {
 } from '../components/TranscribeDialog'
 import {
   createProvider,
+  isLocalProviderId,
   PROVIDER_LABELS,
   type SttProviderId,
   type SttSettings,
@@ -154,7 +155,12 @@ export function useTranscription(
         )
       }
       const apiKey = await providers.readKey(current.providerId)
-      if (!apiKey) {
+      // A local server may have no key: "" means send none; null, nothing
+      // configured at all.
+      if (
+        apiKey === null ||
+        (apiKey === '' && !isLocalProviderId(current.providerId))
+      ) {
         throw new Error('The key is missing; add it in AI keys')
       }
       return transcribe(current.provider, transcriptionRequest, {

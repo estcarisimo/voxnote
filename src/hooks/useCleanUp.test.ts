@@ -17,6 +17,7 @@ function providersWith(overrides: Partial<Providers> = {}): Providers {
     saveTextSettings: vi.fn(),
     hasKey: () => true,
     setKey: vi.fn(async () => {}),
+    configureLocal: vi.fn(async () => {}),
     removeKey: vi.fn(async () => {}),
     readKey: vi.fn(async (id: ProviderId) => `key-for-${id}`),
     ...overrides,
@@ -75,7 +76,7 @@ describe('useCleanUp', () => {
     act(() => {
       promise = result.current.request(input)
     })
-    expect(create).toHaveBeenCalledWith('anthropic')
+    expect(create).toHaveBeenCalledWith('anthropic', undefined)
     expect(result.current.pending?.input).toBe(input)
     expect(result.current.pending?.model).toBe('claude-haiku-5-5')
     expect(cleanUpImpl).not.toHaveBeenCalled()
@@ -215,5 +216,47 @@ describe('useCleanUp', () => {
     expect(result.current.pending).not.toBeNull()
     act(() => result.current.finish(null, result.current.pending!))
     await expect(second).resolves.toBeNull()
+  })
+
+  it('sends a local polish with no key when none is saved, but never with a missing cloud key', async () => {
+    const cleanUpImpl = vi.fn(async () => 'The claim is weak.')
+    const local = { baseUrl: 'http://localhost:11434/v1', model: 'llama3.2:3b' }
+    const fake = vi.fn(() => ({
+      id: 'local-text',
+      name: 'Local',
+      endpointHost: 'localhost:11434',
+      models: [{ id: 'llama3.2:3b', label: 'llama3.2:3b' }],
+      describeUpload: () => 'sends text',
+      cleanUp: cleanUpImpl,
+    }))
+    const providers = providersWith({
+      textSettings: { provider: 'local-text', model: 'llama3.2:3b', local },
+      readKey: vi.fn(async () => ''),
+    })
+    const { result } = renderHook(() => useCleanUp(providers, fake))
+    act(() => {
+      void result.current.request(input)
+    })
+    expect(fake).toHaveBeenCalledWith('local-text', local)
+    await result.current.confirm(request)
+    const [, options] = cleanUpImpl.mock.calls[0] as unknown as [
+      unknown,
+      { apiKey: string },
+    ]
+    expect(options.apiKey).toBe('')
+    act(() => result.current.finish(null))
+
+    const cloud = renderHook(() =>
+      useCleanUp(
+        providersWith({ readKey: vi.fn(async () => '') }),
+        fakeProvider(vi.fn()),
+      ),
+    )
+    act(() => {
+      void cloud.result.current.request(input)
+    })
+    await expect(cloud.result.current.confirm(request)).rejects.toThrow(
+      /key is missing/,
+    )
   })
 })

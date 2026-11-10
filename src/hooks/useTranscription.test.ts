@@ -16,6 +16,7 @@ function providersWith(overrides: Partial<Providers> = {}): Providers {
     saveTextSettings: vi.fn(),
     hasKey: () => true,
     setKey: vi.fn(async () => {}),
+    configureLocal: vi.fn(async () => {}),
     removeKey: vi.fn(async () => {}),
     readKey: vi.fn(async () => 'sk-test'),
     ...overrides,

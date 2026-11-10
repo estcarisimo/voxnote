@@ -314,8 +314,8 @@ export function OpenPdf({
           and a file goes to a converter only when you confirm it in a dialog
           that names the service. That key lives only in this browser, client
           side: there is no VoxNote server. Nothing is published. Visits are
-          counted with Google Analytics for statistical purposes, without
-          cookies.
+          counted with Google Analytics for statistical purposes, with its own
+          analytics cookies and no advertising.
         </p>
 
         {storage && <StorageLine status={storage} />}

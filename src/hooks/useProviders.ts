@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { openSecretStore, type SecretStore } from '../core/secrets'
+import type { LocalServer } from '../providers/local'
 import {
   DEFAULT_SETTINGS,
+  isLocalProviderId,
   DEFAULT_TEXT_SETTINGS,
   normalizeSettings,
   normalizeTextSettings,
   SECRET_NAMES,
+  STT_PROVIDER_IDS,
+  TEXT_PROVIDER_IDS,
+  type LocalProviderId,
   type ProviderId,
   type SttSettings,
   type TextSettings,
@@ -23,11 +28,31 @@ export interface Providers {
   /** Which text provider and model clean up transcripts. */
   textSettings: TextSettings
   saveTextSettings: (settings: TextSettings) => void
-  /** Which providers have a key stored; values are never exposed here. */
+  /**
+   * Which providers have a key stored, or, for a local provider, a server
+   * configured; key values are never exposed here.
+   */
   hasKey: (id: ProviderId) => boolean
   setKey: (id: ProviderId, value: string) => Promise<void>
+  /**
+   * Sets up a local server and picks it for its role: its address and model
+   * go to the settings, a non-empty key to the secret store (an empty one
+   * removes a stored key).
+   */
+  configureLocal: (
+    id: LocalProviderId,
+    server: LocalServer,
+    apiKey: string,
+  ) => Promise<void>
+  /**
+   * Removes a key. For a local provider, the server settings too, and its
+   * role moves to the first other provider with a key (or the default).
+   */
   removeKey: (id: ProviderId) => Promise<void>
-  /** Reads the decrypted key for one request. Null when none is stored. */
+  /**
+   * Reads the decrypted key for one request. Null when none is stored; a
+   * configured local server without a key reads as "" (no key to send).
+   */
   readKey: (id: ProviderId) => Promise<string | null>
 }
 
@@ -96,8 +121,31 @@ export function useProviders(): Providers {
   }, [])
 
   const hasKey = useCallback(
-    (id: ProviderId) => stored.includes(SECRET_NAMES[id]),
-    [stored],
+    (id: ProviderId) => {
+      if (id === 'local-stt') return settings.local !== undefined
+      if (id === 'local-text') return textSettings.local !== undefined
+      return stored.includes(SECRET_NAMES[id])
+    },
+    [stored, settings.local, textSettings.local],
+  )
+
+  const configureLocal = useCallback(
+    async (id: LocalProviderId, server: LocalServer, apiKey: string) => {
+      if (!store) throw new Error('The secret store is not ready')
+      const name = SECRET_NAMES[id]
+      if (apiKey.trim() !== '') {
+        await store.set(name, apiKey.trim())
+      } else if ((await store.list()).includes(name)) {
+        await store.delete(name)
+      }
+      setStored(await store.list())
+      if (id === 'local-stt') {
+        saveSettings({ ...settings, provider: id, model: '', local: server })
+      } else {
+        saveTextSettings({ provider: id, model: '', local: server })
+      }
+    },
+    [store, settings, saveSettings, saveTextSettings],
   )
 
   const setKey = useCallback(
@@ -112,18 +160,48 @@ export function useProviders(): Providers {
   const removeKey = useCallback(
     async (id: ProviderId) => {
       if (!store) throw new Error('The secret store is not ready')
-      await store.delete(SECRET_NAMES[id])
-      setStored(await store.list())
+      const name = SECRET_NAMES[id]
+      if (!isLocalProviderId(id) || (await store.list()).includes(name)) {
+        await store.delete(name)
+      }
+      const names = await store.list()
+      setStored(names)
+      const keyed = (p: ProviderId) => names.includes(SECRET_NAMES[p])
+      if (id === 'local-stt') {
+        const provider =
+          settings.provider === id
+            ? (STT_PROVIDER_IDS.find((p) => p !== id && keyed(p)) ??
+              DEFAULT_SETTINGS.provider)
+            : settings.provider
+        saveSettings({
+          provider,
+          model: provider === settings.provider ? settings.model : '',
+          language: settings.language,
+        })
+      }
+      if (id === 'local-text') {
+        const provider =
+          textSettings.provider === id
+            ? (TEXT_PROVIDER_IDS.find((p) => p !== id && keyed(p)) ??
+              DEFAULT_TEXT_SETTINGS.provider)
+            : textSettings.provider
+        saveTextSettings({
+          provider,
+          model: provider === textSettings.provider ? textSettings.model : '',
+        })
+      }
     },
-    [store],
+    [store, settings, textSettings, saveSettings, saveTextSettings],
   )
 
   const readKey = useCallback(
     async (id: ProviderId) => {
       if (!store) throw new Error('The secret store is not ready')
-      return store.get(SECRET_NAMES[id])
+      const key = await store.get(SECRET_NAMES[id])
+      if (key === null && isLocalProviderId(id) && hasKey(id)) return ''
+      return key
     },
-    [store],
+    [store, hasKey],
   )
 
   const ready = store !== null
@@ -137,6 +215,7 @@ export function useProviders(): Providers {
       saveTextSettings,
       hasKey,
       setKey,
+      configureLocal,
       removeKey,
       readKey,
     }),
@@ -149,6 +228,7 @@ export function useProviders(): Providers {
       saveTextSettings,
       hasKey,
       setKey,
+      configureLocal,
       removeKey,
       readKey,
     ],
