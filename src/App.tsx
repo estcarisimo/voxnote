@@ -360,14 +360,23 @@ function App() {
   async function askStored(comment: Comment) {
     const quote = quoteOf(comment.anchor)
     if (quote === null) throw new Error('A region has no passage to ask about')
-    if (!doc || doc.id !== comment.documentId) {
+    // The open document now, not this render's: "Save and ask…" calls this
+    // after an await, and the reviewer may have closed or switched since.
+    const opened = doc
+    const stale = () =>
+      !opened ||
+      opened.id !== comment.documentId ||
+      docIdRef.current !== comment.documentId
+    if (!opened || stale()) {
       throw new Error('The document changed; open it again to ask')
     }
     const page = comment.anchor.page
     const around =
-      doc.kind === 'pdf'
-        ? await pdfPageText(doc.pdf, page)
-        : markdownBlocksText(doc.markdown, page)
+      opened.kind === 'pdf'
+        ? await pdfPageText(opened.pdf, page)
+        : markdownBlocksText(opened.markdown, page)
+    // A consent dialog for the old document must not outlive it.
+    if (stale()) throw new Error('The document changed; open it again to ask')
     const answer = await askFlow.request({
       question: comment.body,
       quote,

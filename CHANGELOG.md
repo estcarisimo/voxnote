@@ -23,7 +23,9 @@ All notable changes to this project are documented here. The format follows
   records migrate). The JSON export carries answers; the Markdown report
   and the annotated PDF leave them out. Design note:
   `docs/design/ask-a-question.md`. Verified with unit and component tests
-  only; no real provider call has been made for it.
+  and one headless Chromium run against an intercepted local server
+  (`scripts/browser-ask-e2e.cjs`); no real provider call has been made for
+  it.
 - **Local models.** Two new entries under **AI keys**, **Local
   speech-to-text server** and **Local text model server**, for a model you
   run yourself behind an OpenAI-compatible API: whisper.cpp

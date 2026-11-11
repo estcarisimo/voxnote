@@ -1,7 +1,8 @@
 # Ask a question about a passage — design note
 
 Status: **implemented 2026-11-11 (UTC)**, verified with unit and component
-tests only; see §8 for what is not verified. Written the same day for
+tests and one headless Chromium run against an intercepted server; see §8
+for what is not verified. Written the same day for
 Esteban's request the same day: while reading a manuscript, a passage is
 sometimes not wrong, the reader just does not understand it yet. They want to
 ask about it without leaving VoxNote for a search engine or a chat window,
@@ -136,13 +137,13 @@ not offered on suggestions.
 ## 8. Verification
 
 Done: unit tests for `ask.ts`, the schema v4 migration and validation, the
-filter and search, the exports, each adapter's request shape against
+filter and search, the exports (Markdown report and annotated PDF), each adapter's request shape against
 intercepted endpoints (shared with Polish); component tests for the dialog,
 the sidebar and the composer button; hook tests for consent, abort and key
 handling.
 
-Headless Chromium (Playwright, production build under `vite preview`) on
-2026-11-11, Markdown document, local text model server at
+Headless Chromium (Playwright, production build under `vite preview`,
+`node scripts/browser-ask-e2e.cjs`) on 2026-11-11, Markdown document, local text model server at
 `localhost:11434` intercepted: select a passage, Comment, type, **Save and
 ask…**; the dialog named the local server and model; no request before
 **Send**; ticking the surrounding text added "178 characters of the
