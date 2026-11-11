@@ -1,8 +1,11 @@
 // Manual end-to-end check, not part of `npm test`: drives headless Chromium
 // (Playwright) against the production build served by
 // `npm run build && npx vite preview --port 4173`, with a local text model
-// server at localhost:11434 intercepted, through "Save and ask…" on a
-// Markdown document. Prints what it saw.
+// server at localhost:11434 intercepted, on a Markdown document: Ask in the
+// selection toolbar, a typed question, the answer length, Keep and ask… for
+// a follow-up, and a third question from the sidebar thread. Prints what it
+// saw. Needs Playwright with Chromium, which is not a project dependency:
+// npm i --no-save playwright && npx playwright install chromium
 // Usage: node scripts/browser-ask-e2e.cjs
 const { chromium } = require('playwright')
 const fs = require('fs')
@@ -92,14 +95,18 @@ fs.writeFileSync(
   })
   await page
     .getByRole('toolbar', { name: 'Selection actions' })
-    .getByRole('button', { name: 'Comment', exact: true })
+    .getByRole('button', { name: '❓ Ask' })
     .click()
   await page
-    .getByRole('textbox', { name: 'Comment' })
+    .getByRole('textbox', { name: 'Question' })
     .fill('What does T2 star mean here?')
-  await page.getByRole('button', { name: 'Save and ask…' }).click()
+  await page
+    .getByRole('form', { name: 'New question' })
+    .getByRole('button', { name: 'Ask…' })
+    .click()
   const dialog = page.getByRole('dialog')
   await dialog.waitFor()
+  await dialog.getByRole('radio', { name: 'One line' }).check()
   console.log('dialog title:', await dialog.locator('h2').textContent())
   console.log(
     'disclosure:',
@@ -114,11 +121,21 @@ fs.writeFileSync(
   await dialog.getByRole('button', { name: /^Send to/ }).click()
   await dialog.getByRole('button', { name: 'Keep' }).waitFor()
   console.log('answer title:', await dialog.locator('h2').textContent())
+  await dialog
+    .getByRole('textbox', { name: /Follow-up question/ })
+    .fill('How is it measured?')
   await page.screenshot({ path: path.join(dir, 'answer-dialog.png') })
-  await dialog.getByRole('button', { name: 'Keep' }).click()
+  await dialog.getByRole('button', { name: 'Keep and ask…' }).click()
+  // The follow-up opens its own consent step.
+  await dialog.getByRole('button', { name: /^Send to/ }).waitFor()
+  console.log('follow-up title:', await dialog.locator('h2').textContent())
+  console.log('requests before follow-up Send:', sent.length)
+  await dialog.getByRole('button', { name: /^Send to/ }).click()
+  await dialog.getByRole('button', { name: 'Keep', exact: true }).click()
   console.log('requests:', sent.length, 'model:', sent[0].model)
   console.log('system starts:', sent[0].messages[0].content.slice(0, 60))
-  console.log('user message:\n' + sent[0].messages[1].content)
+  console.log('first message:\n' + sent[0].messages[1].content)
+  console.log('follow-up message:\n' + sent[1].messages[1].content)
   // Sidebar
   const annotationsBtn = page.locator('header button', {
     hasText: /^Annotations/,
@@ -137,9 +154,24 @@ fs.writeFileSync(
     'visibility:',
     await page.locator('.annotation-list-visibility').first().textContent(),
   )
+  // A third question, typed in the sidebar thread.
+  await page
+    .getByRole('textbox', { name: 'Follow-up question' })
+    .fill('Is that typical for these qubits?')
+  await page
+    .locator('.annotation-list-followup')
+    .getByRole('button', { name: 'Ask…' })
+    .click()
+  await dialog.getByRole('button', { name: /^Send to/ }).click()
+  await dialog.getByRole('button', { name: 'Keep', exact: true }).click()
+  console.log('requests:', sent.length)
   console.log(
-    'ask again:',
-    await page.getByRole('button', { name: 'Ask again…' }).count(),
+    'third message earlier pairs:',
+    (sent[2].messages[1].content.match(/<answer>/g) ?? []).length,
+  )
+  console.log(
+    'thread summary:',
+    await page.locator('.annotation-list-answers summary').textContent(),
   )
   await page.screenshot({ path: path.join(dir, 'sidebar.png') })
   // Reload: the answer persists.
@@ -159,6 +191,7 @@ fs.writeFileSync(
     await page.locator('.annotation-list-answers summary').textContent(),
   )
   console.log('problems:', JSON.stringify(problems))
+  console.log('screenshots in', dir)
   await browser.close()
 })().catch((e) => {
   console.error(e)

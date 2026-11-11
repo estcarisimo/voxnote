@@ -26,8 +26,14 @@ export interface AskInput {
   earlier: readonly Pick<Answer, 'question' | 'text'>[]
 }
 
-/** Resolves with the answer the user kept, or null after Cancel/Discard. */
-export type AskFn = (input: AskInput) => Promise<Answer | null>
+/** What Keep hands back: the answer, and the next question if one was typed. */
+export interface AskOutcome {
+  answer: Answer
+  followUp: string | null
+}
+
+/** Resolves with what the user kept, or null after Cancel/Discard. */
+export type AskFn = (input: AskInput) => Promise<AskOutcome | null>
 
 /** A question waiting for the user's consent, then their Keep. */
 export interface PendingAsk {
@@ -51,12 +57,12 @@ export interface AskFlow {
    * Settles the pending request; null aborts a request in flight. With
    * `target`, only that request is settled.
    */
-  finish: (answer: Answer | null, target?: PendingAsk) => void
+  finish: (outcome: AskOutcome | null, target?: PendingAsk) => void
 }
 
 interface Pending extends PendingAsk {
   providerId: TextProviderId
-  resolve: (answer: Answer | null) => void
+  resolve: (outcome: AskOutcome | null) => void
   controller: AbortController
 }
 
@@ -77,15 +83,18 @@ export function useAsk(
   const pendingRef = useRef<Pending | null>(null)
   const nextId = useRef(1)
 
-  const finish = useCallback((answer: Answer | null, target?: PendingAsk) => {
-    const current = pendingRef.current
-    if (!current) return
-    if (target && target.id !== current.id) return
-    pendingRef.current = null
-    setPending(null)
-    if (answer === null) current.controller.abort()
-    current.resolve(answer)
-  }, [])
+  const finish = useCallback(
+    (outcome: AskOutcome | null, target?: PendingAsk) => {
+      const current = pendingRef.current
+      if (!current) return
+      if (target && target.id !== current.id) return
+      pendingRef.current = null
+      setPending(null)
+      if (outcome === null) current.controller.abort()
+      current.resolve(outcome)
+    },
+    [],
+  )
 
   // Unmount settles whatever is waiting, so no caller hangs.
   useEffect(() => () => finish(null), [finish])

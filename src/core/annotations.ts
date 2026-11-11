@@ -10,7 +10,7 @@ import {
   type HighlightColor,
 } from './palette'
 
-export const ANNOTATION_SCHEMA_VERSION = 4
+export const ANNOTATION_SCHEMA_VERSION = 5
 // Schema history. v1: highlights, comments, suggestions, voice notes. v2:
 // the optional `cleanUp` record on notes; a v1 record is a valid v2 record
 // without `cleanUp`. v3: the required `color` on highlights, from the fixed
@@ -18,7 +18,9 @@ export const ANNOTATION_SCHEMA_VERSION = 4
 // color every highlight had before), and the `block-text` anchor for
 // Markdown documents, which no older record can carry. v4: the optional
 // `answers` on comments (questions asked about the passage, see ./ask); a
-// v3 record is a valid v4 record without `answers`.
+// v3 record is a valid v4 record without `answers`. v5: the optional
+// `length` on an answer (one line, one paragraph, thorough); a v4 record is
+// a valid v5 record, since no v4 answer carries one.
 
 /**
  * A rectangle in PDF user space: points, origin at the bottom-left of the
@@ -174,6 +176,8 @@ export interface Answer {
   model: string
   /** ASK_PROMPT_VERSION of the instructions that produced it. */
   promptVersion: number
+  /** The answer length asked for; absent on answers from schema v4. */
+  length?: 'line' | 'paragraph' | 'thorough'
   /** What went with the question, so the record says what the model saw. */
   context: {
     /** Characters of surrounding document text sent; 0 when none. */
@@ -640,6 +644,10 @@ export function isAnswer(value: unknown): value is Answer {
     a.model.length > 0 &&
     Number.isInteger(a.promptVersion) &&
     (a.promptVersion as number) >= 1 &&
+    (a.length === undefined ||
+      a.length === 'line' ||
+      a.length === 'paragraph' ||
+      a.length === 'thorough') &&
     typeof context === 'object' &&
     context !== null &&
     Number.isInteger(context.surroundingChars) &&
@@ -678,6 +686,17 @@ function cleanUpOk(a: Record<string, unknown>): boolean {
 export function migrateAnnotation(value: unknown): unknown {
   if (typeof value !== 'object' || value === null) return value
   const a = value as Record<string, unknown>
+  if (a.schemaVersion === 4) {
+    // No v4 answer had a length; one that names it is not a v4 record.
+    const answers = a.answers
+    if (
+      Array.isArray(answers) &&
+      answers.some((x) => typeof x === 'object' && x !== null && 'length' in x)
+    ) {
+      return value
+    }
+    return { ...a, schemaVersion: ANNOTATION_SCHEMA_VERSION }
+  }
   if (a.schemaVersion === 3) {
     // v3 had no answers; a record carrying them is not a v3 one.
     if ('answers' in a) return value

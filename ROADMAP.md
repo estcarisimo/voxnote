@@ -249,7 +249,9 @@ interruptions compared against the current workflow, written in the session log 
       report and the annotated PDF. Verified with unit and component tests
       and one headless Chromium run against an intercepted local server
       (`scripts/browser-ask-e2e.cjs`); no real provider call, not tried on
-      an iPad.
+      an iPad. Second slice the same day: Ask in the selection toolbar,
+      follow-up threads, answer length (one line, one paragraph,
+      thorough); same kind of evidence.
 
 ## Design note — IETF Internet-Drafts and RFCs (2026-11-05)
 

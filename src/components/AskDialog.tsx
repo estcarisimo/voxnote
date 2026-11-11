@@ -1,15 +1,19 @@
 import { useRef, useState } from 'react'
 import type { Answer } from '../core/annotations'
 import {
+  ANSWER_LENGTH_LABELS,
+  ANSWER_LENGTHS,
   answerLabel,
   ASK_INSTRUCTIONS,
   ASK_PROMPT_VERSION,
   buildAskInput,
   describeAskUpload,
+  MAX_QUESTION_CHARS,
+  type AnswerLength,
   type AskRequest,
 } from '../core/ask'
 import { useDialogFocus } from '../hooks/useDialogFocus'
-import type { AskInput } from '../hooks/useAsk'
+import type { AskInput, AskOutcome } from '../hooks/useAsk'
 import type { TextModelProvider } from '../providers/llm'
 import './Dialog.css'
 
@@ -18,9 +22,13 @@ interface AskDialogProps {
   provider: TextModelProvider
   model: string
   language: string
+  /** The length picked last time; the reviewer can change it here. */
+  length: AnswerLength
+  onLengthChange: (length: AnswerLength) => void
   /** Runs the request; resolves with a checked answer or rejects. */
   onConfirm: (request: AskRequest) => Promise<Answer>
-  onKeep: (answer: Answer) => void
+  /** Keep, with a follow-up question to ask next or null. */
+  onKeep: (outcome: AskOutcome) => void
   /** Cancel, Discard, or Escape; while sending, the caller aborts. */
   onCancel: () => void
 }
@@ -29,13 +37,17 @@ interface AskDialogProps {
  * Two steps. Consent: nothing leaves the device until "Send" is tapped, and
  * the text above it says what is sent, where, to which model, and with which
  * prompt. Answer: shown with who wrote it; only Keep stores it beside the
- * comment, and the comment's text never changes.
+ * comment, and the comment's text never changes. A follow-up typed under
+ * the answer keeps it and opens the next question of the thread, which goes
+ * through this same consent step.
  */
 export function AskDialog({
   input,
   provider,
   model,
   language,
+  length,
+  onLengthChange,
   onConfirm,
   onKeep,
   onCancel,
@@ -44,10 +56,15 @@ export function AskDialog({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [answer, setAnswer] = useState<Answer | null>(null)
+  const [followUp, setFollowUp] = useState('')
   const dialogRef = useRef<HTMLDivElement>(null)
   useDialogFocus(dialogRef, onCancel)
 
-  const request: AskRequest = { question: input.question, quote: input.quote }
+  const request: AskRequest = {
+    question: input.question,
+    quote: input.quote,
+    length,
+  }
   if (language) request.language = language
   if (includeSurrounding && input.surrounding) {
     request.surrounding = { text: input.surrounding, place: input.place }
@@ -68,7 +85,28 @@ export function AskDialog({
     }
   }
 
+  const thread =
+    input.earlier.length > 0 ? (
+      <details className="dialog-thread">
+        <summary>
+          Earlier in this thread ({input.earlier.length}{' '}
+          {input.earlier.length === 1 ? 'question' : 'questions'})
+        </summary>
+        <ol>
+          {input.earlier.map((e, i) => (
+            <li key={i}>
+              <p>
+                <strong>Q:</strong> {e.question}
+              </p>
+              <p>{e.text}</p>
+            </li>
+          ))}
+        </ol>
+      </details>
+    ) : null
+
   if (answer) {
+    const next = followUp.trim()
     return (
       <div className="dialog-backdrop">
         <div
@@ -79,6 +117,7 @@ export function AskDialog({
           aria-labelledby="ask-title"
         >
           <h2 id="ask-title">Answer from {answerLabel(answer)}</h2>
+          {thread}
           <p className="dialog-note">
             <strong>Your question:</strong> {answer.question}
           </p>
@@ -91,17 +130,36 @@ export function AskDialog({
             it is; the Markdown report and the annotated PDF leave answers out.
             Discard stores nothing.
           </p>
+          <label className="dialog-field">
+            Follow-up question (optional)
+            <textarea
+              rows={2}
+              value={followUp}
+              maxLength={MAX_QUESTION_CHARS}
+              placeholder="Still unclear? Ask the next question here."
+              onChange={(e) => setFollowUp(e.target.value)}
+            />
+          </label>
           <div className="dialog-actions">
             <button type="button" onClick={onCancel}>
               Discard
             </button>
             <button
               type="button"
-              className="is-primary"
-              onClick={() => onKeep(answer)}
+              className={next === '' ? 'is-primary' : undefined}
+              onClick={() => onKeep({ answer, followUp: null })}
             >
               Keep
             </button>
+            {next !== '' && (
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => onKeep({ answer, followUp: next })}
+              >
+                Keep and ask…
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -117,7 +175,30 @@ export function AskDialog({
         aria-modal="true"
         aria-labelledby="ask-title"
       >
-        <h2 id="ask-title">Ask {provider.name} about this passage?</h2>
+        <h2 id="ask-title">
+          {input.earlier.length > 0
+            ? `Ask ${provider.name} a follow-up?`
+            : `Ask ${provider.name} about this passage?`}
+        </h2>
+        <p className="dialog-note">
+          <strong>Question:</strong> {input.question}
+        </p>
+        {thread}
+        <fieldset className="dialog-choice" disabled={sending}>
+          <legend>Answer length</legend>
+          {ANSWER_LENGTHS.map((l) => (
+            <label key={l}>
+              <input
+                type="radio"
+                name="answer-length"
+                value={l}
+                checked={length === l}
+                onChange={() => onLengthChange(l)}
+              />{' '}
+              {ANSWER_LENGTH_LABELS[l]}
+            </label>
+          ))}
+        </fieldset>
         <p className="dialog-disclosure">
           {describeAskUpload(provider, request, model)}
         </p>

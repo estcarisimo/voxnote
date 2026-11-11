@@ -161,4 +161,22 @@ describe('SelectionToolbar', () => {
       expect(window.getSelection()?.rangeCount).toBe(0)
     })
   })
+
+  it('offers Ask only when given a handler', () => {
+    const onAsk = vi.fn()
+    render(
+      <SelectionToolbar
+        placement={placement}
+        color="yellow"
+        onColorChange={() => {}}
+        onHighlight={() => {}}
+        onComment={() => {}}
+        onVoice={() => {}}
+        onSuggest={null}
+        onAsk={onAsk}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '❓ Ask' }))
+    expect(onAsk).toHaveBeenCalled()
+  })
 })

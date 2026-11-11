@@ -52,7 +52,7 @@ export interface SessionRecord {
 }
 
 /** typed: a comment; voice: a dictated comment; suggest: a replacement. */
-export type DraftMode = 'typed' | 'voice' | 'suggest'
+export type DraftMode = 'typed' | 'voice' | 'suggest' | 'ask'
 
 /** Where the composer floats, in the viewer's scroll coordinates. */
 export interface DraftPlacement {
@@ -327,9 +327,18 @@ function isCleanUpProposal(value: unknown): value is CleanUpProposal {
 export function isDraft(value: unknown): value is Draft {
   if (!isRecord(value)) return false
   const { mode, anchor } = value
-  if (mode !== 'typed' && mode !== 'voice' && mode !== 'suggest') return false
+  if (
+    mode !== 'typed' &&
+    mode !== 'voice' &&
+    mode !== 'suggest' &&
+    mode !== 'ask'
+  ) {
+    return false
+  }
   if (!isAnchor(anchor)) return false
-  if (mode === 'suggest' && !isQuoteAnchor(anchor)) return false
+  if ((mode === 'suggest' || mode === 'ask') && !isQuoteAnchor(anchor)) {
+    return false
+  }
   // Only a recording can carry a transcript, and only a transcript a polish.
   if (value.transcript !== undefined && value.audio === undefined) return false
   if (value.cleanUp !== undefined && value.transcript === undefined) {

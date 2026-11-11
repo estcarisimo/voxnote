@@ -121,6 +121,34 @@ Anthropic) and room for 4 096 output tokens.
   annotated PDF leave answers out (the comment itself is exported as
   before).
 
+## 5a. Second slice (2026-11-11): Ask from the toolbar, threads, length
+
+Esteban's feedback after the first slice, the same day: asking should not
+start only from a comment (or a dictation); a question often takes several
+rounds; and the reader should say how long an answer they want.
+
+- **Ask in the selection toolbar** (text selections only, not regions):
+  opens the composer as a question (labeled **Question**, the recorder on
+  hand for a dictated one) whose only action is **Ask…**: the question is
+  saved as a private comment, then the consent dialog opens. **Save and
+  ask…** in the ordinary comment composer stays.
+- **Threads.** Under an answer the dialog offers a **Follow-up question**
+  box; **Keep and ask…** keeps the answer and opens the next question's own
+  consent step (nothing is sent without a Send per question). In the
+  sidebar the answers block is the thread, with a follow-up box at its
+  end; **Ask again…**, which re-sent the comment's text, is gone. Each
+  follow-up sends the earlier questions and answers of the comment, as
+  before, and is labeled **Follow-up question** in the message. The
+  dialog shows the earlier thread.
+- **Answer length**: **One line**, **One paragraph** (default) or
+  **Thorough**, picked in the consent dialog and kept for the session. The
+  message says `Answer length: …`, the output budget follows it (2 048,
+  4 096 or 8 192 tokens), and the answer records it. `ASK_PROMPT_VERSION`
+  is 2: the instructions now say to follow the requested length and to
+  build on earlier answers in a follow-up.
+- **Schema v5**: the optional `length` on an answer. A v4 record migrates by
+  its version number; a v4 record whose answer names a length is rejected.
+
 ## 6. Out of scope for this slice
 
 Web search or citations to outside sources; the whole document as context;
@@ -131,8 +159,9 @@ streaming the answer as it is generated.
 
 Proposed in the first version of this note and accepted by Esteban the same
 day: a comment with answers stays a `comment` (no fourth kind); surrounding
-text is off by default; one answer per tap plus **Ask again…**, no chat box;
-not offered on suggestions.
+text is off by default; one answer per tap, no free-form chat box (the
+second slice replaced **Ask again…** with typed follow-ups in a thread, see
+§5a); not offered on suggestions.
 
 ## 8. Verification
 
@@ -157,3 +186,12 @@ across a line break. Not run on a real PDF review.
 Not done: no real provider call has been made for Ask, so answer quality,
 latency and cost are unknown; not tried in Safari on an iPad; taps not
 counted on a device.
+
+Second slice (2026-11-11): unit and component tests for the lengths, the
+v4→v5 migration, the toolbar button, the ask-only composer, the dialog's
+thread and follow-up, and the sidebar follow-up box; `node
+scripts/browser-ask-e2e.cjs` against the production build drove toolbar
+Ask, a typed question, **One line**, **Keep and ask…** (the follow-up
+waited for its own Send), a third question from the sidebar thread (sent
+with both earlier pairs), and three answers after a reload, with no page
+errors. Still no real provider call and nothing on an iPad.

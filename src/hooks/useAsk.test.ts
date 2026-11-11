@@ -90,8 +90,8 @@ describe('useAsk', () => {
     expect(answer.text).toBe('The loss of superposition.')
     expect(answer.provider).toBe('anthropic')
 
-    act(() => result.current.finish(answer))
-    await expect(promise).resolves.toEqual(answer)
+    act(() => result.current.finish({ answer, followUp: 'Why?' }))
+    await expect(promise).resolves.toEqual({ answer, followUp: 'Why?' })
     expect(result.current.pending).toBeNull()
   })
 

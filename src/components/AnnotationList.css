@@ -332,3 +332,15 @@
   color: var(--text);
   font-size: 0.75rem;
 }
+
+.annotation-list-followup {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  margin-top: 4px;
+}
+
+.annotation-list-followup textarea {
+  flex: 1;
+  font: inherit;
+}

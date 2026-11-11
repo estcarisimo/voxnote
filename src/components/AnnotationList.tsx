@@ -10,7 +10,7 @@ import {
   type Note,
   type Visibility,
 } from '../core/annotations'
-import { answerLabel } from '../core/ask'
+import { ANSWER_LENGTH_LABELS, answerLabel } from '../core/ask'
 import { cleanUpLabel } from '../core/cleanUp'
 import { HIGHLIGHT_PALETTE, type HighlightColor } from '../core/palette'
 import { ColorDots } from './ColorDots'
@@ -49,7 +49,8 @@ interface AnnotationListProps {
   /** Consent-gated clean-up of a note's raw transcript; absent if unavailable. */
   onCleanUp?: (note: Note) => Promise<void>
   /** Consent-gated question about a comment's passage; absent if unavailable. */
-  onAsk?: (comment: Comment) => Promise<void>
+  /** With a question, a follow-up in the thread; without, the body is asked. */
+  onAsk?: (comment: Comment, question?: string) => Promise<void>
   /** Deletes one kept answer; rejecting leaves it with the error shown. */
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   /** Transcripts still on their way to notes saved before they arrived. */
@@ -313,7 +314,7 @@ function ReviewGroupSection({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
-  onAsk?: (comment: Comment) => Promise<void>
+  onAsk?: (comment: Comment, question?: string) => Promise<void>
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   arrivals?: Readonly<Record<string, TranscriptArrival>>
 }) {
@@ -524,19 +525,19 @@ function NoteItem({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
-  onAsk?: (comment: Comment) => Promise<void>
+  onAsk?: (comment: Comment, question?: string) => Promise<void>
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   arrival?: TranscriptArrival
 }) {
   const [editing, setEditing] = useState(false)
   const [asking, setAsking] = useState(false)
   const [askError, setAskError] = useState<string | null>(null)
-  // Ask needs a passage and a question: a comment on text, with a body.
+  // Ask needs a passage: a comment on text. The first question is the
+  // body; once there are answers, follow-ups are typed in the thread.
+  const onPassage =
+    onAsk !== undefined && c.kind === 'comment' && quoteOf(c.anchor) !== null
   const askable =
-    onAsk !== undefined &&
-    c.kind === 'comment' &&
-    quoteOf(c.anchor) !== null &&
-    c.body.trim() !== ''
+    onPassage && c.kind === 'comment' && !c.answers && c.body.trim() !== ''
 
   async function askAbout() {
     if (!onAsk || c.kind !== 'comment') return
@@ -618,6 +619,11 @@ function NoteItem({
           comment={c}
           answers={c.answers}
           onDeleteAnswer={onDeleteAnswer}
+          onFollowUp={
+            onPassage && onAsk
+              ? (question) => onAsk(c as Comment, question)
+              : undefined
+          }
         />
       )}
       {editing ? (
@@ -679,11 +685,7 @@ function NoteItem({
               onClick={() => void askAbout()}
               disabled={asking}
             >
-              {asking
-                ? 'Asking…'
-                : c.kind === 'comment' && c.answers
-                  ? 'Ask again…'
-                  : 'Ask…'}
+              {asking ? 'Asking…' : 'Ask…'}
             </button>
           )}
           <VisibilityToggle
@@ -715,13 +717,33 @@ function AnswerList({
   comment,
   answers,
   onDeleteAnswer,
+  onFollowUp,
 }: {
   comment: Comment
   answers: readonly Answer[]
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
+  /** Asks the next question of the thread; absent when Ask is unavailable. */
+  onFollowUp?: (question: string) => Promise<void>
 }) {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [followUp, setFollowUp] = useState('')
+  const [asking, setAsking] = useState(false)
+
+  async function ask() {
+    const question = followUp.trim()
+    if (!onFollowUp || question === '') return
+    setAsking(true)
+    setError(null)
+    try {
+      await onFollowUp(question)
+      setFollowUp('')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAsking(false)
+    }
+  }
 
   async function remove(answer: Answer) {
     if (!onDeleteAnswer) return
@@ -739,8 +761,9 @@ function AnswerList({
   return (
     <details className="annotation-list-answers">
       <summary>
-        💬 {answers.length === 1 ? '1 answer' : `${answers.length} answers`}{' '}
-        from a model, not part of your review
+        💬 Thread:{' '}
+        {answers.length === 1 ? '1 answer' : `${answers.length} answers`} from a
+        model, not part of your review
       </summary>
       {error && (
         <p role="alert" className="annotation-list-error">
@@ -756,6 +779,8 @@ function AnswerList({
             <p className="annotation-list-answer-text">{answer.text}</p>
             <p className="annotation-list-answer-meta">
               {answerLabel(answer)} · {answer.createdAt} (UTC)
+              {answer.length &&
+                ` · ${ANSWER_LENGTH_LABELS[answer.length].toLowerCase()}`}
               {answer.context.surroundingChars > 0 &&
                 ` · with ${answer.context.surroundingChars} characters of context`}
               {onDeleteAnswer && (
@@ -775,6 +800,28 @@ function AnswerList({
           </li>
         ))}
       </ol>
+      {onFollowUp && (
+        <div className="annotation-list-followup">
+          <textarea
+            aria-label="Follow-up question"
+            rows={2}
+            value={followUp}
+            placeholder="Still unclear? Ask a follow-up."
+            disabled={asking}
+            onChange={(e) => setFollowUp(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void ask()
+            }}
+          />
+          <button
+            type="button"
+            disabled={asking || followUp.trim() === ''}
+            onClick={() => void ask()}
+          >
+            {asking ? 'Asking…' : 'Ask…'}
+          </button>
+        </div>
+      )}
     </details>
   )
 }

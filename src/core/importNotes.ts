@@ -1,6 +1,6 @@
 /**
  * Reads a JSON notes export back (envelope v1 to v3, annotation schema v1 to
- * v4) and merges it into the annotation store. Pure apart from the store it
+ * v5) and merges it into the annotation store. Pure apart from the store it
  * is handed; nothing here reads files or touches the UI.
  *
  * Invalid input is refused as a whole, with a message that says what is

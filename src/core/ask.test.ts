@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createComment,
   isAnnotation,
+  migrateAnnotation,
   type Answer,
   type TextAnchor,
 } from './annotations'
@@ -12,6 +13,7 @@ import {
   askPrompt,
   buildAskInput,
   describeAskUpload,
+  isAnswerLength,
   MAX_QUESTION_CHARS,
   MAX_SURROUNDING_CHARS,
   surroundingText,
@@ -78,6 +80,7 @@ describe('ask', () => {
       provider: 'fake',
       model: 'm1',
       promptVersion: ASK_PROMPT_VERSION,
+      length: 'paragraph',
       context: { surroundingChars: 23, earlierAnswers: 1 },
       createdAt: '2026-11-11T12:00:00.000Z',
     })
@@ -127,7 +130,7 @@ describe('ask', () => {
 
 describe('the ask prompt', () => {
   it('asks for an explanation, not a review, and treats tags as data', () => {
-    expect(ASK_PROMPT_VERSION).toBe(1)
+    expect(ASK_PROMPT_VERSION).toBe(2)
     expect(ASK_INSTRUCTIONS).toMatch(/not a critique/)
     expect(ASK_INSTRUCTIONS).toMatch(/Do not write review comments/)
     expect(ASK_INSTRUCTIONS).toMatch(/not enough to answer, say so/)
@@ -152,7 +155,8 @@ describe('the ask prompt', () => {
         '<earlier>',
         '<question>q0</question>\n<answer>a0</answer>',
         '</earlier>',
-        'Question:',
+        'Answer length: one paragraph',
+        'Follow-up question:',
         '<question>¿Qué significa decoherencia acá?</question>',
       ].join('\n'),
     )
@@ -165,7 +169,7 @@ describe('describeAskUpload', () => {
   it('lists exactly what is sent and where', () => {
     const provider = fakeProvider('x')
     expect(describeAskUpload(provider, request, 'm1')).toBe(
-      'Sends your question (32 characters), the quoted passage (31 characters) and the instructions shown under Prompt to llm.example, model m1. Nothing else: not the recording, not the rest of the document, not other comments.',
+      'Sends your question (32 characters), the quoted passage (31 characters), the answer length you chose (one paragraph) and the instructions shown under Prompt to llm.example, model m1. Nothing else: not the recording, not the rest of the document, not other comments.',
     )
     const full = describeAskUpload(
       provider,
@@ -260,5 +264,56 @@ describe('surroundingText', () => {
   it('is null when the quote is not in the text', () => {
     expect(surroundingText('nothing here', 'quote')).toBeNull()
     expect(surroundingText('text', ' ')).toBeNull()
+  })
+})
+
+describe('answer length', () => {
+  it('asks for the chosen length, records it, and sizes the budget', async () => {
+    for (const [length, words, tokens] of [
+      ['line', 'one line (a single sentence)', 2048],
+      ['paragraph', 'one paragraph', 4096],
+      ['thorough', 'a thorough explanation', 8192],
+    ] as const) {
+      const prompt = askPrompt({ ...request, length })
+      expect(prompt.input).toContain(`Answer length: ${words}`)
+      expect(prompt.maxOutputTokens).toBe(tokens)
+      const got = await ask(
+        fakeProvider('x'),
+        { ...request, length },
+        { apiKey: 'k', model: 'm1' },
+        now,
+        newId,
+      )
+      expect(got.length).toBe(length)
+    }
+    expect(askPrompt(request).input).toContain('Answer length: one paragraph')
+    expect(isAnswerLength('thorough')).toBe(true)
+    expect(isAnswerLength('essay')).toBe(false)
+  })
+
+  it('is validated on read, and no v4 answer may claim one', () => {
+    const comment = createComment({
+      documentId: 'doc',
+      anchor,
+      body: request.question,
+    })
+    const v4 = { ...withAnswer(comment, answer, now()), schemaVersion: 4 }
+    expect(migrateAnnotation(v4)).toEqual({ ...v4, schemaVersion: 5 })
+    const impostor = {
+      ...v4,
+      answers: [{ ...answer, length: 'line' }],
+    }
+    expect(migrateAnnotation(impostor)).toBe(impostor)
+    expect(
+      isAnnotation(
+        withAnswer(comment, { ...answer, length: 'thorough' }, now()),
+      ),
+    ).toBe(true)
+    expect(
+      isAnnotation({
+        ...withAnswer(comment, answer, now()),
+        answers: [{ ...answer, length: 'essay' }],
+      }),
+    ).toBe(false)
   })
 })
