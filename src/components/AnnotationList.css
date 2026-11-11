@@ -317,6 +317,12 @@
   padding-left: 18px;
 }
 
+/* Not a row of the list: undo `.annotation-list li`. */
+.annotation-list .annotation-list-answers li {
+  display: list-item;
+  margin-bottom: 6px;
+}
+
 .annotation-list-answers p {
   margin: 2px 0;
   white-space: pre-wrap;

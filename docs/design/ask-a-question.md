@@ -141,6 +141,18 @@ intercepted endpoints (shared with Polish); component tests for the dialog,
 the sidebar and the composer button; hook tests for consent, abort and key
 handling.
 
+Headless Chromium (Playwright, production build under `vite preview`) on
+2026-11-11, Markdown document, local text model server at
+`localhost:11434` intercepted: select a passage, Comment, type, **Save and
+ask…**; the dialog named the local server and model; no request before
+**Send**; ticking the surrounding text added "178 characters of the
+document around it (block 3)" to the disclosure and a `<context>` element to
+the message; one request sent; **Keep** stored the answer, the comment
+turned private, **Ask again…** appeared, and the answer was still there
+after a reload; no page errors. PDF page text: on a PDF generated with
+pdf-lib, `pdf.js` text content contained both a quote within a line and one
+across a line break. Not run on a real PDF review.
+
 Not done: no real provider call has been made for Ask, so answer quality,
 latency and cost are unknown; not tried in Safari on an iPad; taps not
 counted on a device.
