@@ -32,14 +32,14 @@ const input = {
 }
 const request = { transcript: input.transcript, kind: input.kind }
 
-function fakeProvider(cleanUpImpl: TextModelProvider['cleanUp']) {
+function fakeProvider(cleanUpImpl: TextModelProvider['generate']) {
   const provider: TextModelProvider = {
     id: 'anthropic',
     name: 'Fake',
     endpointHost: 'llm.example',
     models: [{ id: 'claude-haiku-5-5', label: 'Haiku' }],
-    describeUpload: () => 'sends text',
-    cleanUp: cleanUpImpl,
+    describeDestination: () => 'to llm.example',
+    generate: cleanUpImpl,
   }
   return vi.fn(() => provider)
 }
@@ -141,7 +141,7 @@ describe('useCleanUp', () => {
     const { result } = renderHook(() =>
       useCleanUp(
         providersWith(),
-        fakeProvider(cleanUpImpl as TextModelProvider['cleanUp']),
+        fakeProvider(cleanUpImpl as TextModelProvider['generate']),
       ),
     )
     let promise!: ReturnType<typeof result.current.request>
@@ -226,8 +226,8 @@ describe('useCleanUp', () => {
       name: 'Local',
       endpointHost: 'localhost:11434',
       models: [{ id: 'llama3.2:3b', label: 'llama3.2:3b' }],
-      describeUpload: () => 'sends text',
-      cleanUp: cleanUpImpl,
+      describeDestination: () => 'to localhost:11434',
+      generate: cleanUpImpl,
     }))
     const providers = providersWith({
       textSettings: { provider: 'local-text', model: 'llama3.2:3b', local },

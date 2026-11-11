@@ -1,5 +1,5 @@
 /**
- * OpenAI text clean-up behind the TextModelProvider interface. Endpoint and
+ * OpenAI text generation behind the TextModelProvider interface. Endpoint and
  * parameters per the OpenAI Responses API reference and models page as read
  * on 2026-10-29 (developers.openai.com/api/reference/resources/responses/
  * methods/create, developers.openai.com/api/docs/models): POST /v1/responses
@@ -9,12 +9,7 @@
  * later retrieval (the default is true).
  */
 import {
-  assertSendable,
-  buildCleanUpInput,
-  CLEAN_UP_INSTRUCTIONS,
-  describeParts,
-  joinNatural,
-  outputTokenLimit,
+  assertPromptSendable,
   readJson,
   responsesText,
   type TextModelInfo,
@@ -44,16 +39,15 @@ export function createOpenAiTextProvider(
     endpointHost: OPENAI_HOST,
     models: OPENAI_TEXT_MODELS,
 
-    describeUpload(request, model) {
+    describeDestination(model) {
       return (
-        `Sends ${joinNatural(describeParts(request))} to OpenAI at ${OPENAI_HOST}, ` +
-        `model ${model}, with your API key, asking OpenAI not to store the response ` +
-        `(store: false). Nothing else: not the recording, not the document, not other comments.`
+        `to OpenAI at ${OPENAI_HOST}, model ${model}, with your API key, ` +
+        'asking OpenAI not to store the response (store: false)'
       )
     },
 
-    async cleanUp(request, options) {
-      assertSendable(name, request, options)
+    async generate(prompt, options) {
+      assertPromptSendable(name, prompt, options)
       const response = await fetchImpl(OPENAI_RESPONSES_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -62,11 +56,11 @@ export function createOpenAiTextProvider(
         },
         body: JSON.stringify({
           model: options.model,
-          instructions: CLEAN_UP_INSTRUCTIONS,
-          input: buildCleanUpInput(request),
-          max_output_tokens: outputTokenLimit(request),
-          // "low" is listed for all four models; a copy edit needs no more.
-          reasoning: { effort: 'low' },
+          instructions: prompt.instructions,
+          input: prompt.input,
+          max_output_tokens: prompt.maxOutputTokens,
+          // "low" and "medium" are listed for all four models.
+          reasoning: { effort: prompt.effort },
           store: false,
         }),
         signal: options.signal,

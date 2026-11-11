@@ -67,6 +67,13 @@ Screen** to install it as an app (reported working on a real iPad on
   proposal sit side by side, and only **Accept** changes the note. The raw
   transcript is never touched, and a polished body is labeled as such in the
   sidebar and the exports
+- ❓ **Ask about a passage**: when you do not understand a passage yet,
+  write the question as a comment and tap **Save and ask…** (or **Ask…** on
+  a saved comment). The same consent dialog names what is sent (the
+  question, the passage and, only if you tick it, the text around it), the
+  host and the model; the answer is labeled as a model's, kept beside the
+  comment only if you tap **Keep**, and left out of the Markdown report and
+  the annotated PDF
 - 🗂️ **Annotations sidebar**: group by kind, visibility or page; filter by
   kind, visibility, untranscribed voice notes or free text; edit bodies; mark
   each one **Private** or **For author**; tap to jump to the passage

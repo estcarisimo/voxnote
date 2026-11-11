@@ -13,9 +13,8 @@ const provider: TextModelProvider = {
   name: 'Fake LLM',
   endpointHost: 'llm.example',
   models: [{ id: 'm1', label: 'M1' }],
-  describeUpload: (r, model) =>
-    `Sends the transcript${r.quote ? ' and the quote' : ''}${r.language ? ` (${r.language})` : ''} to llm.example, model ${model}`,
-  cleanUp: vi.fn(),
+  describeDestination: (model) => `to llm.example, model ${model}`,
+  generate: vi.fn(),
 }
 
 const input = {
@@ -64,7 +63,9 @@ describe('CleanUpDialog', () => {
       }),
     ).toBeTruthy()
     expect(
-      screen.getByText('Sends the transcript (es) to llm.example, model m1'),
+      screen.getByText(
+        'Sends the raw transcript (23 characters), the polishing instructions shown under Prompt and the language hint "es" to llm.example, model m1. Nothing else: not the recording, not the document, not other comments.',
+      ),
     ).toBeTruthy()
     const prompt = screen.getByText(/Prompt \(version 1\)/).closest('details')!
     expect(prompt.textContent).toContain(CLEAN_UP_INSTRUCTIONS)
@@ -76,7 +77,7 @@ describe('CleanUpDialog', () => {
     fireEvent.click(screen.getByRole('checkbox'))
     expect(
       screen.getByText(
-        'Sends the transcript and the quote (es) to llm.example, model m1',
+        'Sends the raw transcript (23 characters), the polishing instructions shown under Prompt, the quoted passage, as a spelling hint and the language hint "es" to llm.example, model m1. Nothing else: not the recording, not the document, not other comments.',
       ),
     ).toBeTruthy()
     expect(prompt.textContent).toContain(

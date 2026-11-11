@@ -917,4 +917,56 @@ describe('CommentComposer', () => {
       })
     })
   })
+
+  describe('Save and ask…', () => {
+    function renderAsk(
+      props: Partial<Parameters<typeof CommentComposer>[0]> = {},
+    ) {
+      const onSave = vi.fn(async () => {})
+      render(
+        <CommentComposer
+          placement={placement}
+          mode="comment"
+          quote="the quoted passage"
+          recorder={null}
+          transcribe={null}
+          canAsk
+          onSave={onSave}
+          onCancel={() => {}}
+          {...props}
+        />,
+      )
+      return onSave
+    }
+
+    it('saves the comment flagged to ask, once it has text', () => {
+      const onSave = renderAsk()
+      const button = screen.getByRole('button', { name: 'Save and ask…' })
+      expect(button).toHaveProperty('disabled', true)
+      fireEvent.change(screen.getByRole('textbox', { name: 'Comment' }), {
+        target: { value: 'What is decoherence?' },
+      })
+      expect(button).toHaveProperty('disabled', false)
+      fireEvent.click(button)
+      expect(onSave).toHaveBeenCalledWith({
+        body: 'What is decoherence?',
+        ask: true,
+      })
+    })
+
+    it('is not offered for a region', () => {
+      renderAsk({ quote: null })
+      expect(screen.queryByRole('button', { name: 'Save and ask…' })).toBeNull()
+    })
+
+    it('is not offered for a suggestion', () => {
+      renderAsk({ mode: 'suggestion' })
+      expect(screen.queryByRole('button', { name: 'Save and ask…' })).toBeNull()
+    })
+
+    it('is not offered without canAsk', () => {
+      renderAsk({ canAsk: false })
+      expect(screen.queryByRole('button', { name: 'Save and ask…' })).toBeNull()
+    })
+  })
 })

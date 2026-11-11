@@ -1,8 +1,11 @@
 /**
- * Text-model adapter interface for the optional clean-up of a dictated
- * note. Providers run in the browser with the user's own key; nothing here
- * stores a key or sends anything by itself. The UI must show
- * `describeUpload` and the prompt, and get consent, before `cleanUp` runs.
+ * Text-model adapter interface, shared by the optional clean-up of a
+ * dictated note (here) and questions about a passage (../core/ask). Each
+ * adapter knows one thing: how to send a prompt to its endpoint and read the
+ * text back. What is sent, and the disclosure that says so, is built by the
+ * caller. Providers run in the browser with the user's own key; nothing here
+ * stores a key or sends anything by itself. The UI must show the disclosure
+ * and the prompt, and get consent, before `generate` runs.
  */
 import { checkProposal, type CleanUpProposal } from '../core/cleanUp'
 
@@ -47,10 +50,28 @@ export interface TextModelInfo {
   deprecated?: string
 }
 
-export interface CleanUpOptions {
+export interface TextModelOptions {
   apiKey: string
   model: string
   signal?: AbortSignal
+}
+
+export type CleanUpOptions = TextModelOptions
+
+/**
+ * How hard a reasoning model should think. Sent where the vendor documents
+ * the parameter for every listed model (OpenAI, Anthropic); ignored by the
+ * others.
+ */
+export type ReasoningEffort = 'low' | 'medium'
+
+/** One request: the system instructions and the user message, verbatim. */
+export interface TextPrompt {
+  instructions: string
+  input: string
+  /** Room for the visible answer, in tokens. */
+  maxOutputTokens: number
+  effort: ReasoningEffort
 }
 
 export interface TextModelProvider {
@@ -61,10 +82,39 @@ export interface TextModelProvider {
   /** Where the text goes, e.g. "api.anthropic.com". Shown before sending. */
   readonly endpointHost: string
   readonly models: readonly TextModelInfo[]
-  /** Plain-language statement of exactly what this request sends. */
-  describeUpload(request: CleanUpRequest, model: string): string
-  /** Returns the model's text, untouched; the caller checks it. */
-  cleanUp(request: CleanUpRequest, options: CleanUpOptions): Promise<string>
+  /**
+   * Where a request goes, completing "Sends <what> …": e.g. "to Anthropic
+   * at api.anthropic.com, model claude-opus-5-5, with your API key".
+   */
+  describeDestination(model: string): string
+  /** Sends the prompt; returns the model's text, untouched. */
+  generate(prompt: TextPrompt, options: TextModelOptions): Promise<string>
+}
+
+/** The longest message we send in one request. */
+export const MAX_INPUT_CHARS = 40_000
+
+/**
+ * Throws before anything is sent: no key (unless the provider takes none),
+ * an empty message, or one over MAX_INPUT_CHARS.
+ */
+export function assertPromptSendable(
+  name: string,
+  prompt: TextPrompt,
+  options: TextModelOptions,
+  { keyRequired = true }: { keyRequired?: boolean } = {},
+): void {
+  if (keyRequired && options.apiKey.trim() === '') {
+    throw new Error(`${name} needs an API key; add one under Providers`)
+  }
+  if (prompt.input.trim() === '') {
+    throw new Error('There is nothing to send')
+  }
+  if (prompt.input.length > MAX_INPUT_CHARS) {
+    throw new Error(
+      `The message is ${prompt.input.length} characters; VoxNote sends up to ${MAX_INPUT_CHARS}`,
+    )
+  }
 }
 
 /**
@@ -102,6 +152,29 @@ export function describeParts(request: CleanUpRequest): string[] {
   return parts
 }
 
+/** The exact prompt a clean-up sends; the consent dialog shows it. */
+export function cleanUpPrompt(request: CleanUpRequest): TextPrompt {
+  return {
+    instructions: CLEAN_UP_INSTRUCTIONS,
+    input: buildCleanUpInput(request),
+    maxOutputTokens: outputTokenLimit(request),
+    // A copy edit needs little thought.
+    effort: 'low',
+  }
+}
+
+/** The clean-up disclosure: what is sent, where, and nothing else. */
+export function describeCleanUpUpload(
+  provider: TextModelProvider,
+  request: CleanUpRequest,
+  model: string,
+): string {
+  return (
+    `Sends ${joinNatural(describeParts(request))} ${provider.describeDestination(model)}. ` +
+    'Nothing else: not the recording, not the document, not other comments.'
+  )
+}
+
 /**
  * Runs a provider and checks its answer before anyone sees it: an empty,
  * unchanged, or wildly longer or shorter result is an error, never a
@@ -113,13 +186,11 @@ export async function cleanUp(
   options: CleanUpOptions,
   now: () => Date = () => new Date(),
 ): Promise<CleanUpProposal> {
-  if (request.transcript.trim() === '') {
-    throw new Error('There is no raw transcript to polish')
-  }
+  assertTranscriptSendable(request)
   if (!provider.models.some((m) => m.id === options.model)) {
     throw new Error(`${provider.name} has no model "${options.model}"`)
   }
-  const text = await provider.cleanUp(request, options)
+  const text = await provider.generate(cleanUpPrompt(request), options)
   if (typeof text !== 'string') {
     throw new Error(`${provider.name} returned no text`)
   }
@@ -148,14 +219,7 @@ export function outputTokenLimit(request: CleanUpRequest): number {
   return Math.max(2048, Math.ceil(request.transcript.length / 2))
 }
 
-export function assertSendable(
-  name: string,
-  request: CleanUpRequest,
-  options: CleanUpOptions,
-): void {
-  if (options.apiKey.trim() === '') {
-    throw new Error(`${name} needs an API key; add one under Providers`)
-  }
+function assertTranscriptSendable(request: CleanUpRequest): void {
   if (request.transcript.trim() === '') {
     throw new Error('There is no raw transcript to polish')
   }

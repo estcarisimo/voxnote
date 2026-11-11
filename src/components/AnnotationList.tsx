@@ -4,10 +4,13 @@ import {
   quoteOf,
   type Annotation,
   type AnnotationKind,
+  type Answer,
+  type Comment,
   type Highlight,
   type Note,
   type Visibility,
 } from '../core/annotations'
+import { answerLabel } from '../core/ask'
 import { cleanUpLabel } from '../core/cleanUp'
 import { HIGHLIGHT_PALETTE, type HighlightColor } from '../core/palette'
 import { ColorDots } from './ColorDots'
@@ -45,6 +48,10 @@ interface AnnotationListProps {
   onTranscribe: (note: Note) => Promise<void>
   /** Consent-gated clean-up of a note's raw transcript; absent if unavailable. */
   onCleanUp?: (note: Note) => Promise<void>
+  /** Consent-gated question about a comment's passage; absent if unavailable. */
+  onAsk?: (comment: Comment) => Promise<void>
+  /** Deletes one kept answer; rejecting leaves it with the error shown. */
+  onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   /** Transcripts still on their way to notes saved before they arrived. */
   arrivals?: Readonly<Record<string, TranscriptArrival>>
 }
@@ -74,6 +81,8 @@ export function AnnotationList({
   onLoadAudio,
   onTranscribe,
   onCleanUp,
+  onAsk,
+  onDeleteAnswer,
   arrivals,
 }: AnnotationListProps) {
   const [groupBy, setGroupBy] = useState<GroupBy>('kind')
@@ -132,6 +141,8 @@ export function AnnotationList({
             onLoadAudio={onLoadAudio}
             onTranscribe={onTranscribe}
             onCleanUp={onCleanUp}
+            onAsk={onAsk}
+            onDeleteAnswer={onDeleteAnswer}
             arrivals={arrivals}
           />
         ))
@@ -228,6 +239,16 @@ function ReviewToolbar({
         >
           🎤 Untranscribed
         </button>
+        <button
+          type="button"
+          className="annotation-list-chip"
+          aria-pressed={filter.answeredOnly}
+          onClick={() =>
+            onFilter({ ...filter, answeredOnly: !filter.answeredOnly })
+          }
+        >
+          💬 Questions
+        </button>
       </div>
       <div className="annotation-list-meta">
         <label htmlFor={groupId}>Group by</label>
@@ -276,6 +297,8 @@ function ReviewGroupSection({
   onLoadAudio,
   onTranscribe,
   onCleanUp,
+  onAsk,
+  onDeleteAnswer,
   arrivals,
 }: {
   label: string
@@ -290,6 +313,8 @@ function ReviewGroupSection({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
+  onAsk?: (comment: Comment) => Promise<void>
+  onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   arrivals?: Readonly<Record<string, TranscriptArrival>>
 }) {
   const headingId = useId()
@@ -323,6 +348,8 @@ function ReviewGroupSection({
                 onLoadAudio={onLoadAudio}
                 onTranscribe={onTranscribe}
                 onCleanUp={onCleanUp}
+                onAsk={onAsk}
+                onDeleteAnswer={onDeleteAnswer}
                 arrival={arrivals?.[a.id]}
               />
             ) : (
@@ -485,6 +512,8 @@ function NoteItem({
   onLoadAudio,
   onTranscribe,
   onCleanUp,
+  onAsk,
+  onDeleteAnswer,
   arrival,
 }: {
   note: Note
@@ -495,9 +524,32 @@ function NoteItem({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
+  onAsk?: (comment: Comment) => Promise<void>
+  onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   arrival?: TranscriptArrival
 }) {
   const [editing, setEditing] = useState(false)
+  const [asking, setAsking] = useState(false)
+  const [askError, setAskError] = useState<string | null>(null)
+  // Ask needs a passage and a question: a comment on text, with a body.
+  const askable =
+    onAsk !== undefined &&
+    c.kind === 'comment' &&
+    quoteOf(c.anchor) !== null &&
+    c.body.trim() !== ''
+
+  async function askAbout() {
+    if (!onAsk || c.kind !== 'comment') return
+    setAsking(true)
+    setAskError(null)
+    try {
+      await onAsk(c)
+    } catch (err: unknown) {
+      setAskError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAsking(false)
+    }
+  }
   const [cleaningUp, setCleaningUp] = useState(false)
   const [cleanUpError, setCleanUpError] = useState<string | null>(null)
 
@@ -561,6 +613,13 @@ function NoteItem({
           </span>
         )}
       </button>
+      {c.kind === 'comment' && c.answers && (
+        <AnswerList
+          comment={c}
+          answers={c.answers}
+          onDeleteAnswer={onDeleteAnswer}
+        />
+      )}
       {editing ? (
         <BodyEditor
           comment={c}
@@ -587,6 +646,11 @@ function NoteItem({
               {cleanUpError}
             </p>
           )}
+          {askError && (
+            <p role="alert" className="annotation-list-error">
+              {askError}
+            </p>
+          )}
           {c.voice && <AudioPlayer comment={c} onLoadAudio={onLoadAudio} />}
           {c.voice && !c.voice.transcript && (
             <button
@@ -608,6 +672,20 @@ function NoteItem({
               {cleaningUp ? 'Polishing…' : 'Polish…'}
             </button>
           )}
+          {askable && (
+            <button
+              type="button"
+              title="Ask a model about the passage, with this comment as the question"
+              onClick={() => void askAbout()}
+              disabled={asking}
+            >
+              {asking
+                ? 'Asking…'
+                : c.kind === 'comment' && c.answers
+                  ? 'Ask again…'
+                  : 'Ask…'}
+            </button>
+          )}
           <VisibilityToggle
             annotation={c}
             onUpdateVisibility={onUpdateVisibility}
@@ -626,6 +704,78 @@ function NoteItem({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * The answers kept on a comment, labeled as a model's, collapsed by
+ * default so the review stays the reviewer's words.
+ */
+function AnswerList({
+  comment,
+  answers,
+  onDeleteAnswer,
+}: {
+  comment: Comment
+  answers: readonly Answer[]
+  onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
+}) {
+  const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  async function remove(answer: Answer) {
+    if (!onDeleteAnswer) return
+    setDeleting(answer.id)
+    setError(null)
+    try {
+      await onDeleteAnswer(comment, answer)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  return (
+    <details className="annotation-list-answers">
+      <summary>
+        💬 {answers.length === 1 ? '1 answer' : `${answers.length} answers`}{' '}
+        from a model, not part of your review
+      </summary>
+      {error && (
+        <p role="alert" className="annotation-list-error">
+          {error}
+        </p>
+      )}
+      <ol>
+        {answers.map((answer) => (
+          <li key={answer.id}>
+            <p className="annotation-list-answer-question">
+              <strong>Q:</strong> {answer.question}
+            </p>
+            <p className="annotation-list-answer-text">{answer.text}</p>
+            <p className="annotation-list-answer-meta">
+              {answerLabel(answer)} · {answer.createdAt} (UTC)
+              {answer.context.surroundingChars > 0 &&
+                ` · with ${answer.context.surroundingChars} characters of context`}
+              {onDeleteAnswer && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    className="annotation-list-link"
+                    disabled={deleting === answer.id}
+                    onClick={() => void remove(answer)}
+                  >
+                    Delete answer
+                  </button>
+                </>
+              )}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </details>
   )
 }
 

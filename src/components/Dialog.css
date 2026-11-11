@@ -152,6 +152,14 @@
   white-space: pre-wrap;
 }
 
+.dialog-answer {
+  margin-bottom: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
+
 .dialog-prompt {
   margin-bottom: 10px;
   font-size: 0.85rem;

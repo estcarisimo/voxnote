@@ -70,6 +70,8 @@ interface PdfViewerProps {
   transcribe: TranscribeFn | null
   /** Consent-gated clean-up of a fresh transcript; null if unavailable. */
   cleanUp?: CleanUpFn | null
+  /** Offers "Save and ask…" in the comment composer. */
+  canAsk?: boolean
   /** The document's standing consent to transcribe on Stop. */
   autoTranscribe?: AutoTranscribeState | null
   /**
@@ -119,6 +121,7 @@ export function PdfViewer({
   onCreateNote,
   transcribe,
   cleanUp = null,
+  canAsk = false,
   autoTranscribe = null,
   drafts = null,
   ref,
@@ -472,6 +475,7 @@ export function PdfViewer({
             cleanUp={composer === 'typed' ? null : cleanUp}
             autoTranscribe={composer === 'typed' ? null : autoTranscribe}
             onSave={saveNote}
+            canAsk={canAsk}
             onCancel={closeComposer}
             restored={kept.restored}
             onDraftChange={drafts ? kept.onDraftChange : undefined}

@@ -13,6 +13,7 @@ import {
   createSuggestion,
   type TextAnchor,
 } from './annotations'
+import { withAnswer } from './ask'
 import { exportAnnotatedPdf } from './exportPdf'
 import { highlightPdfColor } from './palette'
 
@@ -127,6 +128,39 @@ describe('exportAnnotatedPdf', () => {
       (h.lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
     ).toBe('')
     expect(numbers(h, 'C')).toEqual([1, 0.863, 0.235])
+  })
+
+  it('leaves the answers of a comment out: Contents is the body only', async () => {
+    const original = await twoPagePdf()
+    const asked = withAnswer(
+      createComment({
+        documentId: 'doc',
+        anchor: {
+          type: 'text',
+          page: 1,
+          quote: 'q',
+          rects: [{ x: 10, y: 500, width: 100, height: 12 }],
+        },
+        body: 'What does q mean?',
+      }),
+      {
+        id: 'a1',
+        question: 'What does q mean?',
+        text: 'MODEL-WRITTEN ANSWER',
+        provider: 'fake',
+        model: 'm1',
+        promptVersion: 1,
+        context: { surroundingChars: 0, earlierAnswers: 0 },
+        createdAt: '2026-11-11T12:00:00.000Z',
+      },
+    )
+    const out = await exportAnnotatedPdf(original, [asked])
+    const pdf = await PDFDocument.load(out)
+    const all = pdf.getPages().flatMap((page) => annots(page, pdf))
+    expect(all).toHaveLength(1)
+    expect(
+      (all[0].lookup(PDFName.of('Contents')) as PDFHexString).decodeText(),
+    ).toBe('What does q mean?')
   })
 
   it('writes each highlight in its palette color, for text and regions alike', async () => {

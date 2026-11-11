@@ -10,6 +10,8 @@ import {
   withVisibility,
   type Anchor,
   type Annotation,
+  type Answer,
+  type Comment,
   type CleanUp,
   type Highlight,
   type Note,
@@ -18,6 +20,7 @@ import {
   type Visibility,
   type VoiceNote,
 } from '../core/annotations'
+import { withAnswer, withoutAnswer } from '../core/ask'
 import { withCleanUp, type CleanUpProposal } from '../core/cleanUp'
 import type { HighlightColor } from '../core/palette'
 import {
@@ -63,6 +66,10 @@ interface AnnotationsState {
   setTranscript: (id: string, transcript: Transcript) => Promise<Note>
   /** Puts an accepted clean-up in the body; the raw transcript stays. */
   applyCleanUp: (id: string, proposal: CleanUpProposal) => Promise<Note>
+  /** Keeps a model's answer beside a comment; the body stays as it is. */
+  addAnswer: (id: string, answer: Answer) => Promise<Comment>
+  /** Deletes one answer from a comment. */
+  removeAnswer: (id: string, answerId: string) => Promise<Comment>
   /** The recording behind a voice comment, or null when it has none. */
   getAudio: (id: string) => Promise<Blob | null>
   remove: (id: string) => Promise<void>
@@ -328,6 +335,37 @@ export function useAnnotations(
     [current, apply, serialize],
   )
 
+  const changeComment = useCallback(
+    async (id: string, change: (comment: Comment) => Comment) => {
+      if (!current) throw new Error('Annotation store is not ready')
+      return serialize(current.documentId, async (state) => {
+        const existing = state.annotations.find((a) => a.id === id)
+        if (!existing || existing.kind !== 'comment') {
+          throw new Error(`No comment with id ${id}`)
+        }
+        const updated = change(existing)
+        await state.store.put(updated, undefined, labelRef.current)
+        apply(state.documentId, (list) =>
+          list.map((a) => (a.id === id ? updated : a)),
+        )
+        return updated
+      })
+    },
+    [current, apply, serialize],
+  )
+
+  const addAnswer = useCallback(
+    (id: string, answer: Answer) =>
+      changeComment(id, (comment) => withAnswer(comment, answer)),
+    [changeComment],
+  )
+
+  const removeAnswer = useCallback(
+    (id: string, answerId: string) =>
+      changeComment(id, (comment) => withoutAnswer(comment, answerId)),
+    [changeComment],
+  )
+
   const getAudio = useCallback(
     async (id: string) => {
       if (!current) throw new Error('Annotation store is not ready')
@@ -372,6 +410,8 @@ export function useAnnotations(
     updateColor,
     setTranscript,
     applyCleanUp,
+    addAnswer,
+    removeAnswer,
     getAudio,
     remove,
     writeAndReload,

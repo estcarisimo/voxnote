@@ -24,15 +24,7 @@
  * 127.0.0.1, [::1]); the error text says so instead of a bare "Failed to
  * fetch".
  */
-import {
-  assertSendable,
-  buildCleanUpInput,
-  CLEAN_UP_INSTRUCTIONS,
-  describeParts,
-  outputTokenLimit,
-  readJson,
-  type TextModelProvider,
-} from './llm'
+import { assertPromptSendable, readJson, type TextModelProvider } from './llm'
 import type { SpeechToTextProvider, TranscriptionResult } from './stt'
 import {
   excerpt,
@@ -294,17 +286,13 @@ export function createLocalTextProvider(
     endpointHost: hostOf(server.baseUrl),
     models: [{ id: server.model, label: server.model }],
 
-    describeUpload(request) {
-      return (
-        `Sends ${joinNatural(describeParts(request))} to ${destination(server)}, ` +
-        `${keyClause()}. Nothing else: not the recording, not the document, not other comments.`
-      )
+    describeDestination() {
+      return `to ${destination(server)}, ${keyClause()}`
     },
 
-    async cleanUp(request, options) {
-      // A local server usually takes no key; assertSendable wants one, so
-      // it gets a stand-in and the real (possibly empty) key goes below.
-      assertSendable(name, request, { ...options, apiKey: 'local' })
+    async generate(prompt, options) {
+      // A local server usually takes no key; an empty one sends none.
+      assertPromptSendable(name, prompt, options, { keyRequired: false })
       const response = await reach(fetchImpl, endpoint, {
         method: 'POST',
         headers: {
@@ -314,10 +302,10 @@ export function createLocalTextProvider(
         body: JSON.stringify({
           model: options.model,
           messages: [
-            { role: 'system', content: CLEAN_UP_INSTRUCTIONS },
-            { role: 'user', content: buildCleanUpInput(request) },
+            { role: 'system', content: prompt.instructions },
+            { role: 'user', content: prompt.input },
           ],
-          max_tokens: outputTokenLimit(request),
+          max_tokens: prompt.maxOutputTokens,
           temperature: 0,
           stream: false,
         }),
@@ -331,7 +319,7 @@ export function createLocalTextProvider(
 /**
  * The text of the first choice of a chat completions body. Throws on a
  * refusal, a cut-off answer or a missing message rather than returning a
- * partial polish.
+ * partial answer.
  */
 export function chatCompletionText(
   name: string,

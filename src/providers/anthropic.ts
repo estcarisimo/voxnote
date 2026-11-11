@@ -1,13 +1,13 @@
 /**
- * Anthropic (Claude) text clean-up behind the TextModelProvider interface.
+ * Anthropic (Claude) text generation behind the TextModelProvider interface.
  * Per the Claude API docs as read on 2026-10-29 (platform.claude.com/docs/
  * en/api/overview, /api/versioning, /api/errors, /about-claude/models/
  * overview): POST https://api.anthropic.com/v1/messages with `x-api-key`,
  * `anthropic-version: 2026-10-21` and `content-type: application/json`;
  * body `model`, `max_tokens`, `system`, `messages`. Version 2026-10-21
  * rejects `temperature`, `top_p` and `top_k`, so none is sent. Thinking is
- * adaptive and on by default on every listed model; `output_config.effort:
- * "low"` keeps a copy edit cheap. Browser requests also need
+ * adaptive and on by default on every listed model; `output_config.effort`
+ * comes from the prompt: "low" keeps a copy edit cheap. Browser requests also need
  * `anthropic-dangerous-direct-browser-access: true`, the header the official
  * TypeScript SDK sends with `dangerouslyAllowBrowser` (src/client.ts in
  * anthropics/anthropic-sdk-typescript, read the same day): VoxNote is
@@ -19,12 +19,7 @@
  * of a second HTTP client.
  */
 import {
-  assertSendable,
-  buildCleanUpInput,
-  CLEAN_UP_INSTRUCTIONS,
-  describeParts,
-  joinNatural,
-  outputTokenLimit,
+  assertPromptSendable,
   readJson,
   redact,
   type TextModelInfo,
@@ -56,16 +51,12 @@ export function createAnthropicTextProvider(
     endpointHost: ANTHROPIC_HOST,
     models: ANTHROPIC_TEXT_MODELS,
 
-    describeUpload(request, model) {
-      return (
-        `Sends ${joinNatural(describeParts(request))} to Anthropic at ${ANTHROPIC_HOST}, ` +
-        `model ${model}, with your API key. Nothing else: not the recording, ` +
-        `not the document, not other comments.`
-      )
+    describeDestination(model) {
+      return `to Anthropic at ${ANTHROPIC_HOST}, model ${model}, with your API key`
     },
 
-    async cleanUp(request, options) {
-      assertSendable(name, request, options)
+    async generate(prompt, options) {
+      assertPromptSendable(name, prompt, options)
       const response = await fetchImpl(ANTHROPIC_MESSAGES_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -77,10 +68,10 @@ export function createAnthropicTextProvider(
         body: JSON.stringify({
           model: options.model,
           // Thinking tokens count against max_tokens; leave room for both.
-          max_tokens: outputTokenLimit(request) * 2,
-          system: CLEAN_UP_INSTRUCTIONS,
-          messages: [{ role: 'user', content: buildCleanUpInput(request) }],
-          output_config: { effort: 'low' },
+          max_tokens: prompt.maxOutputTokens * 2,
+          system: prompt.instructions,
+          messages: [{ role: 'user', content: prompt.input }],
+          output_config: { effort: prompt.effort },
         }),
         signal: options.signal,
       })
@@ -91,7 +82,7 @@ export function createAnthropicTextProvider(
 
 /**
  * Joins the text blocks of a Messages API answer. Thinking blocks are
- * skipped; a refusal or a cut-off answer is an error, never a clean-up.
+ * skipped; a refusal or a cut-off answer is an error, never an answer.
  */
 function messageText(name: string, body: Record<string, unknown>): string {
   if (body.stop_reason === 'refusal') {

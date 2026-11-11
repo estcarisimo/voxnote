@@ -243,6 +243,13 @@ interruptions compared against the current workflow, written in the session log 
 - [ ] Organise and cluster comments; suggest wording; draft a reviewer report
       from the annotations. The reviewer keeps final judgement on every line.
 - [ ] Agent-friendly structured export (the JSON schema from M1.1, documented).
+- [x] Ask a question about a passage (2026-11-11, design note
+      `docs/design/ask-a-question.md`): the comment is the question, the
+      answer is a model's, kept beside the comment and out of the Markdown
+      report and the annotated PDF. Verified with unit and component tests
+      and one headless Chromium run against an intercepted local server
+      (`scripts/browser-ask-e2e.cjs`); no real provider call, not tried on
+      an iPad.
 
 ## Design note — IETF Internet-Drafts and RFCs (2026-11-05)
 

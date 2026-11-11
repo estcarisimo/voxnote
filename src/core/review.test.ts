@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { withAnswer } from './ask'
 import {
   createComment,
   createHighlight,
@@ -143,6 +144,27 @@ describe('matchesFilter / filterAnnotations', () => {
     expect(isFilterActive({ ...EMPTY_FILTER, untranscribedOnly: true })).toBe(
       true,
     )
+  })
+
+  it('keeps only comments with answers, and searches their questions and answers', () => {
+    const asked = withAnswer(comment, {
+      id: 'a1',
+      question: 'What does this measure?',
+      text: 'It measures the decoherence time.',
+      provider: 'fake',
+      model: 'm1',
+      promptVersion: 1,
+      context: { surroundingChars: 0, earlierAnswers: 0 },
+      createdAt: '2026-11-11T12:00:00.000Z',
+    })
+    const list = [highlight, asked, dictated]
+    expect(
+      filterAnnotations(list, { ...EMPTY_FILTER, answeredOnly: true }),
+    ).toEqual([asked])
+    expect(isFilterActive({ ...EMPTY_FILTER, answeredOnly: true })).toBe(true)
+    expect(
+      filterAnnotations(list, { ...EMPTY_FILTER, query: 'DECOHERENCE time' }),
+    ).toEqual([asked])
   })
 
   it('searches quote, body, original and the raw transcript, case-insensitively', () => {

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CLEAN_UP_INSTRUCTIONS } from './llm'
+import {
+  CLEAN_UP_INSTRUCTIONS,
+  cleanUpPrompt,
+  describeCleanUpUpload,
+} from './llm'
 import {
   chatCompletionText,
   createLocalSttProvider,
@@ -199,10 +203,13 @@ describe('createLocalTextProvider', () => {
     expect(p.id).toBe('local-text')
     expect(p.endpointHost).toBe('localhost:11434')
     expect(p.models).toEqual([{ id: 'llama3.2:3b', label: 'llama3.2:3b' }])
-    expect(p.describeUpload(request, text.model)).toMatch(
+    expect(describeCleanUpUpload(p, request, text.model)).toMatch(
       /localhost:11434.*on this device.*model llama3.2:3b/,
     )
-    const out = await p.cleanUp(request, { apiKey: '', model: text.model })
+    const out = await p.generate(cleanUpPrompt(request), {
+      apiKey: '',
+      model: text.model,
+    })
     expect(out).toBe('The claim is weak.')
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [
       string,

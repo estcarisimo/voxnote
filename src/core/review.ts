@@ -44,10 +44,15 @@ export interface ReviewFilter {
   kinds: readonly AnnotationKind[]
   /** Only this visibility; null means both. */
   visibility: Visibility | null
-  /** Case-insensitive match against quote, body, original and raw transcript. */
+  /**
+   * Case-insensitive match against quote, body, original, raw transcript
+   * and the questions and answers kept on a comment.
+   */
   query: string
   /** Only voice notes whose recording has not been transcribed yet. */
   untranscribedOnly: boolean
+  /** Only comments that carry at least one answer to a question. */
+  answeredOnly: boolean
 }
 
 export const EMPTY_FILTER: ReviewFilter = {
@@ -55,6 +60,7 @@ export const EMPTY_FILTER: ReviewFilter = {
   visibility: null,
   query: '',
   untranscribedOnly: false,
+  answeredOnly: false,
 }
 
 export function isFilterActive(filter: ReviewFilter): boolean {
@@ -62,7 +68,8 @@ export function isFilterActive(filter: ReviewFilter): boolean {
     filter.kinds.length > 0 ||
     filter.visibility !== null ||
     filter.query.trim() !== '' ||
-    filter.untranscribedOnly
+    filter.untranscribedOnly ||
+    filter.answeredOnly
   )
 }
 
@@ -125,6 +132,11 @@ export function searchableText(a: Annotation): string {
     parts.push(a.body)
     if (a.voice?.transcript) parts.push(a.voice.transcript.raw)
   }
+  if (a.kind === 'comment') {
+    for (const answer of a.answers ?? []) {
+      parts.push(answer.question, answer.text)
+    }
+  }
   if (a.kind === 'suggestion') parts.push(a.original)
   return parts.join('\n').toLowerCase()
 }
@@ -138,6 +150,9 @@ export function matchesFilter(a: Annotation, filter: ReviewFilter): boolean {
     const untranscribed =
       a.kind !== 'highlight' && a.voice !== undefined && !a.voice.transcript
     if (!untranscribed) return false
+  }
+  if (filter.answeredOnly) {
+    if (a.kind !== 'comment' || !a.answers?.length) return false
   }
   const query = filter.query.trim().toLowerCase()
   if (query !== '' && !searchableText(a).includes(query)) return false

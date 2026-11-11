@@ -306,3 +306,29 @@
   color: var(--text);
   font-size: 0.75rem;
 }
+
+.annotation-list-answers {
+  margin: 4px 8px 6px;
+  font-size: 0.85rem;
+}
+
+.annotation-list-answers ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+/* Not a row of the list: undo `.annotation-list li`. */
+.annotation-list .annotation-list-answers li {
+  display: list-item;
+  margin-bottom: 6px;
+}
+
+.annotation-list-answers p {
+  margin: 2px 0;
+  white-space: pre-wrap;
+}
+
+.annotation-list-answer-meta {
+  color: var(--text);
+  font-size: 0.75rem;
+}
