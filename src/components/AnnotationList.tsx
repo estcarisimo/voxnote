@@ -50,7 +50,7 @@ interface AnnotationListProps {
   onCleanUp?: (note: Note) => Promise<void>
   /** Consent-gated question about a comment's passage; absent if unavailable. */
   /** With a question, a follow-up in the thread; without, the body is asked. */
-  onAsk?: (comment: Comment, question?: string) => Promise<void>
+  onAsk?: (comment: Comment, question?: string) => Promise<boolean>
   /** Deletes one kept answer; rejecting leaves it with the error shown. */
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   /** Transcripts still on their way to notes saved before they arrived. */
@@ -314,7 +314,7 @@ function ReviewGroupSection({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
-  onAsk?: (comment: Comment, question?: string) => Promise<void>
+  onAsk?: (comment: Comment, question?: string) => Promise<boolean>
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   arrivals?: Readonly<Record<string, TranscriptArrival>>
 }) {
@@ -525,7 +525,7 @@ function NoteItem({
   onLoadAudio: (note: Note) => Promise<Blob | null>
   onTranscribe: (note: Note) => Promise<void>
   onCleanUp?: (note: Note) => Promise<void>
-  onAsk?: (comment: Comment, question?: string) => Promise<void>
+  onAsk?: (comment: Comment, question?: string) => Promise<boolean>
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
   arrival?: TranscriptArrival
 }) {
@@ -722,8 +722,11 @@ function AnswerList({
   comment: Comment
   answers: readonly Answer[]
   onDeleteAnswer?: (comment: Comment, answer: Answer) => Promise<void>
-  /** Asks the next question of the thread; absent when Ask is unavailable. */
-  onFollowUp?: (question: string) => Promise<void>
+  /**
+   * Asks the next question of the thread; resolves true once an answer to
+   * it was kept. Absent when Ask is unavailable.
+   */
+  onFollowUp?: (question: string) => Promise<boolean>
 }) {
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -736,8 +739,8 @@ function AnswerList({
     setAsking(true)
     setError(null)
     try {
-      await onFollowUp(question)
-      setFollowUp('')
+      // Cancel or Discard keeps what was typed, to ask again or edit.
+      if (await onFollowUp(question)) setFollowUp('')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {

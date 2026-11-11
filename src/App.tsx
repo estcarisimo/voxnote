@@ -366,9 +366,13 @@ function App() {
    * around the passage is read here and offered in the dialog; it is only
    * sent if the reviewer ticks it there. "Keep and ask…" in the dialog keeps
    * the answer and asks the typed follow-up next, each through its own
-   * consent step, until the reviewer stops.
+   * consent step, until the reviewer stops. Resolves true when the answer
+   * to the first question was kept, false after Cancel or Discard.
    */
-  async function askStored(comment: Comment, question?: string) {
+  async function askStored(
+    comment: Comment,
+    question?: string,
+  ): Promise<boolean> {
     const quote = quoteOf(comment.anchor)
     if (quote === null) throw new Error('A region has no passage to ask about')
     // The open document now, not this render's: "Save and ask…" calls this
@@ -391,7 +395,12 @@ function App() {
     const surrounding = surroundingText(around, quote)
     let current = comment
     let next = question ?? comment.body
+    let kept = false
     for (;;) {
+      // Each pass opens a consent dialog: never for a document now closed.
+      if (stale()) {
+        throw new Error('The document changed; open it again to ask')
+      }
       const outcome = await askFlow.request({
         question: next,
         quote,
@@ -402,12 +411,13 @@ function App() {
           text: a.text,
         })),
       })
-      if (!outcome) return
+      if (!outcome) return kept
       if (docIdRef.current !== comment.documentId) {
         throw new Error('The document changed; the answer was not kept')
       }
       current = await storeRef.current.addAnswer(comment.id, outcome.answer)
-      if (outcome.followUp === null) return
+      kept = true
+      if (outcome.followUp === null) return kept
       next = outcome.followUp
     }
   }

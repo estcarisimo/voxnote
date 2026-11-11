@@ -580,9 +580,10 @@ describe('AnnotationList', () => {
       const onDeleteAnswer = vi.fn<(c: Comment, a: Answer) => Promise<void>>(
         async () => {},
       )
-      const onAsk = vi.fn<(c: Comment, q?: string) => Promise<void>>(
-        async () => {},
-      )
+      const onAsk = vi
+        .fn<(c: Comment, q?: string) => Promise<boolean>>()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true)
       render(
         <AnnotationList
           annotations={[asked, plain]}
@@ -615,6 +616,18 @@ describe('AnnotationList', () => {
         followUp.parentElement!.querySelector('button') as HTMLElement,
       )
       expect(onAsk).toHaveBeenCalledWith(asked, 'Why 3 µs?')
+      // Cancelled or discarded: the typed follow-up stays.
+      await vi.waitFor(() =>
+        expect(followUp.parentElement!.querySelector('button')).toHaveProperty(
+          'disabled',
+          false,
+        ),
+      )
+      expect(followUp).toHaveProperty('value', 'Why 3 µs?')
+      // Kept: the box is cleared for the next one.
+      fireEvent.click(
+        followUp.parentElement!.querySelector('button') as HTMLElement,
+      )
       await vi.waitFor(() => expect(followUp).toHaveProperty('value', ''))
       fireEvent.click(screen.getByRole('button', { name: 'Delete answer' }))
       expect(onDeleteAnswer).toHaveBeenCalledWith(asked, answer)

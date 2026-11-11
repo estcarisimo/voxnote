@@ -144,14 +144,17 @@ export function AskDialog({
             <button type="button" onClick={onCancel}>
               Discard
             </button>
-            <button
-              type="button"
-              className={next === '' ? 'is-primary' : undefined}
-              onClick={() => onKeep({ answer, followUp: null })}
-            >
-              Keep
-            </button>
-            {next !== '' && (
+            {next === '' ? (
+              <button
+                type="button"
+                className="is-primary"
+                onClick={() => onKeep({ answer, followUp: null })}
+              >
+                Keep
+              </button>
+            ) : (
+              // A typed follow-up is never dropped by a plain Keep: clear the
+              // box to keep the answer without asking it.
               <button
                 type="button"
                 className="is-primary"

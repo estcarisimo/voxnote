@@ -139,7 +139,12 @@ rounds; and the reader should say how long an answer they want.
   end; **Ask again…**, which re-sent the comment's text, is gone. Each
   follow-up sends the earlier questions and answers of the comment, as
   before, and is labeled **Follow-up question** in the message. The
-  dialog shows the earlier thread.
+  dialog shows the earlier thread. With a follow-up typed, the dialog offers **Keep and
+  ask…** instead of a plain **Keep**, so a typed question is never dropped
+  silently; clearing the box brings **Keep** back. A follow-up typed in the
+  sidebar stays in its box after Cancel or Discard and is cleared only once
+  its answer is kept. Each pass of the loop re-checks that the document is
+  still open before opening the next consent step.
 - **Answer length**: **One line**, **One paragraph** (default) or
   **Thorough**, picked in the consent dialog and kept for the session. The
   message says `Answer length: …`, the output budget follows it (2 048,

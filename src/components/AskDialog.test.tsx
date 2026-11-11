@@ -158,10 +158,13 @@ describe('AskDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send to Fake LLM' }))
     await screen.findByText('The loss of quantum superposition.')
     expect(screen.queryByRole('button', { name: 'Keep and ask…' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Keep' })).toBeTruthy()
     fireEvent.change(
       screen.getByRole('textbox', { name: /Follow-up question/ }),
       { target: { value: '  Why 3 µs?  ' } },
     )
+    // With a follow-up typed, a plain Keep would drop it: it is not offered.
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Keep and ask…' }))
     expect(props.onKeep).toHaveBeenCalledWith({
       answer,
