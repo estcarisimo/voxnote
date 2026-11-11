@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { withAnswer } from './ask'
 import {
   createComment,
   createHighlight,
@@ -510,5 +511,43 @@ describe('Markdown documents', () => {
     expect(() => exportJson({ ...MD, blockCount: 0 }, [], NOW)).toThrow(
       'Invalid block count: 0',
     )
+  })
+})
+
+describe('answers to questions', () => {
+  const asked = withAnswer(
+    createComment(
+      {
+        documentId: 'abc123',
+        anchor: textAnchor(1, 'the qubit'),
+        body: 'Why?',
+      },
+      T0,
+    ),
+    {
+      id: 'a1',
+      question: 'Why?',
+      text: 'MODEL-WRITTEN ANSWER',
+      provider: 'fake',
+      model: 'm1',
+      promptVersion: 1,
+      context: { surroundingChars: 0, earlierAnswers: 0 },
+      createdAt: '2026-10-01T09:06:00.000Z',
+    },
+    T1,
+  )
+
+  it('stay out of the Markdown report, which keeps the comment', () => {
+    const md = exportMarkdown(DOC, [asked], NOW)
+    expect(md).toContain('Why?')
+    expect(md).not.toContain('MODEL-WRITTEN ANSWER')
+  })
+
+  it('travel in the JSON, as stored', () => {
+    const parsed = JSON.parse(exportJson(DOC, [asked], NOW)) as {
+      annotations: Annotation[]
+    }
+    expect(parsed.annotations).toEqual([asked])
+    expect(isAnnotation(parsed.annotations[0])).toBe(true)
   })
 })

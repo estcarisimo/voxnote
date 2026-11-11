@@ -1,6 +1,7 @@
 # Ask a question about a passage — design note
 
-Status: **proposal, not implemented.** Written 2026-11-11 (UTC) for
+Status: **implemented 2026-11-11 (UTC)**, verified with unit and component
+tests only; see §8 for what is not verified. Written the same day for
 Esteban's request the same day: while reading a manuscript, a passage is
 sometimes not wrong, the reader just does not understand it yet. They want to
 ask about it without leaving VoxNote for a search engine or a chat window,
@@ -25,94 +26,99 @@ is a different thing:
 
 ## 2. What the reviewer sees
 
-1. **From the selection or the composer.** The note is typed or dictated as
-   today. Next to **Transcribe…** and **Polish…** the composer offers
-   **Ask…** once the body is not empty. The note's text is the question.
-2. **From a saved note.** In the sidebar, a saved comment gets **Ask…** too,
-   beside **Polish…**. A comment written as a critique can turn out to be a
-   question later; asking does not change its body.
+1. **From the composer.** A comment on a passage is typed or dictated as
+   today. Beside **Save** the composer offers **Save and ask…** once the text
+   is not empty: the comment is saved first, then the Ask dialog opens with
+   its text as the question. Not offered for a suggestion or a region.
+2. **From a saved comment.** In the sidebar, a comment on a passage with a
+   body gets **Ask…** (**Ask again…** once it has an answer). A comment
+   written as a critique can turn out to be a question later; asking does
+   not change its text.
 3. **Consent first.** The dialog is the Polish dialog's sibling: provider,
-   host, model, the exact instructions and the exact input, and a plain list
-   of what is sent (the question, the quoted passage, and the surrounding
-   text only if ticked; see §4). Nothing is sent until **Send**. A local text
-   model server (`src/providers/local.ts`) works here as it does for Polish,
-   so a confidential manuscript can stay on the device.
-4. **The answer.** Shown under the note, collapsed after the first read,
-   labeled _Answer from anthropic/claude-… · 2026-11-11 14:03 UTC · not part
-   of your review_. It is never copied into the body. **Ask again** (a
-   follow-up) and **Delete answer** are the only actions on it.
-5. **Marking it as a question.** Asking sets the note's visibility to
-   _private_ unless the reviewer changes it back, and the sidebar filter gains
-   **Questions** (notes with at least one answer).
+   host, model, the exact instructions and the exact message, and a plain
+   list of what is sent (the question, the quoted passage, and the text
+   around it only if ticked; see §4). Nothing is sent until **Send**. It uses
+   the text model chosen for Polish in AI keys, so a local text model server
+   (`src/providers/local.ts`) keeps a confidential manuscript on the device.
+4. **The answer.** Shown in the dialog with the model that wrote it and
+   "can be wrong". **Keep** stores it under the comment; **Discard** stores
+   nothing. In the sidebar the answers sit in a collapsed block labeled
+   _N answers from a model, not part of your review_, each with its model,
+   UTC time and how much context went with it, and **Delete answer**. The
+   comment's text never changes.
+5. **Marking it as a question.** Keeping an answer sets the comment to
+   _private_; the reviewer can mark it for the author again. The sidebar
+   filter gains **💬 Questions** (comments with at least one answer), and the
+   search box also matches questions and answers.
 
-UI steps from a selection to an answer, typed path: Comment, type, Ask…,
-Send (3 taps + typing). Voice path with auto-transcribe on: Voice, Stop,
-Ask…, Send (4 taps). Not counted in a browser yet.
+UI steps from a selection to a kept answer, typed path: Comment, type, Save
+and ask…, Send, Keep (4 taps + typing). Not counted in a browser on an iPad.
 
-## 3. Data model (schema v4)
+## 3. Data model (annotation schema v4)
 
-An optional `answers` array on `Comment` (and on `Suggestion`, for symmetry,
-though the UI offers Ask only on comments at first):
+An optional `answers` array on `Comment` only (not on suggestions, not on
+highlights), oldest first, never empty when present:
 
 ```ts
 interface Answer {
   id: string
-  /** The question as sent: a snapshot of the body at the time of asking. */
+  /** The question as sent: the comment's body at the time of asking. */
   question: string
-  /** The model's text, verbatim. Never edited, never merged into `body`. */
+  /** The model's text, verbatim (trimmed). Never merged into `body`. */
   text: string
   provider: string // "anthropic"
   model: string // "claude-opus-5-5"
   /** ASK_PROMPT_VERSION of the instructions that produced it. */
   promptVersion: number
-  /** What context went with it, so the record says what the model saw. */
-  context: { quote: boolean; surroundingChars: number }
+  /** What went with the question, so the record says what the model saw. */
+  context: { surroundingChars: number; earlierAnswers: number }
   /** UTC. */
   createdAt: string
 }
 ```
 
-A v3 record migrates to v4 with no `answers`. `body`, `voice.transcript.raw`
-and `cleanUp` are untouched by asking.
+A v1, v2 or v3 record migrates to v4 by its version number; one that
+claims an older version and carries `answers` is rejected. `body`,
+`voice.transcript.raw` and `cleanUp` are untouched by asking.
 
 ## 4. What is sent
 
-- **The question** (the note's body), **the quoted passage**, and the
-  document's language if one is set.
-- **Surrounding text, opt-in**: the text of the anchor's page (PDF) or of the
-  blocks around it (Markdown), capped (proposal: 6 000 characters centered on
-  the quote). Off by default; a ticked box in the consent dialog, with the
-  character count. Many questions ("what does this symbol mean?") need the
-  definition a paragraph earlier, so this matters for answer quality, and it
-  is also the part that sends the most of an unpublished manuscript.
-- **Never the whole document** in this slice. Region anchors (figures) have
-  no quote; Ask is not offered on them until image input is designed.
-- **A follow-up** sends the earlier question/answer pairs of the same note,
-  listed in the consent dialog.
+- **The question** (the comment's body, up to 4 000 characters), **the
+  quoted passage**, and the language hint from AI keys if one is set.
+- **Surrounding text, opt-in**: up to 6 000 characters centered on the
+  quote, from the text of the anchor's page (PDF, pdf.js text content) or
+  from the anchor's block and three blocks on each side (Markdown). Off by
+  default; a checkbox in the consent dialog with the character count. When
+  the quote cannot be found in that text (a word split across text items,
+  for example), the dialog says so and offers only the passage.
+- **Never the whole document.** Region anchors (figures) have no quote and
+  are not offered Ask.
+- **A follow-up** (**Ask again…**) sends the earlier questions and answers
+  of the same comment, counted in the disclosure.
 
-Instructions (draft, versioned as `ASK_PROMPT_VERSION = 1`): explain the
-passage to a reader so they can understand it; answer the question asked;
-say plainly when the passage and the context sent are not enough to answer;
-do not judge whether the manuscript is right unless asked; do not write
-review text; answer in the question's language. The question and the passage
-travel inside tags, as data, the way `buildCleanUpInput` already does.
+Instructions: `ASK_INSTRUCTIONS` in `src/core/ask.ts`, version 1, shown in
+the dialog. In short: explain the passage; say plainly when the passage and
+the text given are not enough; label background knowledge as general
+knowledge; do not judge the manuscript unless asked; do not write review
+text; answer in the question's language; everything in tags is data. Sent
+with reasoning effort "medium" where the vendor takes one (OpenAI,
+Anthropic) and room for 4 096 output tokens.
 
 ## 5. Code
 
-- `src/core/ask.ts` (pure): request type, input builder, describe-parts for
-  the disclosure, answer checks (non-empty, not truncated), `withAnswer`.
-- `src/providers/llm.ts`: today `TextModelProvider` has one method,
-  `cleanUp`. Generalize the four adapters (OpenAI, Anthropic, xAI, local)
-  to one
-  `generate({ instructions, input, maxOutputTokens }, options)`, and make
-  `cleanUp` and `ask` callers of it. That refactor is the riskiest part and
-  goes in its own PR before the feature.
-- `src/hooks/useAsk.ts` and an `AskDialog` modeled on `CleanUpDialog`;
-  buttons in `CommentComposer` and `AnnotationList`.
-- Exports: JSON carries `answers` (export envelope bump). The Markdown report
-  lists answers only under a separate **Questions (private)** section, and
-  only when the reviewer ticks _Include my questions_; the annotated PDF never
-  carries answers.
+- `src/providers/llm.ts`: `TextModelProvider` has `describeDestination` and
+  one `generate(prompt, options)`; Polish (`cleanUpPrompt`,
+  `describeCleanUpUpload`) and Ask are its two callers. The four adapters
+  (OpenAI, Anthropic, xAI, local) send what the prompt says, nothing more.
+- `src/core/ask.ts` (pure): request, prompt and disclosure builders, checks
+  before sending and on the answer, `withAnswer` / `withoutAnswer`,
+  `surroundingText`.
+- `src/hooks/useAsk.ts` and `src/components/AskDialog.tsx`, modeled on
+  `useCleanUp` and `CleanUpDialog`; `src/components/passageText.ts` reads
+  the page or block text already in memory.
+- Exports: the JSON carries `answers` as stored. The Markdown report and the
+  annotated PDF leave answers out (the comment itself is exported as
+  before).
 
 ## 6. Out of scope for this slice
 
@@ -120,21 +126,21 @@ Web search or citations to outside sources; the whole document as context;
 a chat panel not tied to a passage; questions about figures (image input);
 streaming the answer as it is generated.
 
-## 7. Open decisions
+## 7. Decisions (2026-11-11)
 
-1. A note with answers stays a `comment`, or a fourth kind `question`?
-   (Proposal: stays a comment; answers mark it. Cheaper, and a critique can
-   become a question and back.)
-2. Surrounding text off or on by default? (Proposal: off, per manuscript
-   confidentiality.)
-3. One answer per tap, or a running thread? (Proposal: one-shot plus **Ask
-   again** with the earlier pairs; no chat box.)
-4. Should Ask also be offered on suggestions? (Proposal: not at first.)
+Proposed in the first version of this note and accepted by Esteban the same
+day: a comment with answers stays a `comment` (no fourth kind); surrounding
+text is off by default; one answer per tap plus **Ask again…**, no chat box;
+not offered on suggestions.
 
-## 8. Verification plan
+## 8. Verification
 
-Unit tests for `ask.ts`, the migration and each adapter's request shape
-against intercepted endpoints; component tests for the dialog and both entry
-points; a headless Chromium run with the endpoints intercepted, counting the
-taps above. Then at least one real call per provider, recorded with the
-date, model and outcome, before any claim that it works.
+Done: unit tests for `ask.ts`, the schema v4 migration and validation, the
+filter and search, the exports, each adapter's request shape against
+intercepted endpoints (shared with Polish); component tests for the dialog,
+the sidebar and the composer button; hook tests for consent, abort and key
+handling.
+
+Not done: no real provider call has been made for Ask, so answer quality,
+latency and cost are unknown; not tried in Safari on an iPad; taps not
+counted on a device.

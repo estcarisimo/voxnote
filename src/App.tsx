@@ -3,7 +3,9 @@ import {
   AnnotationList,
   type TranscriptArrival,
 } from './components/AnnotationList'
+import { AskDialog } from './components/AskDialog'
 import { CleanUpDialog } from './components/CleanUpDialog'
+import { markdownBlocksText, pdfPageText } from './components/passageText'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { deliverTranscript } from './components/deliverTranscript'
 import { baseName, downloadFile } from './components/download'
@@ -29,11 +31,15 @@ import {
   quoteOf,
   type Anchor,
   type Annotation,
+  type Answer,
+  type Comment,
   type Highlight,
   type Note,
   type Transcript,
   type Visibility,
 } from './core/annotations'
+import { surroundingText } from './core/ask'
+import { placeLabel } from './core/review'
 import type { HighlightColor } from './core/palette'
 import {
   exportJson,
@@ -79,6 +85,7 @@ import {
 } from './core/storedDocuments'
 import { useAnnotations } from './hooks/useAnnotations'
 import { useAutoTranscribeConsent } from './hooks/useAutoTranscribeConsent'
+import { useAsk } from './hooks/useAsk'
 import { useCleanUp } from './hooks/useCleanUp'
 import { useDraft } from './hooks/useDraft'
 import { useHighlightColor } from './hooks/useHighlightColor'
@@ -211,6 +218,7 @@ function App() {
     store: autoConsents,
   })
   const cleanUpFlow = useCleanUp(providers)
+  const askFlow = useAsk(providers)
   // Transcripts still on their way to comments saved before they arrived.
   const [arrivals, setArrivals] = useState<
     Readonly<Record<string, TranscriptArrival>>
@@ -344,6 +352,43 @@ function App() {
     await store.applyCleanUp(note.id, proposal)
   }
 
+  /**
+   * Asks about a saved comment's passage, with its body as the question.
+   * The text around the passage is read here and offered in the dialog;
+   * it is only sent if the reviewer ticks it there.
+   */
+  async function askStored(comment: Comment) {
+    const quote = quoteOf(comment.anchor)
+    if (quote === null) throw new Error('A region has no passage to ask about')
+    if (!doc || doc.id !== comment.documentId) {
+      throw new Error('The document changed; open it again to ask')
+    }
+    const page = comment.anchor.page
+    const around =
+      doc.kind === 'pdf'
+        ? await pdfPageText(doc.pdf, page)
+        : markdownBlocksText(doc.markdown, page)
+    const answer = await askFlow.request({
+      question: comment.body,
+      quote,
+      place: placeLabel(comment.anchor).toLowerCase(),
+      surrounding: surroundingText(around, quote),
+      earlier: (comment.answers ?? []).map(({ question, text }) => ({
+        question,
+        text,
+      })),
+    })
+    if (!answer) return
+    if (docIdRef.current !== comment.documentId) {
+      throw new Error('The document changed; the answer was not kept')
+    }
+    await storeRef.current.addAnswer(comment.id, answer)
+  }
+
+  async function deleteAnswer(comment: Comment, answer: Answer) {
+    await store.removeAnswer(comment.id, answer.id)
+  }
+
   // The landing lists the documents with notes in this browser.
   useEffect(() => {
     if (doc) return
@@ -418,6 +463,7 @@ function App() {
       // A consent dialog for the old document must not outlive it.
       transcription.finish(null)
       cleanUpFlow.finish(null)
+      askFlow.finish(null)
       setArrivals({})
       openIdRef.current = opened.id
       setDoc(opened)
@@ -577,6 +623,7 @@ function App() {
     release(doc)
     transcription.finish(null)
     cleanUpFlow.finish(null)
+    askFlow.finish(null)
     setArrivals({})
     setDoc(null)
     setSelectedId(null)
@@ -590,10 +637,19 @@ function App() {
     )
   }
 
-  async function createNote({ pendingTranscript, ...request }: NewNoteRequest) {
+  async function createNote({
+    pendingTranscript,
+    ask,
+    ...request
+  }: NewNoteRequest) {
     const note = await store.addNote(request)
     setSelectedId(note.id)
     if (pendingTranscript) receiveTranscript(note, pendingTranscript)
+    // "Save and ask…": the comment is saved; the question follows. A
+    // failure to ask shows in the error bar and leaves the comment as saved.
+    if (ask && note.kind === 'comment') {
+      askStored(note).catch((err: unknown) => setError(messageOf(err)))
+    }
   }
 
   /** The transcript reaches the saved note, or its error shows in the panel. */
@@ -852,6 +908,7 @@ function App() {
               onCreateNote={createNote}
               transcribe={transcription.request}
               cleanUp={cleanUpFlow.request}
+              canAsk
               autoTranscribe={transcription.auto}
               drafts={drafts}
             />
@@ -868,6 +925,7 @@ function App() {
               onCreateNote={createNote}
               transcribe={transcription.request}
               cleanUp={cleanUpFlow.request}
+              canAsk
               autoTranscribe={transcription.auto}
               drafts={drafts}
             />
@@ -885,6 +943,8 @@ function App() {
             onLoadAudio={(c) => store.getAudio(c.id)}
             onTranscribe={transcribeStored}
             onCleanUp={cleanUpStored}
+            onAsk={askStored}
+            onDeleteAnswer={deleteAnswer}
             arrivals={arrivals}
           />
         )}
@@ -929,6 +989,18 @@ function App() {
           onCancel={() =>
             cleanUpFlow.finish(null, cleanUpFlow.pending ?? undefined)
           }
+        />
+      )}
+      {askFlow.pending && (
+        <AskDialog
+          key={askFlow.pending.id}
+          input={askFlow.pending.input}
+          provider={askFlow.pending.provider}
+          model={askFlow.pending.model}
+          language={providers.settings.language}
+          onConfirm={askFlow.confirm}
+          onKeep={(a) => askFlow.finish(a, askFlow.pending ?? undefined)}
+          onCancel={() => askFlow.finish(null, askFlow.pending ?? undefined)}
         />
       )}
       {pickers}

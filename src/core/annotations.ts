@@ -10,13 +10,15 @@ import {
   type HighlightColor,
 } from './palette'
 
-export const ANNOTATION_SCHEMA_VERSION = 3
+export const ANNOTATION_SCHEMA_VERSION = 4
 // Schema history. v1: highlights, comments, suggestions, voice notes. v2:
 // the optional `cleanUp` record on notes; a v1 record is a valid v2 record
 // without `cleanUp`. v3: the required `color` on highlights, from the fixed
 // palette in ./palette (an older highlight gets the default, yellow, the one
 // color every highlight had before), and the `block-text` anchor for
-// Markdown documents, which no older record can carry.
+// Markdown documents, which no older record can carry. v4: the optional
+// `answers` on comments (questions asked about the passage, see ./ask); a
+// v3 record is a valid v4 record without `answers`.
 
 /**
  * A rectangle in PDF user space: points, origin at the bottom-left of the
@@ -154,6 +156,35 @@ export interface CleanUp {
   editedAfter?: boolean
 }
 
+/**
+ * A model's answer to a question the reviewer asked about the passage.
+ * Written by a model, not by the reviewer: kept verbatim beside the
+ * comment, never merged into its body, and left out of the Markdown report
+ * and the annotated PDF.
+ */
+export interface Answer {
+  id: string
+  /** The question as sent: the comment's body when it was asked. */
+  question: string
+  /** The model's text, verbatim. */
+  text: string
+  /** Text provider id, e.g. "anthropic". */
+  provider: string
+  /** Model id as sent, e.g. "claude-opus-5-5". */
+  model: string
+  /** ASK_PROMPT_VERSION of the instructions that produced it. */
+  promptVersion: number
+  /** What went with the question, so the record says what the model saw. */
+  context: {
+    /** Characters of surrounding document text sent; 0 when none. */
+    surroundingChars: number
+    /** Earlier questions and answers on this comment that were sent. */
+    earlierAnswers: number
+  }
+  /** UTC. */
+  createdAt: string
+}
+
 /** A note attached to an anchor, typed or dictated. */
 export interface Comment extends AnnotationBase {
   kind: 'comment'
@@ -161,6 +192,8 @@ export interface Comment extends AnnotationBase {
   body: string
   voice?: VoiceNote
   cleanUp?: CleanUp
+  /** Answers to questions asked about the passage, oldest first. */
+  answers?: Answer[]
 }
 
 /**
@@ -590,6 +623,41 @@ export function isCleanUp(value: unknown): value is CleanUp {
   )
 }
 
+export function isAnswer(value: unknown): value is Answer {
+  if (typeof value !== 'object' || value === null) return false
+  const a = value as Record<string, unknown>
+  const context = a.context as Record<string, unknown> | null | undefined
+  return (
+    typeof a.id === 'string' &&
+    a.id.length > 0 &&
+    typeof a.question === 'string' &&
+    a.question.trim() !== '' &&
+    typeof a.text === 'string' &&
+    a.text.trim() !== '' &&
+    typeof a.provider === 'string' &&
+    a.provider.length > 0 &&
+    typeof a.model === 'string' &&
+    a.model.length > 0 &&
+    Number.isInteger(a.promptVersion) &&
+    (a.promptVersion as number) >= 1 &&
+    typeof context === 'object' &&
+    context !== null &&
+    Number.isInteger(context.surroundingChars) &&
+    (context.surroundingChars as number) >= 0 &&
+    Number.isInteger(context.earlierAnswers) &&
+    (context.earlierAnswers as number) >= 0 &&
+    isUtcTimestamp(a.createdAt)
+  )
+}
+
+/** Absent, or a non-empty list of answers with distinct ids. */
+function answersOk(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!Array.isArray(value) || value.length === 0) return false
+  if (!value.every(isAnswer)) return false
+  return new Set(value.map((a) => a.id)).size === value.length
+}
+
 /** A clean-up record is only valid beside the transcript it came from. */
 function cleanUpOk(a: Record<string, unknown>): boolean {
   if (a.cleanUp === undefined) return true
@@ -610,7 +678,13 @@ function cleanUpOk(a: Record<string, unknown>): boolean {
 export function migrateAnnotation(value: unknown): unknown {
   if (typeof value !== 'object' || value === null) return value
   const a = value as Record<string, unknown>
+  if (a.schemaVersion === 3) {
+    // v3 had no answers; a record carrying them is not a v3 one.
+    if ('answers' in a) return value
+    return { ...a, schemaVersion: ANNOTATION_SCHEMA_VERSION }
+  }
   if (a.schemaVersion !== 1 && a.schemaVersion !== 2) return value
+  if ('answers' in a) return value
   // v1 had no clean-up record; anything named so is not a v1 record.
   if (a.schemaVersion === 1 && 'cleanUp' in a) return value
   // Neither had a color; a highlight that names one is not one of them.
@@ -643,12 +717,17 @@ export function isAnnotation(value: unknown): value is Annotation {
     isUtcTimestamp(a.updatedAt)
   if (!baseOk) return false
   if (a.kind === 'highlight') {
-    return a.cleanUp === undefined && isHighlightColor(a.color)
+    return (
+      a.cleanUp === undefined &&
+      a.answers === undefined &&
+      isHighlightColor(a.color)
+    )
   }
   if (a.kind === 'comment') {
     if (typeof a.body !== 'string') return false
     if (a.voice !== undefined && !isVoiceNote(a.voice)) return false
     if (!cleanUpOk(a)) return false
+    if (!answersOk(a.answers)) return false
     return a.body.trim() !== '' || a.voice !== undefined
   }
   if (a.kind === 'suggestion') {
@@ -657,6 +736,7 @@ export function isAnnotation(value: unknown): value is Annotation {
     if (typeof a.body !== 'string') return false
     if (a.voice !== undefined && !isVoiceNote(a.voice)) return false
     if (!cleanUpOk(a)) return false
+    if (a.answers !== undefined) return false
     if (a.body.trim() === '') return a.voice !== undefined
     return a.body.trim() !== a.original.trim()
   }

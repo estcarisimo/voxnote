@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CleanUp, Transcript, VoiceNote } from '../core/annotations'
 import { cleanUpForDraft, type CleanUpProposal } from '../core/cleanUp'
 import { formatDuration } from '../core/recording'
@@ -20,6 +20,8 @@ export interface CommentDraft {
    * still on its way, null when cancelled, rejecting when it fails.
    */
   pendingTranscript?: Promise<Transcript | null>
+  /** Saved with "Save and ask…": open the Ask dialog on the saved comment. */
+  ask?: true
 }
 
 export type ComposerMode = 'comment' | 'suggestion'
@@ -54,6 +56,8 @@ interface CommentComposerProps {
   /** The document's standing consent to transcribe on Stop. */
   autoTranscribe?: AutoTranscribeState | null
   onSave: (draft: CommentDraft) => Promise<void>
+  /** Offers "Save and ask…" on a comment about a passage. */
+  canAsk?: boolean
   onCancel: () => void
   /** A draft from before a crash: the composer reopens with it. */
   restored?: RestoredComposer | null
@@ -103,6 +107,7 @@ export function CommentComposer({
   cleanUp = null,
   autoTranscribe = null,
   onSave,
+  canAsk = false,
   onCancel,
   restored = null,
   onDraftChange,
@@ -256,12 +261,21 @@ export function CommentComposer({
     !cleaningUp &&
     (voiceOnly || (!unchanged && (body.trim() !== '' || recording !== null)))
 
-  async function submit(event: FormEvent) {
+  // The comment is the question, so it needs text, and Ask needs a passage.
+  const canSaveAndAsk =
+    canAsk &&
+    mode === 'comment' &&
+    quote !== null &&
+    canSave &&
+    body.trim() !== ''
+
+  async function submit(event: { preventDefault(): void }, ask = false) {
     event.preventDefault()
-    if (!canSave) return
+    if (!canSave || (ask && !canSaveAndAsk)) return
     setSaving(true)
     setError(null)
     const draft: CommentDraft = { body: voiceOnly ? '' : body }
+    if (ask) draft.ask = true
     if (recording) {
       draft.voice = {
         mimeType: recording.mimeType,
@@ -372,6 +386,16 @@ export function CommentComposer({
         >
           Cancel
         </button>
+        {canAsk && mode === 'comment' && quote !== null && (
+          <button
+            type="button"
+            title="Save the comment, then ask a model about the passage with it as the question"
+            disabled={!canSaveAndAsk}
+            onClick={(e) => void submit(e, true)}
+          >
+            Save and ask…
+          </button>
+        )}
         <button type="submit" className="is-primary" disabled={!canSave}>
           {saving ? 'Saving…' : 'Save'}
         </button>

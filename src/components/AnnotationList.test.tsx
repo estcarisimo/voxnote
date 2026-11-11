@@ -7,11 +7,14 @@ import {
   withColor,
   withVisibility,
   type Annotation,
+  type Answer,
+  type Comment,
   type Highlight,
   type Note,
   type TextAnchor,
   type Visibility,
 } from '../core/annotations'
+import { withAnswer } from '../core/ask'
 import type { HighlightColor } from '../core/palette'
 import { AnnotationList } from './AnnotationList'
 
@@ -497,5 +500,116 @@ describe('AnnotationList', () => {
     )
     fireEvent.click(screen.getByText('quoted words'))
     expect(onSelect).toHaveBeenCalledWith(h)
+  })
+
+  describe('questions', () => {
+    const answer: Answer = {
+      id: 'a1',
+      question: 'What is decoherence?',
+      text: 'The loss of quantum superposition.',
+      provider: 'anthropic',
+      model: 'claude-opus-5-5',
+      promptVersion: 1,
+      context: { surroundingChars: 120, earlierAnswers: 0 },
+      createdAt: '2026-11-11T12:00:00.000Z',
+    }
+
+    it('offers Ask… on a comment about a passage, with its body as the question', async () => {
+      const comment = createComment({
+        documentId: 'd',
+        anchor,
+        body: 'What is decoherence?',
+      })
+      const region = createComment({
+        documentId: 'd',
+        anchor: {
+          type: 'region',
+          page: 1,
+          rect: { x: 0, y: 0, width: 5, height: 5 },
+        },
+        body: 'And this figure?',
+      })
+      const suggestion = createSuggestion({
+        documentId: 'd',
+        anchor,
+        body: 'other words',
+      })
+      const onAsk = vi.fn(async () => {
+        throw new Error('Add your OpenAI key in AI keys first')
+      })
+      render(
+        <AnnotationList
+          annotations={[comment, region, suggestion]}
+          selectedId={null}
+          {...noop}
+          onAsk={onAsk}
+        />,
+      )
+      const buttons = screen.getAllByRole('button', { name: 'Ask…' })
+      expect(buttons).toHaveLength(1)
+      fireEvent.click(buttons[0])
+      expect(onAsk).toHaveBeenCalledWith(comment)
+      expect(await screen.findByRole('alert')).toHaveProperty(
+        'textContent',
+        'Add your OpenAI key in AI keys first',
+      )
+    })
+
+    it('offers no Ask… without a handler', () => {
+      const comment = createComment({ documentId: 'd', anchor, body: 'Why?' })
+      render(
+        <AnnotationList annotations={[comment]} selectedId={null} {...noop} />,
+      )
+      expect(screen.queryByRole('button', { name: 'Ask…' })).toBeNull()
+    })
+
+    it('lists kept answers as written by a model, deletes one, and filters by them', async () => {
+      const asked = withAnswer(
+        createComment({
+          documentId: 'd',
+          anchor,
+          body: 'What is decoherence?',
+        }),
+        answer,
+      )
+      const plain = createComment({
+        documentId: 'd',
+        anchor: { ...anchor, page: 4 },
+        body: 'A plain remark',
+      })
+      const onDeleteAnswer = vi.fn<(c: Comment, a: Answer) => Promise<void>>(
+        async () => {},
+      )
+      render(
+        <AnnotationList
+          annotations={[asked, plain]}
+          selectedId={null}
+          {...noop}
+          onAsk={async () => {}}
+          onDeleteAnswer={onDeleteAnswer}
+        />,
+      )
+      expect(
+        screen.getByText('💬 1 answer from a model, not part of your review'),
+      ).toBeTruthy()
+      expect(
+        screen.getByText('The loss of quantum superposition.'),
+      ).toBeTruthy()
+      expect(
+        screen.getByText(
+          /anthropic\/claude-opus-5-5 · 2026-11-11T12:00:00.000Z \(UTC\) · with 120 characters of context/,
+        ),
+      ).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Ask again…' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Ask…' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Delete answer' }))
+      expect(onDeleteAnswer).toHaveBeenCalledWith(asked, answer)
+
+      fireEvent.click(screen.getByRole('button', { name: '💬 Questions' }))
+      expect(screen.queryByText('A plain remark')).toBeNull()
+      expect(
+        screen.getAllByText('What is decoherence?').length,
+      ).toBeGreaterThan(0)
+    })
   })
 })

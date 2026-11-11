@@ -8,11 +8,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Design note for asking a question about a passage
-  (`docs/design/ask-a-question.md`): **Ask…** beside **Polish…** in the
-  composer and on saved comments, a consent step per request, answers kept
-  apart from the note's body and out of author-facing exports, schema v4
-  and open decisions. Not implemented.
+- **Ask a question about a passage.** When a passage is not wrong but you
+  do not understand it yet: write the question as a comment and tap **Save
+  and ask…** in the composer, or **Ask…** on a saved comment in the
+  sidebar. A consent dialog shows what is sent (the question, the quoted
+  passage, and, only if ticked, up to 6 000 characters of the page or
+  blocks around it), to which host and model, and the exact prompt; nothing
+  leaves the device before **Send**. The answer is shown as a model's, and
+  only **Keep** stores it, beside the comment, never in its text; the
+  comment becomes private. **Ask again…** sends the earlier questions and
+  answers too. The sidebar gains a **💬 Questions** filter and searches
+  questions and answers. It uses the text model chosen for Polish, local
+  servers included. Annotation schema v4 (`answers` on comments; older
+  records migrate). The JSON export carries answers; the Markdown report
+  and the annotated PDF leave them out. Design note:
+  `docs/design/ask-a-question.md`. Verified with unit and component tests
+  only; no real provider call has been made for it.
 - **Local models.** Two new entries under **AI keys**, **Local
   speech-to-text server** and **Local text model server**, for a model you
   run yourself behind an OpenAI-compatible API: whisper.cpp
@@ -32,6 +43,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Text model adapters share one `generate()` call; Polish builds its own
+  prompt and disclosure (`cleanUpPrompt`, `describeCleanUpUpload`). The
+  requests and the disclosures Polish shows are unchanged.
 - **Visit counting now shows up in Google Analytics.** The tag denied
   analytics storage, so GA4 sent only cookieless pings, which Google keeps
   for modeling and does not report for a site this small: from 2026-10-30
