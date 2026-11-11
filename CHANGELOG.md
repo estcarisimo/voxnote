@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Design note for asking a question about a passage
+  (`docs/design/ask-a-question.md`): **Ask…** beside **Polish…** in the
+  composer and on saved comments, a consent step per request, answers kept
+  apart from the note's body and out of author-facing exports, schema v4
+  and open decisions. Not implemented.
 - **Local models.** Two new entries under **AI keys**, **Local
   speech-to-text server** and **Local text model server**, for a model you
   run yourself behind an OpenAI-compatible API: whisper.cpp
