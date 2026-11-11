@@ -3,6 +3,8 @@ import {
   CLEAN_UP_INSTRUCTIONS,
   CLEAN_UP_PROMPT_VERSION,
   cleanUp,
+  cleanUpPrompt,
+  MAX_TRANSCRIPT_CHARS,
   outputTokenLimit,
   type TextModelProvider,
 } from './llm'
@@ -13,8 +15,8 @@ function fakeProvider(answer: string): TextModelProvider {
     name: 'Fake',
     endpointHost: 'llm.example',
     models: [{ id: 'm1', label: 'M1' }],
-    describeUpload: () => 'sends text',
-    cleanUp: vi.fn(async () => answer),
+    describeDestination: () => 'to llm.example',
+    generate: vi.fn(async () => answer),
   }
 }
 
@@ -71,7 +73,30 @@ describe('cleanUp', () => {
         },
       ),
     ).rejects.toThrow(/no raw transcript/)
-    expect(provider.cleanUp).not.toHaveBeenCalled()
+    await expect(
+      cleanUp(
+        provider,
+        { ...request, transcript: 'x'.repeat(MAX_TRANSCRIPT_CHARS + 1) },
+        { apiKey: 'k', model: 'm1' },
+      ),
+    ).rejects.toThrow(/polishing accepts up to/)
+    expect(provider.generate).not.toHaveBeenCalled()
+  })
+})
+
+describe('cleanUp sends', () => {
+  it('the clean-up prompt, at low effort', async () => {
+    const provider = fakeProvider('The claim is weak.')
+    await cleanUp(provider, request, { apiKey: 'k', model: 'm1' }, now)
+    expect(provider.generate).toHaveBeenCalledWith(
+      cleanUpPrompt(request),
+      expect.objectContaining({ apiKey: 'k', model: 'm1' }),
+    )
+    expect(cleanUpPrompt(request)).toMatchObject({
+      instructions: CLEAN_UP_INSTRUCTIONS,
+      effort: 'low',
+      maxOutputTokens: outputTokenLimit(request),
+    })
   })
 })
 

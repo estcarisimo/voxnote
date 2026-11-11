@@ -5,6 +5,7 @@ import {
   buildCleanUpInput,
   CLEAN_UP_INSTRUCTIONS,
   CLEAN_UP_PROMPT_VERSION,
+  describeCleanUpUpload,
   type CleanUpRequest,
   type TextModelProvider,
 } from '../providers/llm'
@@ -147,7 +148,7 @@ export function CleanUpDialog({
           Polish this transcript with {provider.name}?
         </h2>
         <p className="dialog-disclosure">
-          {provider.describeUpload(request, model)}
+          {describeCleanUpUpload(provider, request, model)}
         </p>
         <p className="dialog-note">
           The model is asked to fix punctuation, casing, fillers and technical

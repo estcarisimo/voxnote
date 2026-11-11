@@ -1,5 +1,5 @@
 /**
- * xAI (Grok) text clean-up behind the TextModelProvider interface. Endpoint
+ * xAI (Grok) text generation behind the TextModelProvider interface. Endpoint
  * and parameters per the xAI REST reference and models page as read on
  * 2026-10-29 (docs.x.ai/developers/rest-api-reference/inference/responses,
  * docs.x.ai/docs/models): POST https://api.x.ai/v1/responses with a Bearer
@@ -9,12 +9,7 @@
  * not listed per model.
  */
 import {
-  assertSendable,
-  buildCleanUpInput,
-  CLEAN_UP_INSTRUCTIONS,
-  describeParts,
-  joinNatural,
-  outputTokenLimit,
+  assertPromptSendable,
   readJson,
   responsesText,
   type TextModelInfo,
@@ -46,16 +41,15 @@ export function createXaiTextProvider(
     endpointHost: XAI_HOST,
     models: XAI_TEXT_MODELS,
 
-    describeUpload(request, model) {
+    describeDestination(model) {
       return (
-        `Sends ${joinNatural(describeParts(request))} to xAI at ${XAI_HOST}, ` +
-        `model ${model}, with your API key, asking xAI not to store the request ` +
-        `(store: false). Nothing else: not the recording, not the document, not other comments.`
+        `to xAI at ${XAI_HOST}, model ${model}, with your API key, ` +
+        'asking xAI not to store the request (store: false)'
       )
     },
 
-    async cleanUp(request, options) {
-      assertSendable(name, request, options)
+    async generate(prompt, options) {
+      assertPromptSendable(name, prompt, options)
       const response = await fetchImpl(XAI_RESPONSES_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -64,9 +58,9 @@ export function createXaiTextProvider(
         },
         body: JSON.stringify({
           model: options.model,
-          instructions: CLEAN_UP_INSTRUCTIONS,
-          input: buildCleanUpInput(request),
-          max_output_tokens: outputTokenLimit(request),
+          instructions: prompt.instructions,
+          input: prompt.input,
+          max_output_tokens: prompt.maxOutputTokens,
           store: false,
         }),
         signal: options.signal,

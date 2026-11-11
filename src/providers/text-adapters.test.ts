@@ -7,7 +7,9 @@ import {
 import {
   buildCleanUpInput,
   CLEAN_UP_INSTRUCTIONS,
-  MAX_TRANSCRIPT_CHARS,
+  cleanUpPrompt,
+  describeCleanUpUpload,
+  MAX_INPUT_CHARS,
   type CleanUpRequest,
   type TextModelProvider,
 } from './llm'
@@ -33,6 +35,8 @@ const request: CleanUpRequest = {
   quote: 'the qubit decoheres',
   language: 'en',
 }
+
+const prompt = cleanUpPrompt(request)
 
 /** A Responses API answer, the shape OpenAI and xAI share. */
 function responsesBody(text: string, extra: Record<string, unknown> = {}) {
@@ -87,7 +91,7 @@ describe.each(responsesProviders)(
         200,
         responsesBody('The qubit claim is not supported.'),
       )
-      const text = await create(fetch).cleanUp(request, {
+      const text = await create(fetch).generate(prompt, {
         apiKey: 'sk-secret-123',
         model,
       })
@@ -112,7 +116,7 @@ describe.each(responsesProviders)(
         error: { message: 'Incorrect API key provided: sk-secret-123.' },
       })
       await expect(
-        create(fetch).cleanUp(request, { apiKey: 'sk-secret-123', model }),
+        create(fetch).generate(prompt, { apiKey: 'sk-secret-123', model }),
       ).rejects.toThrow(
         `${name} responded 401: Incorrect API key provided: sk-….`,
       )
@@ -146,7 +150,7 @@ describe.each(responsesProviders)(
       ]
       for (const [reply, error] of cases) {
         await expect(
-          create(fetchReplying(200, reply)).cleanUp(request, {
+          create(fetchReplying(200, reply)).generate(prompt, {
             apiKey: 'k',
             model,
           }),
@@ -154,31 +158,28 @@ describe.each(responsesProviders)(
       }
     })
 
-    it('refuses to send without a key, without a transcript, or past the size limit', async () => {
+    it('refuses to send without a key, without a message, or past the size limit', async () => {
       const fetch = fetchReplying(200, responsesBody('x'))
       const provider = create(fetch)
       await expect(
-        provider.cleanUp(request, { apiKey: ' ', model }),
+        provider.generate(prompt, { apiKey: ' ', model }),
       ).rejects.toThrow(/needs an API key/)
       await expect(
-        provider.cleanUp(
-          { ...request, transcript: ' ' },
-          { apiKey: 'k', model },
-        ),
-      ).rejects.toThrow(/no raw transcript/)
+        provider.generate({ ...prompt, input: ' ' }, { apiKey: 'k', model }),
+      ).rejects.toThrow(/nothing to send/)
       await expect(
-        provider.cleanUp(
-          { ...request, transcript: 'x'.repeat(MAX_TRANSCRIPT_CHARS + 1) },
+        provider.generate(
+          { ...prompt, input: 'x'.repeat(MAX_INPUT_CHARS + 1) },
           { apiKey: 'k', model },
         ),
-      ).rejects.toThrow(/polishing accepts up to/)
+      ).rejects.toThrow(/sends up to/)
       expect(fetch).not.toHaveBeenCalled()
     })
 
     it('passes the abort signal to fetch', async () => {
       const fetch = fetchReplying(200, responsesBody('x'))
       const controller = new AbortController()
-      await create(fetch).cleanUp(request, {
+      await create(fetch).generate(prompt, {
         apiKey: 'k',
         model,
         signal: controller.signal,
@@ -188,14 +189,15 @@ describe.each(responsesProviders)(
 
     it('describes what is sent, where and to which model', () => {
       const provider = create(fetchReplying(200, {}))
-      const text = provider.describeUpload(request, model)
+      const text = describeCleanUpUpload(provider, request, model)
       expect(text).toContain(provider.endpointHost)
       expect(text).toContain(`model ${model}`)
       expect(text).toContain('the raw transcript (38 characters)')
       expect(text).toContain('the quoted passage')
       expect(text).toContain('the language hint "en"')
       expect(text).toContain('store: false')
-      const bare = provider.describeUpload(
+      const bare = describeCleanUpUpload(
+        provider,
         { transcript: 'abc', kind: 'comment' },
         model,
       )
@@ -206,20 +208,22 @@ describe.each(responsesProviders)(
 )
 
 describe('OpenAI text adapter specifics', () => {
-  it('asks for low reasoning effort', async () => {
-    const fetch = fetchReplying(200, responsesBody('x'))
-    await createOpenAiTextProvider(fetch).cleanUp(request, {
-      apiKey: 'k',
-      model: 'gpt-6-luna',
-    })
-    expect(sent(fetch).body.reasoning).toEqual({ effort: 'low' })
+  it('sends the reasoning effort the prompt asks for', async () => {
+    for (const effort of ['low', 'medium'] as const) {
+      const fetch = fetchReplying(200, responsesBody('x'))
+      await createOpenAiTextProvider(fetch).generate(
+        { ...prompt, effort },
+        { apiKey: 'k', model: 'gpt-6-luna' },
+      )
+      expect(sent(fetch).body.reasoning).toEqual({ effort })
+    }
   })
 })
 
 describe('xAI text adapter specifics', () => {
   it('sends no reasoning effort, whose values the docs leave per model', async () => {
     const fetch = fetchReplying(200, responsesBody('x'))
-    await createXaiTextProvider(fetch).cleanUp(request, {
+    await createXaiTextProvider(fetch).generate(prompt, {
       apiKey: 'xai-secret-1',
       model: 'grok-4.7',
     })
@@ -231,7 +235,7 @@ describe('xAI text adapter specifics', () => {
       error: 'Incorrect API key provided: xai-secret-1',
     })
     await expect(
-      createXaiTextProvider(fetch).cleanUp(request, {
+      createXaiTextProvider(fetch).generate(prompt, {
         apiKey: 'xai-secret-1',
         model: 'grok-4.7',
       }),
@@ -258,7 +262,7 @@ describe('Anthropic text adapter', () => {
       200,
       messageBody('The qubit claim is not supported.'),
     )
-    const text = await createAnthropicTextProvider(fetch).cleanUp(request, {
+    const text = await createAnthropicTextProvider(fetch).generate(prompt, {
       apiKey: 'sk-ant-secret-1',
       model: 'claude-opus-5-5',
     })
@@ -286,8 +290,8 @@ describe('Anthropic text adapter', () => {
 
   it('throws on a refusal, a cut-off answer, no text, or an error status', async () => {
     const provider = (reply: unknown, status = 200) =>
-      createAnthropicTextProvider(fetchReplying(status, reply)).cleanUp(
-        request,
+      createAnthropicTextProvider(fetchReplying(status, reply)).generate(
+        prompt,
         {
           apiKey: 'sk-ant-secret-1',
           model: 'claude-haiku-5-5',
