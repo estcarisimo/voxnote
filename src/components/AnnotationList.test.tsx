@@ -580,17 +580,23 @@ describe('AnnotationList', () => {
       const onDeleteAnswer = vi.fn<(c: Comment, a: Answer) => Promise<void>>(
         async () => {},
       )
+      const onAsk = vi
+        .fn<(c: Comment, q?: string) => Promise<boolean>>()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true)
       render(
         <AnnotationList
           annotations={[asked, plain]}
           selectedId={null}
           {...noop}
-          onAsk={async () => {}}
+          onAsk={onAsk}
           onDeleteAnswer={onDeleteAnswer}
         />,
       )
       expect(
-        screen.getByText('💬 1 answer from a model, not part of your review'),
+        screen.getByText(
+          '💬 Thread: 1 answer from a model, not part of your review',
+        ),
       ).toBeTruthy()
       expect(
         screen.getByText('The loss of quantum superposition.'),
@@ -600,8 +606,29 @@ describe('AnnotationList', () => {
           /anthropic\/claude-opus-5-5 · 2026-11-11T12:00:00.000Z \(UTC\) · with 120 characters of context/,
         ),
       ).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Ask again…' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Ask…' })).toBeTruthy()
+      // The asked comment continues in its thread; the plain one asks its body.
+      expect(screen.getAllByRole('button', { name: 'Ask…' })).toHaveLength(2)
+      const followUp = screen.getByRole('textbox', {
+        name: 'Follow-up question',
+      })
+      fireEvent.change(followUp, { target: { value: 'Why 3 µs?' } })
+      fireEvent.click(
+        followUp.parentElement!.querySelector('button') as HTMLElement,
+      )
+      expect(onAsk).toHaveBeenCalledWith(asked, 'Why 3 µs?')
+      // Cancelled or discarded: the typed follow-up stays.
+      await vi.waitFor(() =>
+        expect(followUp.parentElement!.querySelector('button')).toHaveProperty(
+          'disabled',
+          false,
+        ),
+      )
+      expect(followUp).toHaveProperty('value', 'Why 3 µs?')
+      // Kept: the box is cleared for the next one.
+      fireEvent.click(
+        followUp.parentElement!.querySelector('button') as HTMLElement,
+      )
+      await vi.waitFor(() => expect(followUp).toHaveProperty('value', ''))
       fireEvent.click(screen.getByRole('button', { name: 'Delete answer' }))
       expect(onDeleteAnswer).toHaveBeenCalledWith(asked, answer)
 

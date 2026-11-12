@@ -969,4 +969,56 @@ describe('CommentComposer', () => {
       expect(screen.queryByRole('button', { name: 'Save and ask…' })).toBeNull()
     })
   })
+
+  describe('opened from Ask in the toolbar', () => {
+    it('takes a typed question and saves it flagged to ask, with no plain Save', () => {
+      const onSave = vi.fn(async () => {})
+      render(
+        <CommentComposer
+          placement={placement}
+          mode="comment"
+          quote="the quoted passage"
+          recorder={null}
+          transcribe={null}
+          askOnly
+          onSave={onSave}
+          onCancel={() => {}}
+        />,
+      )
+      expect(screen.getByRole('form', { name: 'New question' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Save and ask…' })).toBeNull()
+      const ask = screen.getByRole('button', { name: 'Ask…' })
+      expect(ask).toHaveProperty('disabled', true)
+      fireEvent.change(screen.getByRole('textbox', { name: 'Question' }), {
+        target: { value: 'What is T2 star?' },
+      })
+      fireEvent.click(ask)
+      expect(onSave).toHaveBeenCalledWith({
+        body: 'What is T2 star?',
+        ask: true,
+      })
+    })
+
+    it('offers the recorder too, so the question can be dictated', () => {
+      render(
+        <CommentComposer
+          placement={placement}
+          mode="comment"
+          quote="the quoted passage"
+          recorder={recorderWith({ status: 'idle' })}
+          transcribe={null}
+          askOnly
+          onSave={async () => {}}
+          onCancel={() => {}}
+        />,
+      )
+      expect(screen.getByRole('button', { name: '● Record' })).toBeTruthy()
+      expect(
+        screen.getByPlaceholderText(
+          'Type or dictate what you do not understand here',
+        ),
+      ).toBeTruthy()
+    })
+  })
 })

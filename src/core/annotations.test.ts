@@ -183,8 +183,8 @@ describe('isAnchor / isAnnotation', () => {
       },
       new Date('2026-01-01T00:00:00Z'),
     )
-    expect(isAnnotation({ ...good, schemaVersion: 5 })).toBe(false)
-    expect(isAnnotation({ ...good, schemaVersion: 3 })).toBe(false)
+    expect(isAnnotation({ ...good, schemaVersion: 6 })).toBe(false)
+    expect(isAnnotation({ ...good, schemaVersion: 4 })).toBe(false)
     expect(isAnnotation({ ...good, schemaVersion: 1 })).toBe(false)
     const { color: _color, ...colorless } = good
     expect(isAnnotation(colorless)).toBe(false)
@@ -550,10 +550,10 @@ describe('clean-up records and schema v2', () => {
     ).toBe(false)
   })
 
-  it('migrates a v1, v2 or v3 note by its version number only', () => {
+  it('migrates a v1 to v4 note by its version number only', () => {
     const v3 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
-    expect(ANNOTATION_SCHEMA_VERSION).toBe(4)
-    for (const schemaVersion of [1, 2, 3]) {
+    expect(ANNOTATION_SCHEMA_VERSION).toBe(5)
+    for (const schemaVersion of [1, 2, 3, 4]) {
       const old = { ...v3, schemaVersion }
       expect(isAnnotation(old)).toBe(false)
       const migrated = migrateAnnotation(old)
@@ -577,7 +577,7 @@ describe('clean-up records and schema v2', () => {
   it('leaves anything else for isAnnotation to reject', () => {
     const v3 = createComment({ documentId: 'doc', anchor, body: 'x', voice })
     expect(migrateAnnotation(v3)).toBe(v3)
-    const future = { ...v3, schemaVersion: 5 }
+    const future = { ...v3, schemaVersion: 6 }
     expect(migrateAnnotation(future)).toBe(future)
     const odd = { ...v3, schemaVersion: 1, cleanUp }
     expect(migrateAnnotation(odd)).toBe(odd)

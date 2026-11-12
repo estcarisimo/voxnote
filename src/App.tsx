@@ -38,7 +38,11 @@ import {
   type Transcript,
   type Visibility,
 } from './core/annotations'
-import { surroundingText } from './core/ask'
+import {
+  DEFAULT_ANSWER_LENGTH,
+  surroundingText,
+  type AnswerLength,
+} from './core/ask'
 import { placeLabel } from './core/review'
 import type { HighlightColor } from './core/palette'
 import {
@@ -219,6 +223,10 @@ function App() {
   })
   const cleanUpFlow = useCleanUp(providers)
   const askFlow = useAsk(providers)
+  // The answer length picked last; kept for the session.
+  const [askLength, setAskLength] = useState<AnswerLength>(
+    DEFAULT_ANSWER_LENGTH,
+  )
   // Transcripts still on their way to comments saved before they arrived.
   const [arrivals, setArrivals] = useState<
     Readonly<Record<string, TranscriptArrival>>
@@ -353,11 +361,18 @@ function App() {
   }
 
   /**
-   * Asks about a saved comment's passage, with its body as the question.
-   * The text around the passage is read here and offered in the dialog;
-   * it is only sent if the reviewer ticks it there.
+   * Asks about a saved comment's passage: by default its body is the
+   * question; a follow-up from the sidebar thread passes its own. The text
+   * around the passage is read here and offered in the dialog; it is only
+   * sent if the reviewer ticks it there. "Keep and ask…" in the dialog keeps
+   * the answer and asks the typed follow-up next, each through its own
+   * consent step, until the reviewer stops. Resolves true when the answer
+   * to the first question was kept, false after Cancel or Discard.
    */
-  async function askStored(comment: Comment) {
+  async function askStored(
+    comment: Comment,
+    question?: string,
+  ): Promise<boolean> {
     const quote = quoteOf(comment.anchor)
     if (quote === null) throw new Error('A region has no passage to ask about')
     // The open document now, not this render's: "Save and ask…" calls this
@@ -377,21 +392,34 @@ function App() {
         : markdownBlocksText(opened.markdown, page)
     // A consent dialog for the old document must not outlive it.
     if (stale()) throw new Error('The document changed; open it again to ask')
-    const answer = await askFlow.request({
-      question: comment.body,
-      quote,
-      place: placeLabel(comment.anchor).toLowerCase(),
-      surrounding: surroundingText(around, quote),
-      earlier: (comment.answers ?? []).map(({ question, text }) => ({
-        question,
-        text,
-      })),
-    })
-    if (!answer) return
-    if (docIdRef.current !== comment.documentId) {
-      throw new Error('The document changed; the answer was not kept')
+    const surrounding = surroundingText(around, quote)
+    let current = comment
+    let next = question ?? comment.body
+    let kept = false
+    for (;;) {
+      // Each pass opens a consent dialog: never for a document now closed.
+      if (stale()) {
+        throw new Error('The document changed; open it again to ask')
+      }
+      const outcome = await askFlow.request({
+        question: next,
+        quote,
+        place: placeLabel(comment.anchor).toLowerCase(),
+        surrounding,
+        earlier: (current.answers ?? []).map((a) => ({
+          question: a.question,
+          text: a.text,
+        })),
+      })
+      if (!outcome) return kept
+      if (docIdRef.current !== comment.documentId) {
+        throw new Error('The document changed; the answer was not kept')
+      }
+      current = await storeRef.current.addAnswer(comment.id, outcome.answer)
+      kept = true
+      if (outcome.followUp === null) return kept
+      next = outcome.followUp
     }
-    await storeRef.current.addAnswer(comment.id, answer)
   }
 
   async function deleteAnswer(comment: Comment, answer: Answer) {
@@ -1007,6 +1035,8 @@ function App() {
           provider={askFlow.pending.provider}
           model={askFlow.pending.model}
           language={providers.settings.language}
+          length={askLength}
+          onLengthChange={setAskLength}
           onConfirm={askFlow.confirm}
           onKeep={(a) => askFlow.finish(a, askFlow.pending ?? undefined)}
           onCancel={() => askFlow.finish(null, askFlow.pending ?? undefined)}

@@ -398,6 +398,9 @@ describe('isDraft', () => {
 
   it('accepts a typed comment on a region', () => {
     expect(isDraft(draft({ mode: 'typed', anchor: regionAnchor }))).toBe(true)
+    // A question needs a passage, like a suggestion.
+    expect(isDraft(draft({ mode: 'ask' }))).toBe(true)
+    expect(isDraft(draft({ mode: 'ask', anchor: regionAnchor }))).toBe(false)
   })
 
   it('rejects a transcript without a recording', () => {

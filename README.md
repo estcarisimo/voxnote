@@ -68,8 +68,10 @@ Screen** to install it as an app (reported working on a real iPad on
   transcript is never touched, and a polished body is labeled as such in the
   sidebar and the exports
 - ❓ **Ask about a passage**: when you do not understand a passage yet,
-  write the question as a comment and tap **Save and ask…** (or **Ask…** on
-  a saved comment). The same consent dialog names what is sent (the
+  select it and tap **❓ Ask** (or **Save and ask…** on a comment, or
+  **Ask…** on a saved one), type or dictate the question, and pick **One
+  line**, **One paragraph** or **Thorough**. Follow-ups continue the thread,
+  in the dialog or the sidebar. The same consent dialog names what is sent (the
   question, the passage and, only if you tick it, the text around it), the
   host and the model; the answer is labeled as a model's, kept beside the
   comment only if you tap **Keep**, and left out of the Markdown report and

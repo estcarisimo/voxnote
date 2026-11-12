@@ -22,6 +22,8 @@ interface SelectionToolbarProps {
   onVoice: () => void
   /** Only text can be replaced: null hides the action for regions. */
   onSuggest: (() => void) | null
+  /** Ask a model about the passage; null hides it (regions, unavailable). */
+  onAsk?: (() => void) | null
 }
 
 /**
@@ -43,6 +45,7 @@ export function SelectionToolbar({
   onComment,
   onVoice,
   onSuggest,
+  onAsk = null,
 }: SelectionToolbarProps) {
   const heldRange = useRef<Range | null>(null)
 
@@ -98,6 +101,15 @@ export function SelectionToolbar({
       {onSuggest && (
         <button type="button" onClick={onSuggest}>
           Suggest
+        </button>
+      )}
+      {onAsk && (
+        <button
+          type="button"
+          onClick={onAsk}
+          title="Ask a model about this passage"
+        >
+          ❓ Ask
         </button>
       )}
     </div>

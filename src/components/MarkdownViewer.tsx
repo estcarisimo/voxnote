@@ -63,7 +63,7 @@ interface PendingAnchor {
   placement: ToolbarPlacement
 }
 
-type Composer = 'typed' | 'voice' | 'suggest' | null
+type Composer = 'typed' | 'voice' | 'suggest' | 'ask' | null
 
 /**
  * Shows a rendered Markdown document and turns text selections inside one
@@ -99,7 +99,7 @@ export function MarkdownViewer({
   const composerRef = useRef<Composer>(composer)
   const kept = useComposerDraft(
     drafts,
-    composer === 'voice' || composer === 'suggest',
+    composer === 'voice' || composer === 'suggest' || composer === 'ask',
   )
   const { recorder } = kept
 
@@ -213,6 +213,7 @@ export function MarkdownViewer({
           onComment={() => openComposer('typed')}
           onVoice={() => openComposer('voice')}
           onSuggest={() => openComposer('suggest')}
+          onAsk={canAsk ? () => openComposer('ask') : null}
         />
       )}
       {pending && composer && (
@@ -227,6 +228,7 @@ export function MarkdownViewer({
           autoTranscribe={composer === 'typed' ? null : autoTranscribe}
           onSave={saveNote}
           canAsk={canAsk}
+          askOnly={composer === 'ask'}
           onCancel={closeComposer}
           restored={kept.restored}
           onDraftChange={drafts ? kept.onDraftChange : undefined}

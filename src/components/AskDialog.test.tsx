@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { Answer } from '../core/annotations'
-import type { AskRequest } from '../core/ask'
+import type { AnswerLength, AskRequest } from '../core/ask'
 import type { AskInput } from '../hooks/useAsk'
 import type { TextModelProvider } from '../providers/llm'
 import { AskDialog } from './AskDialog'
@@ -42,6 +42,8 @@ function renderDialog(
     provider,
     model: 'm1',
     language: '',
+    length: 'paragraph' as AnswerLength,
+    onLengthChange: vi.fn(),
     onConfirm: vi.fn(async (request: AskRequest) => {
       void request
       return answer
@@ -59,7 +61,7 @@ describe('AskDialog', () => {
     const props = renderDialog()
     expect(
       screen.getByText(
-        'Sends your question (20 characters), the quoted passage (19 characters) and the instructions shown under Prompt to llm.example, model m1. Nothing else: not the recording, not the rest of the document, not other comments.',
+        'Sends your question (20 characters), the quoted passage (19 characters), the answer length you chose (one paragraph) and the instructions shown under Prompt to llm.example, model m1. Nothing else: not the recording, not the rest of the document, not other comments.',
       ),
     ).toBeTruthy()
     expect(props.onConfirm).not.toHaveBeenCalled()
@@ -67,13 +69,14 @@ describe('AskDialog', () => {
     expect(props.onConfirm).toHaveBeenCalledWith({
       question: input.question,
       quote: input.quote,
+      length: 'paragraph',
     })
     expect(
       await screen.findByText('The loss of quantum superposition.'),
     ).toBeTruthy()
     expect(screen.getByText('Answer from fake/m1')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Keep' }))
-    expect(props.onKeep).toHaveBeenCalledWith(answer)
+    expect(props.onKeep).toHaveBeenCalledWith({ answer, followUp: null })
   })
 
   it('sends the surrounding text only when ticked, and says so first', () => {
@@ -93,6 +96,7 @@ describe('AskDialog', () => {
     expect(props.onConfirm).toHaveBeenCalledWith({
       question: input.question,
       quote: input.quote,
+      length: 'paragraph',
       language: 'es',
       surrounding: { text: input.surrounding, place: 'page 2' },
       earlier: [{ question: 'q0', text: 'a0' }],
@@ -121,5 +125,50 @@ describe('AskDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(props.onCancel).toHaveBeenCalled()
     expect(props.onKeep).not.toHaveBeenCalled()
+  })
+
+  it('lets the reader pick the answer length, which goes into the request', () => {
+    const props = renderDialog({ length: 'thorough' })
+    expect(screen.getByRole('radio', { name: 'Thorough' })).toHaveProperty(
+      'checked',
+      true,
+    )
+    expect(
+      screen.getByText(/the answer length you chose \(thorough\)/),
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('radio', { name: 'One line' }))
+    expect(props.onLengthChange).toHaveBeenCalledWith('line')
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Fake LLM' }))
+    expect(props.onConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({ length: 'thorough' }),
+    )
+  })
+
+  it('shows the earlier thread and keeps an answer with a typed follow-up', async () => {
+    const props = renderDialog({
+      input: {
+        ...input,
+        question: 'And how is it measured?',
+        earlier: [{ question: input.question, text: 'Loss of coherence.' }],
+      },
+    })
+    expect(screen.getByText('Ask Fake LLM a follow-up?')).toBeTruthy()
+    expect(screen.getByText('Earlier in this thread (1 question)')).toBeTruthy()
+    expect(screen.getByText('Loss of coherence.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Send to Fake LLM' }))
+    await screen.findByText('The loss of quantum superposition.')
+    expect(screen.queryByRole('button', { name: 'Keep and ask…' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Keep' })).toBeTruthy()
+    fireEvent.change(
+      screen.getByRole('textbox', { name: /Follow-up question/ }),
+      { target: { value: '  Why 3 µs?  ' } },
+    )
+    // With a follow-up typed, a plain Keep would drop it: it is not offered.
+    expect(screen.queryByRole('button', { name: 'Keep' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep and ask…' }))
+    expect(props.onKeep).toHaveBeenCalledWith({
+      answer,
+      followUp: 'Why 3 µs?',
+    })
   })
 })

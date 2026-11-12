@@ -103,7 +103,7 @@ interface PendingAnchor {
  * typed: a comment without recorder; voice: a comment, recording at once;
  * suggest: a replacement for the selected text, with the recorder on hand.
  */
-type Composer = 'typed' | 'voice' | 'suggest' | null
+type Composer = 'typed' | 'voice' | 'suggest' | 'ask' | null
 
 /**
  * Scrolls all pages of a document vertically, fitting them to the width, and
@@ -149,7 +149,7 @@ export function PdfViewer({
   const penSelectingRef = useRef(false)
   const kept = useComposerDraft(
     drafts,
-    composer === 'voice' || composer === 'suggest',
+    composer === 'voice' || composer === 'suggest' || composer === 'ask',
   )
   const { recorder } = kept
   const nearPages = useNearPages(containerRef, pdf.numPages, RENDER_MARGIN)
@@ -462,6 +462,11 @@ export function PdfViewer({
                 ? () => openComposer('suggest')
                 : null
             }
+            onAsk={
+              canAsk && shown.anchor.type === 'text'
+                ? () => openComposer('ask')
+                : null
+            }
           />
         )}
         {shown && composer && (
@@ -476,6 +481,7 @@ export function PdfViewer({
             autoTranscribe={composer === 'typed' ? null : autoTranscribe}
             onSave={saveNote}
             canAsk={canAsk}
+            askOnly={composer === 'ask'}
             onCancel={closeComposer}
             restored={kept.restored}
             onDraftChange={drafts ? kept.onDraftChange : undefined}

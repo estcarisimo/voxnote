@@ -58,6 +58,11 @@ interface CommentComposerProps {
   onSave: (draft: CommentDraft) => Promise<void>
   /** Offers "Save and ask…" on a comment about a passage. */
   canAsk?: boolean
+  /**
+   * Opened from Ask in the selection toolbar: the comment is a question,
+   * and the only way out besides Cancel is "Ask…" (save, then ask).
+   */
+  askOnly?: boolean
   onCancel: () => void
   /** A draft from before a crash: the composer reopens with it. */
   restored?: RestoredComposer | null
@@ -108,6 +113,7 @@ export function CommentComposer({
   autoTranscribe = null,
   onSave,
   canAsk = false,
+  askOnly = false,
   onCancel,
   restored = null,
   onDraftChange,
@@ -263,7 +269,7 @@ export function CommentComposer({
 
   // The comment is the question, so it needs text, and Ask needs a passage.
   const canSaveAndAsk =
-    canAsk &&
+    (canAsk || askOnly) &&
     mode === 'comment' &&
     quote !== null &&
     canSave &&
@@ -305,9 +311,15 @@ export function CommentComposer({
   return (
     <form
       className="comment-composer"
-      aria-label={mode === 'suggestion' ? 'New suggestion' : 'New comment'}
+      aria-label={
+        askOnly
+          ? 'New question'
+          : mode === 'suggestion'
+            ? 'New suggestion'
+            : 'New comment'
+      }
       style={{ left: placement.left, top: placement.bottom }}
-      onSubmit={submit}
+      onSubmit={(e) => void submit(e, askOnly)}
     >
       {restored && onDiscardDraft && (
         <p className="comment-composer-restored" role="status">
@@ -351,8 +363,20 @@ export function CommentComposer({
         />
       )}
       <textarea
-        aria-label={mode === 'suggestion' ? 'Replacement text' : 'Comment'}
-        placeholder={placeholderFor(mode, recorder !== null)}
+        aria-label={
+          askOnly
+            ? 'Question'
+            : mode === 'suggestion'
+              ? 'Replacement text'
+              : 'Comment'
+        }
+        placeholder={
+          askOnly
+            ? recorder
+              ? 'Type or dictate what you do not understand here'
+              : 'What do you not understand here?'
+            : placeholderFor(mode, recorder !== null)
+        }
         rows={3}
         value={body}
         autoFocus={!recorder || mode === 'suggestion'}
@@ -386,7 +410,7 @@ export function CommentComposer({
         >
           Cancel
         </button>
-        {canAsk && mode === 'comment' && quote !== null && (
+        {!askOnly && canAsk && mode === 'comment' && quote !== null && (
           <button
             type="button"
             title="Save the comment, then ask a model about the passage with it as the question"
@@ -396,9 +420,20 @@ export function CommentComposer({
             Save and ask…
           </button>
         )}
-        <button type="submit" className="is-primary" disabled={!canSave}>
-          {saving ? 'Saving…' : 'Save'}
-        </button>
+        {askOnly ? (
+          <button
+            type="submit"
+            className="is-primary"
+            title="Save the question as a private comment, then ask a model about the passage"
+            disabled={!canSaveAndAsk}
+          >
+            {saving ? 'Saving…' : 'Ask…'}
+          </button>
+        ) : (
+          <button type="submit" className="is-primary" disabled={!canSave}>
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        )}
       </div>
     </form>
   )

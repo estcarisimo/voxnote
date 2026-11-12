@@ -180,3 +180,44 @@
   font-size: 0.85rem;
   white-space: pre-wrap;
 }
+
+.dialog-field textarea {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.dialog-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 10px;
+  padding: 6px 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.dialog-choice legend {
+  padding: 0 4px;
+}
+
+.dialog-thread {
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+
+.dialog-thread ol {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.dialog-thread p {
+  margin: 2px 0;
+  white-space: pre-wrap;
+}

@@ -8,6 +8,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Ask: from the toolbar, in threads, at the length you want.** A new
+  **❓ Ask** button in the selection toolbar opens a question composer
+  (typed, or dictated with the recorder) whose action is **Ask…**. Under an
+  answer, a **Follow-up question** box and **Keep and ask…** continue the
+  thread, each question with its own consent step; the sidebar shows the
+  answers as a thread with a follow-up box (replacing **Ask again…**). The
+  consent dialog offers **One line**, **One paragraph** or **Thorough**;
+  the length goes into the message and the answer's record. Prompt version
+  2; annotation schema v5 (optional `length` on answers; v4 records
+  migrate). Verified with unit and component tests and
+  `scripts/browser-ask-e2e.cjs` against an intercepted local server; no real
+  provider call.
 - **Ask a question about a passage.** When a passage is not wrong but you
   do not understand it yet: write the question as a comment and tap **Save
   and ask…** in the composer, or **Ask…** on a saved comment in the
