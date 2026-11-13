@@ -74,6 +74,20 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Apple Pencil selection follows the pen again.** Since the text layer
+  sizes each span to its printed glyphs (the two-column fix below), the
+  spans no longer overlap: there is a gap between every two lines, and
+  every span carries pdf.js's scale transform. The Pencil selection built
+  its range only where the browser's caret lookup found text under the pen,
+  so a pen moving through those gaps found nothing, and selecting took
+  pressing and retracing. The pen now snaps to the nearest span within
+  reach of the point (0.6 of a line's height above or below, 1.5 to the
+  side) and to the nearest character boundary along it, measured from the
+  characters' rectangles (`snappingCaretLookup` in
+  `src/core/penSelection.ts`); the browser's caret is kept when it lies in
+  the span under the pen. Mouse and finger selection are unchanged: on an
+  iPad a finger still selects with iPadOS's long press. Verified with unit
+  and component tests only; not yet tried on an iPad.
 - **Picking a highlight color no longer loses the selection toolbar on a
   tap.** The toolbar lives only as long as the text selection under it, and
   a touch or Pencil tap on one of its buttons collapses that selection on

@@ -9,7 +9,12 @@ import { TextLayer, type PageViewport } from 'pdfjs-dist'
 import type { Anchor, Annotation, RegionAnchor } from '../core/annotations'
 import { highlightRgb } from '../core/palette'
 import type { PDFDocumentProxy, PDFPageProxy } from '../core/pdf'
-import { caretLookup, hasStylusTouch, PenSelection } from '../core/penSelection'
+import {
+  caretLookup,
+  hasStylusTouch,
+  PenSelection,
+  snappingCaretLookup,
+} from '../core/penSelection'
 import { createPageGeometry, type PageGeometry } from './geometry'
 import './PdfPage.css'
 
@@ -272,7 +277,7 @@ export function PdfPage({
       selection: new PenSelection(
         layer,
         { x: event.clientX, y: event.clientY },
-        lookup,
+        snappingCaretLookup(layer, lookup),
       ),
     }
     onPenSelecting?.(true)

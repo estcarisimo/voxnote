@@ -6,8 +6,11 @@ import {
   isDrag,
   orderedRange,
   PenSelection,
+  snappingCaretLookup,
+  type Box,
   type CaretLookup,
   type CaretPoint,
+  type TextMeasure,
 } from './penSelection'
 
 function layerWithSpans(texts: string[]): HTMLDivElement {
@@ -167,5 +170,129 @@ describe('hasStylusTouch', () => {
     expect(hasStylusTouch([touch('direct'), touch('stylus')])).toBe(true)
     expect(hasStylusTouch([touch('direct'), touch()])).toBe(false)
     expect(hasStylusTouch([])).toBe(false)
+  })
+})
+
+describe('snappingCaretLookup', () => {
+  /**
+   * Spans sized to their glyphs, as pdf.js lays them out: rows 10 px tall
+   * every 14 px (a 4 px gap between lines), 10 px per character, starting
+   * at x = 100 for the first span and x = 0 for the others.
+   */
+  function glyphGrid(layer: Element, startX: (row: number) => number) {
+    const row = (node: Text) =>
+      Array.from(layer.children).findIndex((s) => s.firstChild === node)
+    const char = (node: Text, i: number): Box => {
+      const r = row(node)
+      const left = startX(r) + i * 10
+      return { left, right: left + 10, top: r * 14, bottom: r * 14 + 10 }
+    }
+    const measure: TextMeasure = {
+      box: (node) => {
+        const first = char(node, 0)
+        return { ...first, right: first.left + node.data.length * 10 }
+      },
+      chars: (node) => Array.from(node.data, (_, i) => char(node, i)),
+    }
+    return measure
+  }
+  const leftAligned = () => 0
+
+  it('keeps the browser caret when it lies in the span under the pen', () => {
+    const layer = layerWithSpans(['alpha', 'beta'])
+    const native: CaretLookup = () => ({ node: textOf(layer, 1), offset: 2 })
+    const lookup = snappingCaretLookup(
+      layer,
+      native,
+      glyphGrid(layer, leftAligned),
+    )
+    expect(lookup(21, 18)).toEqual({ node: textOf(layer, 1), offset: 2 })
+  })
+
+  it('snaps a point in the gap between two lines to the nearer line', () => {
+    const layer = layerWithSpans(['alpha', 'beta'])
+    const lookup = snappingCaretLookup(
+      layer,
+      () => null,
+      glyphGrid(layer, leftAligned),
+    )
+    // y = 11 is 1 px below "alpha" and 3 px above "beta".
+    expect(lookup(26, 11)).toEqual({ node: textOf(layer, 0), offset: 3 })
+    expect(lookup(26, 13)).toEqual({ node: textOf(layer, 1), offset: 3 })
+  })
+
+  it('overrides a browser caret that landed on text away from the pen', () => {
+    const layer = layerWithSpans(['alpha', 'beta', 'gamma'])
+    // WebKit can answer a point between spans with a caret anywhere.
+    const native: CaretLookup = () => ({ node: textOf(layer, 2), offset: 0 })
+    const lookup = snappingCaretLookup(
+      layer,
+      native,
+      glyphGrid(layer, leftAligned),
+    )
+    expect(lookup(14, 5)).toEqual({ node: textOf(layer, 0), offset: 1 })
+  })
+
+  it('finds nothing far from every span', () => {
+    const layer = layerWithSpans(['alpha'])
+    const lookup = snappingCaretLookup(
+      layer,
+      () => null,
+      glyphGrid(layer, leftAligned),
+    )
+    expect(lookup(20, 40)).toBeNull()
+    expect(lookup(200, 5)).toBeNull()
+  })
+
+  it('reaches a span from just beside it on its line', () => {
+    const layer = layerWithSpans(['alpha', 'beta'])
+    // "alpha" starts at x = 100: a pen 8 px before or 5 px after it.
+    const lookup = snappingCaretLookup(
+      layer,
+      () => null,
+      glyphGrid(layer, (row) => (row === 0 ? 100 : 0)),
+    )
+    expect(lookup(92, 5)).toEqual({ node: textOf(layer, 0), offset: 0 })
+    expect(lookup(155, 5)).toEqual({ node: textOf(layer, 0), offset: 5 })
+  })
+
+  it('ignores a whitespace-only span', () => {
+    const layer = layerWithSpans(['alpha', '   '])
+    const lookup = snappingCaretLookup(
+      layer,
+      () => null,
+      glyphGrid(layer, leftAligned),
+    )
+    expect(lookup(20, 16)).toEqual({ node: textOf(layer, 0), offset: 2 })
+  })
+
+  it('follows the layer when the page scrolls during a gesture', () => {
+    const layer = layerWithSpans(['alpha', 'beta'])
+    let top = 0
+    layer.getBoundingClientRect = () => new DOMRect(0, top, 600, 800)
+    const lookup = snappingCaretLookup(
+      layer,
+      () => null,
+      glyphGrid(layer, leftAligned),
+    )
+    expect(lookup(26, 5)).toEqual({ node: textOf(layer, 0), offset: 3 })
+    top = -14 // scrolled up by one line: "beta" is now where "alpha" was
+    expect(lookup(26, 5)).toEqual({ node: textOf(layer, 1), offset: 3 })
+  })
+
+  it('measures offsets along vertical text', () => {
+    const layer = layerWithSpans(['abc'])
+    const measure: TextMeasure = {
+      box: () => ({ left: 0, right: 10, top: 0, bottom: 30 }),
+      chars: (node) =>
+        Array.from(node.data, (_, i) => ({
+          left: 0,
+          right: 10,
+          top: i * 10,
+          bottom: i * 10 + 10,
+        })),
+    }
+    const lookup = snappingCaretLookup(layer, () => null, measure)
+    expect(lookup(5, 17)).toEqual({ node: textOf(layer, 0), offset: 2 })
   })
 })

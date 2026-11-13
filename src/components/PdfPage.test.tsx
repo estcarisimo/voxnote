@@ -50,10 +50,30 @@ function caretRangeFromPoint(x: number, y: number): Range | null {
   return range
 }
 
+/** A range's rectangle on the same grid: jsdom does no layout. */
+function rangeRect(this: Range): DOMRect {
+  const spans = Array.from(document.querySelectorAll('.textLayer span'))
+  const row = spans.findIndex((s) => s.contains(this.startContainer))
+  if (row < 0) return new DOMRect(0, 0, 0, 0)
+  const start = this.startOffset
+  const end =
+    this.endContainer === this.startContainer
+      ? this.endOffset
+      : (this.startContainer.textContent ?? '').length
+  return new DOMRect(start * 10, row * 10, (end - start) * 10, 10)
+}
+
+const rangeStubs = {
+  getBoundingClientRect: rangeRect,
+  getClientRects(this: Range) {
+    return [rangeRect.call(this)]
+  },
+}
+
 const pen = { pointerId: 7, pointerType: 'pen', button: 0 }
 const selected = () => window.getSelection()!.toString()
 
-// jsdom lacks both the caret lookup and pointer capture.
+// jsdom lacks the caret lookup, pointer capture and range geometry.
 const captured = new Set<number>()
 const captureStubs = {
   setPointerCapture: (id: number) => void captured.add(id),
@@ -65,6 +85,7 @@ beforeEach(() => {
   captured.clear()
   Object.assign(document, { caretRangeFromPoint })
   Object.assign(Element.prototype, captureStubs)
+  Object.assign(Range.prototype, rangeStubs)
 })
 
 afterEach(() => {
@@ -73,6 +94,9 @@ afterEach(() => {
   Reflect.deleteProperty(document, 'caretRangeFromPoint')
   for (const name of Object.keys(captureStubs)) {
     Reflect.deleteProperty(Element.prototype, name)
+  }
+  for (const name of Object.keys(rangeStubs)) {
+    Reflect.deleteProperty(Range.prototype, name)
   }
   window.getSelection()?.removeAllRanges()
 })
