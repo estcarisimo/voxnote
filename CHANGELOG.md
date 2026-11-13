@@ -74,20 +74,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
-- **Apple Pencil selection follows the pen again.** Since the text layer
-  sizes each span to its printed glyphs (the two-column fix below), the
-  spans no longer overlap: there is a gap between every two lines, and
-  every span carries pdf.js's scale transform. The Pencil selection built
-  its range only where the browser's caret lookup found text under the pen,
-  so a pen moving through those gaps found nothing, and selecting took
-  pressing and retracing. The pen now snaps to the nearest span within
-  reach of the point (0.6 of a line's height above or below, 1.5 to the
-  side) and to the nearest character boundary along it, measured from the
-  characters' rectangles (`snappingCaretLookup` in
-  `src/core/penSelection.ts`); the browser's caret is kept when it lies in
-  the span under the pen. Mouse and finger selection are unchanged: on an
-  iPad a finger still selects with iPadOS's long press. Verified with unit
-  and component tests only; not yet tried on an iPad.
+- **Apple Pencil selection snaps to the nearest text.** The maintainer
+  reported on 2026-11-13 that Pencil selection on the iPad no longer
+  responded gently. Suspected cause, inferred from the code and not
+  measured: since the text layer sizes each span to its printed glyphs (the
+  two-column fix below), the spans are shorter than before and carry
+  pdf.js's scale transform, which leaves gaps between lines, and the Pencil
+  selection moved only where the browser's caret lookup found text under
+  the pen. The pen now snaps to the nearest span within reach of the point
+  (0.6 of the line's thickness across the text, 1.5 along it, following the
+  span's direction so rotated text gets the same reach) and to the nearest
+  character boundary along it, measured from the characters' rectangles
+  (`snappingCaretLookup` in `src/core/penSelection.ts`); the browser's caret
+  is kept when it lies in the span under the pen. A layer that is still
+  empty when the pen goes down is measured again, and a character outside
+  the Basic Multilingual Plane is never split. Applies to any pen, desktop
+  pens included. Mouse and finger selection are unchanged: the reported
+  firmer finger press (iPadOS's native long press) is not addressed here.
+  Verified with unit and component tests only; not yet tried on an iPad.
 - **Picking a highlight color no longer loses the selection toolbar on a
   tap.** The toolbar lives only as long as the text selection under it, and
   a touch or Pencil tap on one of its buttons collapses that selection on

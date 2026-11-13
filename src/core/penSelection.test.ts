@@ -266,18 +266,69 @@ describe('snappingCaretLookup', () => {
     expect(lookup(20, 16)).toEqual({ node: textOf(layer, 0), offset: 2 })
   })
 
+  /** The grid placed where the layer is now, as a real measurement is. */
+  function movingGrid(layer: Element): TextMeasure {
+    const grid = glyphGrid(layer, leftAligned)
+    const at = () => layer.getBoundingClientRect()
+    const shift = (r: Box): Box => ({
+      left: r.left + at().left,
+      right: r.right + at().left,
+      top: r.top + at().top,
+      bottom: r.bottom + at().top,
+    })
+    return {
+      box: (node) => {
+        const b = grid.box(node)
+        return b && shift(b)
+      },
+      chars: (node) => grid.chars(node).map(shift),
+    }
+  }
+
   it('follows the layer when the page scrolls during a gesture', () => {
     const layer = layerWithSpans(['alpha', 'beta'])
     let top = 0
     layer.getBoundingClientRect = () => new DOMRect(0, top, 600, 800)
+    const lookup = snappingCaretLookup(layer, () => null, movingGrid(layer))
+    expect(lookup(26, 5)).toEqual({ node: textOf(layer, 0), offset: 3 })
+    top = -14 // scrolled up by one line: "beta" is now where "alpha" was
+    expect(lookup(26, 5)).toEqual({ node: textOf(layer, 1), offset: 3 })
+  })
+
+  it('measures characters right after a scroll that came first', () => {
+    const layer = layerWithSpans(['alpha', 'beta'])
+    let left = 0
+    layer.getBoundingClientRect = () => new DOMRect(left, 0, 600, 800)
+    const lookup = snappingCaretLookup(layer, () => null, movingGrid(layer))
+    expect(lookup(5, 18)).toEqual({ node: textOf(layer, 1), offset: 0 })
+    left = -30 // scrolled before the pen reaches "alpha"
+    // Character 2 of "alpha" spans 20 to 30 in the layer: -10 to 0 now.
+    expect(lookup(-6, 5)).toEqual({ node: textOf(layer, 0), offset: 2 })
+  })
+
+  it('measures again while the layer is still empty', () => {
+    const layer = layerWithSpans([])
     const lookup = snappingCaretLookup(
       layer,
       () => null,
       glyphGrid(layer, leftAligned),
     )
+    expect(lookup(26, 5)).toBeNull()
+    const span = document.createElement('span')
+    span.textContent = 'alpha'
+    layer.appendChild(span) // the text layer finished drawing
     expect(lookup(26, 5)).toEqual({ node: textOf(layer, 0), offset: 3 })
-    top = -14 // scrolled up by one line: "beta" is now where "alpha" was
-    expect(lookup(26, 5)).toEqual({ node: textOf(layer, 1), offset: 3 })
+  })
+
+  it('keeps a character outside the BMP whole', () => {
+    const layer = layerWithSpans(['a\u{1d465}b']) // a, math italic x, b
+    const lookup = snappingCaretLookup(
+      layer,
+      () => null,
+      glyphGrid(layer, leftAligned),
+    )
+    // Four UTF-16 units at 10 px each; the pen is between the two halves.
+    expect(lookup(19, 5)).toEqual({ node: textOf(layer, 0), offset: 1 })
   })
 
   it('measures offsets along vertical text', () => {
@@ -294,5 +345,25 @@ describe('snappingCaretLookup', () => {
     }
     const lookup = snappingCaretLookup(layer, () => null, measure)
     expect(lookup(5, 17)).toEqual({ node: textOf(layer, 0), offset: 2 })
+  })
+
+  it("gives vertical text a line's reach, not its length", () => {
+    // A line 12 px thick running down 300 px, as on a page rotated 90°.
+    const layer = layerWithSpans(['x'.repeat(30)])
+    const measure: TextMeasure = {
+      box: () => ({ left: 0, right: 12, top: 0, bottom: 300 }),
+      chars: (node) =>
+        Array.from(node.data, (_, i) => ({
+          left: 0,
+          right: 12,
+          top: i * 10,
+          bottom: i * 10 + 10,
+        })),
+    }
+    const lookup = snappingCaretLookup(layer, () => null, measure)
+    // 6 px beside the line (within 0.6 of 12 px) lands on it.
+    expect(lookup(18, 175)).toEqual({ node: textOf(layer, 0), offset: 17 })
+    // 400 px beside it (across many lines, or out in the margin) does not.
+    expect(lookup(412, 175)).toBeNull()
   })
 })

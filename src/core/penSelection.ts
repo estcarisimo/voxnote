@@ -72,10 +72,12 @@ export interface TextMeasure {
 }
 
 /**
- * How far past a span's glyph box (as a fraction of its height) a pen point
- * still lands on that span. Up and down it bridges the gap between two
- * lines; sideways it bridges the gap between two spans of a line. A point
- * farther from every span lands on none.
+ * How far past a span's glyph box (as a fraction of its line's thickness,
+ * the box's extent across the text) a pen point still lands on that span.
+ * Across the text it bridges the gap between two lines; along it, the gap
+ * between two spans of a line. A point farther from every span lands on
+ * none. Both follow the span's direction, so rotated text gets the same
+ * reach as upright text.
  */
 export const LINE_REACH = 0.6
 export const SPAN_REACH = 1.5
@@ -129,6 +131,30 @@ interface TextBox {
 }
 
 /**
+ * Distance from a span to `p` along its text and across it, and the
+ * span's thickness across it. A span runs along its box's longer side:
+ * pdf.js makes one span per run of text on one line, so a span is at least
+ * as long as it is thick unless it holds a single narrow character.
+ */
+function reach(box: Box, p: Point) {
+  const { dx, dy } = distanceTo(box, p)
+  const width = box.right - box.left
+  const height = box.bottom - box.top
+  return width >= height
+    ? { along: dx, across: dy, thickness: height }
+    : { along: dy, across: dx, thickness: width }
+}
+
+function translate(r: Box, x: number, y: number): Box {
+  return {
+    left: r.left + x,
+    right: r.right + x,
+    top: r.top + y,
+    bottom: r.bottom + y,
+  }
+}
+
+/**
  * A caret lookup for pen gestures that lands on the text the pen is over,
  * or near it. Since the text layer sizes each span to its printed glyphs
  * (as pdf.js intends, see PdfPage.css), lines and spans have gaps between
@@ -140,7 +166,9 @@ interface TextBox {
  * box holds the point. Otherwise the point snaps to the nearest span within
  * reach (`LINE_REACH`, `SPAN_REACH`) and to the character boundary nearest
  * to it along that span's text, measured from the characters' rectangles.
- * Span boxes are measured once per gesture, relative to the layer, so a
+ * Span boxes are measured once per gesture (again while the layer is still
+ * empty, as a page that just came on screen draws its text a moment later);
+ * every measurement is kept in the layer's position at the first one, so a
  * scroll during the gesture does not stale them.
  */
 export function snappingCaretLookup(
@@ -165,13 +193,16 @@ export function snappingCaretLookup(
   }
 
   return (x, y) => {
-    if (!boxes || !origin) {
+    if (!boxes || !origin || boxes.length === 0) {
       origin = textLayer.getBoundingClientRect()
       boxes = measureLayer()
     }
-    // The point in the coordinates the boxes were measured in.
+    // How far the layer moved since the boxes were measured; the point and
+    // any later measurement are taken back by that much.
     const now = textLayer.getBoundingClientRect()
-    const p = { x: x - (now.left - origin.left), y: y - (now.top - origin.top) }
+    const shiftX = now.left - origin.left
+    const shiftY = now.top - origin.top
+    const p = { x: x - shiftX, y: y - shiftY }
 
     const caret = native?.(x, y) ?? null
     if (caret) {
@@ -185,20 +216,36 @@ export function snappingCaretLookup(
     let best: TextBox | null = null
     let bestScore = Infinity
     for (const b of boxes) {
-      const height = b.box.bottom - b.box.top
-      const { dx, dy } = distanceTo(b.box, p)
-      if (dy > height * LINE_REACH || dx > height * SPAN_REACH) continue
+      const { along, across, thickness } = reach(b.box, p)
+      if (across > thickness * LINE_REACH || along > thickness * SPAN_REACH) {
+        continue
+      }
       // Staying on the line the pen is on beats a closer span on the next.
-      const score = Math.hypot(dx, dy * 3)
+      const score = Math.hypot(along, across * 3)
       if (score < bestScore) {
         best = b
         bestScore = score
       }
     }
     if (!best) return null
-    best.chars ??= measure.chars(best.node)
-    return { node: best.node, offset: nearestBoundary(best.chars, p) }
+    best.chars ??= measure
+      .chars(best.node)
+      .map((r) => translate(r, -shiftX, -shiftY))
+    const offset = nearestBoundary(best.chars, p)
+    return { node: best.node, offset: outsideSurrogatePair(best.node, offset) }
   }
+}
+
+/**
+ * Moves an offset that falls between the two halves of a character outside
+ * the Basic Multilingual Plane (a math letter such as 𝑥) to before it.
+ */
+function outsideSurrogatePair(node: Text, offset: number): number {
+  const before = node.data.charCodeAt(offset - 1)
+  const after = node.data.charCodeAt(offset)
+  const high = before >= 0xd800 && before <= 0xdbff
+  const low = after >= 0xdc00 && after <= 0xdfff
+  return high && low ? offset - 1 : offset
 }
 
 /** Characters whose center lies before `p` along the span's text. */
