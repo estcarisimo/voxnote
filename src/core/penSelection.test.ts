@@ -7,6 +7,7 @@ import {
   orderedRange,
   PenSelection,
   snappingCaretLookup,
+  textRunsVertically,
   type Box,
   type CaretLookup,
   type CaretPoint,
@@ -333,6 +334,7 @@ describe('snappingCaretLookup', () => {
 
   it('measures offsets along vertical text', () => {
     const layer = layerWithSpans(['abc'])
+    layer.setAttribute('data-main-rotation', '270')
     const measure: TextMeasure = {
       box: () => ({ left: 0, right: 10, top: 0, bottom: 30 }),
       chars: (node) =>
@@ -350,6 +352,7 @@ describe('snappingCaretLookup', () => {
   it("gives vertical text a line's reach, not its length", () => {
     // A line 12 px thick running down 300 px, as on a page rotated 90°.
     const layer = layerWithSpans(['x'.repeat(30)])
+    layer.setAttribute('data-main-rotation', '90')
     const measure: TextMeasure = {
       box: () => ({ left: 0, right: 12, top: 0, bottom: 300 }),
       chars: (node) =>
@@ -365,5 +368,77 @@ describe('snappingCaretLookup', () => {
     expect(lookup(18, 175)).toEqual({ node: textOf(layer, 0), offset: 17 })
     // 400 px beside it (across many lines, or out in the margin) does not.
     expect(lookup(412, 175)).toBeNull()
+  })
+  it('leaves a diagonal span to the browser caret', () => {
+    // Body lines plus a 45° "DRAFT" whose upright box covers them all.
+    const layer = layerWithSpans(['alpha', 'beta', 'DRAFT'])
+    const draft = layer.children[2] as HTMLElement
+    draft.style.setProperty('--rotate', '-45deg')
+    const grid = glyphGrid(layer, leftAligned)
+    const measure: TextMeasure = {
+      box: (node) =>
+        node === draft.firstChild
+          ? { left: 0, right: 300, top: 0, bottom: 300 }
+          : grid.box(node),
+      chars: grid.chars,
+    }
+    const lookup = snappingCaretLookup(layer, () => null, measure)
+    // In the gap 1 px below "alpha": the line, not the watermark.
+    expect(lookup(26, 11)).toEqual({ node: textOf(layer, 0), offset: 3 })
+    // The browser's caret on the watermark itself is still taken.
+    const onDraft = { node: textOf(layer, 2), offset: 1 }
+    expect(snappingCaretLookup(layer, () => onDraft, measure)(150, 150)).toBe(
+      onDraft,
+    )
+  })
+
+  it('reaches a one-letter span by its line height', () => {
+    const layer = layerWithSpans(['i'])
+    const measure: TextMeasure = {
+      box: () => ({ left: 0, right: 4, top: 0, bottom: 10 }),
+      chars: () => [{ left: 0, right: 4, top: 0, bottom: 10 }],
+    }
+    const lookup = snappingCaretLookup(layer, () => null, measure)
+    expect(lookup(7, 5)).toEqual({ node: textOf(layer, 0), offset: 1 })
+  })
+
+  it('measures again when more of the layer has been drawn', () => {
+    const layer = layerWithSpans(['alpha'])
+    const lookup = snappingCaretLookup(
+      layer,
+      () => null,
+      glyphGrid(layer, leftAligned),
+    )
+    expect(lookup(26, 18)).toBeNull()
+    const span = document.createElement('span')
+    span.textContent = 'beta'
+    layer.appendChild(span) // pdf.js appends spans as the text streams in
+    expect(lookup(26, 18)).toEqual({ node: textOf(layer, 1), offset: 3 })
+  })
+})
+
+describe('textRunsVertically', () => {
+  const span = (rotate?: string) => {
+    const el = document.createElement('span')
+    if (rotate) el.style.setProperty('--rotate', rotate)
+    return el
+  }
+  const layer = (rotation?: string) => {
+    const el = document.createElement('div')
+    if (rotation) el.setAttribute('data-main-rotation', rotation)
+    return el
+  }
+
+  it('reads the page rotation and the span rotation together', () => {
+    expect(textRunsVertically(layer(), span())).toBe(false)
+    expect(textRunsVertically(layer('90'), span())).toBe(true)
+    expect(textRunsVertically(layer('180'), span())).toBe(false)
+    expect(textRunsVertically(layer(), span('-90deg'))).toBe(true)
+    expect(textRunsVertically(layer('90'), span('90deg'))).toBe(false)
+  })
+
+  it('returns null for text at any other angle', () => {
+    expect(textRunsVertically(layer(), span('45deg'))).toBeNull()
+    expect(textRunsVertically(layer('90'), span('-30deg'))).toBeNull()
   })
 })

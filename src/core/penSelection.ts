@@ -85,8 +85,8 @@ export const SPAN_REACH = 1.5
 const NATIVE_SLACK_PX = 2
 
 /**
- * Measures with Ranges: a Range's client rectangles follow the span's CSS
- * transforms (pdf.js's scaleX), unlike the caret lookup's local point.
+ * Measures with Ranges, whose client rectangles include the span's CSS
+ * transforms (pdf.js's scaleX).
  */
 export const domTextMeasure: TextMeasure = {
   box(node) {
@@ -127,22 +127,48 @@ function distanceTo(box: Box, p: Point) {
 interface TextBox {
   node: Text
   box: Box
+  /** True when the text runs up or down the screen. */
+  vertical: boolean
   chars: Box[] | null
+}
+
+/** Degrees off a quarter turn below which a span counts as upright. */
+const ANGLE_TOLERANCE_DEG = 0.5
+
+/**
+ * Whether a span's text runs across the screen (false) or up or down it
+ * (true), from the layer's page rotation (pdf.js's `data-main-rotation`)
+ * and the span's own `--rotate`, which pdf.js writes inline on angled text.
+ * Null for text at any other angle, such as a diagonal "DRAFT" watermark:
+ * its client box is an upright square around a slanted line, which would
+ * catch every pen point inside it.
+ */
+export function textRunsVertically(
+  textLayer: Element,
+  span: Element | null,
+): boolean | null {
+  const page = Number(textLayer.getAttribute('data-main-rotation') ?? 0)
+  const own =
+    span instanceof HTMLElement
+      ? parseFloat(span.style.getPropertyValue('--rotate')) || 0
+      : 0
+  const angle = ((((page || 0) + own) % 360) + 360) % 360
+  const turns = Math.round(angle / 90)
+  if (Math.abs(angle - turns * 90) > ANGLE_TOLERANCE_DEG) return null
+  return turns % 2 === 1
 }
 
 /**
  * Distance from a span to `p` along its text and across it, and the
- * span's thickness across it. A span runs along its box's longer side:
- * pdf.js makes one span per run of text on one line, so a span is at least
- * as long as it is thick unless it holds a single narrow character.
+ * span's thickness across it (its line's height for upright text).
  */
-function reach(box: Box, p: Point) {
-  const { dx, dy } = distanceTo(box, p)
-  const width = box.right - box.left
-  const height = box.bottom - box.top
-  return width >= height
-    ? { along: dx, across: dy, thickness: height }
-    : { along: dy, across: dx, thickness: width }
+function reach(b: TextBox, p: Point) {
+  const { dx, dy } = distanceTo(b.box, p)
+  const width = b.box.right - b.box.left
+  const height = b.box.bottom - b.box.top
+  return b.vertical
+    ? { along: dy, across: dx, thickness: width }
+    : { along: dx, across: dy, thickness: height }
 }
 
 function translate(r: Box, x: number, y: number): Box {
@@ -157,46 +183,59 @@ function translate(r: Box, x: number, y: number): Box {
 /**
  * A caret lookup for pen gestures that lands on the text the pen is over,
  * or near it. Since the text layer sizes each span to its printed glyphs
- * (as pdf.js intends, see PdfPage.css), lines and spans have gaps between
- * them where the browser's caret lookup finds no text, and each span
- * carries a scale transform; before, the spans were taller than their lines
- * and overlapped, so the pen always had text under it.
+ * (as pdf.js intends, see PdfPage.css), spans no longer cover the space
+ * between lines, so a pen point there is likely to find no text through
+ * the browser's caret lookup alone (suspected, not measured, as the cause
+ * of Pencil selection reported on 2026-11-13 as hard to use on an iPad).
  *
  * The browser's caret (`native`) is used when it lies in a span whose glyph
  * box holds the point. Otherwise the point snaps to the nearest span within
  * reach (`LINE_REACH`, `SPAN_REACH`) and to the character boundary nearest
  * to it along that span's text, measured from the characters' rectangles.
- * Span boxes are measured once per gesture (again while the layer is still
- * empty, as a page that just came on screen draws its text a moment later);
- * every measurement is kept in the layer's position at the first one, so a
- * scroll during the gesture does not stale them.
+ * Text at an angle other than a quarter turn is left to the browser's
+ * caret. Span boxes are measured once per gesture, and again whenever the
+ * layer's children change (a page that just came on screen draws its text
+ * a moment later, span by span); every measurement is kept in the layer's
+ * position at the time, so a scroll during the gesture does not stale it.
  */
 export function snappingCaretLookup(
   textLayer: Element,
   native: CaretLookup | null,
   measure: TextMeasure = domTextMeasure,
 ): CaretLookup {
-  let boxes: TextBox[] | null = null
+  let boxes: TextBox[] = []
+  // Text at an angle, which only the browser's own caret may land on.
+  let angled = new Set<Node>()
   let origin: Box | null = null
+  let measuredChildren = -1
+  // Live: pdf.js appends spans, also inside marked-content wrappers.
+  const spans = textLayer.getElementsByTagName('span')
 
-  function measureLayer(): TextBox[] {
+  function measureLayer() {
     const doc = textLayer.ownerDocument
     const walker = doc.createTreeWalker(textLayer, NodeFilter.SHOW_TEXT)
-    const found: TextBox[] = []
+    boxes = []
+    angled = new Set()
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const node = n as Text
       if (node.data.trim().length === 0) continue
+      const vertical = textRunsVertically(textLayer, node.parentElement)
+      if (vertical === null) {
+        angled.add(node)
+        continue
+      }
       const box = measure.box(node)
-      if (box) found.push({ node, box, chars: null })
+      if (box) boxes.push({ node, box, vertical, chars: null })
     }
-    return found
+    origin = textLayer.getBoundingClientRect()
+    measuredChildren = spans.length
   }
 
   return (x, y) => {
-    if (!boxes || !origin || boxes.length === 0) {
-      origin = textLayer.getBoundingClientRect()
-      boxes = measureLayer()
+    if (!origin || spans.length !== measuredChildren) {
+      measureLayer()
     }
+    if (!origin) throw new Error('Text layer was not measured')
     // How far the layer moved since the boxes were measured; the point and
     // any later measurement are taken back by that much.
     const now = textLayer.getBoundingClientRect()
@@ -205,6 +244,7 @@ export function snappingCaretLookup(
     const p = { x: x - shiftX, y: y - shiftY }
 
     const caret = native?.(x, y) ?? null
+    if (caret && angled.has(caret.node)) return caret
     if (caret) {
       const hit = boxes.find((b) => b.node === caret.node)
       if (hit) {
@@ -216,7 +256,7 @@ export function snappingCaretLookup(
     let best: TextBox | null = null
     let bestScore = Infinity
     for (const b of boxes) {
-      const { along, across, thickness } = reach(b.box, p)
+      const { along, across, thickness } = reach(b, p)
       if (across > thickness * LINE_REACH || along > thickness * SPAN_REACH) {
         continue
       }
