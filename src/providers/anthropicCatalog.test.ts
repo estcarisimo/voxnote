@@ -174,6 +174,24 @@ describe('Anthropic model catalog', () => {
     expect(anthropicCatalog().fetchedAt).toBeNull()
   })
 
+  it('drops a list that arrives after the key was replaced or removed', async () => {
+    let answer: (response: Response) => void = () => {}
+    const slow = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+    ) as unknown as FetchMock
+    const pending = refreshAnthropicCatalog('sk-ant-old', slow, now)
+    resetAnthropicCatalog()
+    answer(new Response(JSON.stringify(page), { status: 200 }))
+    await expect(pending).rejects.toThrow(
+      'The Anthropic key changed while the model list was loading',
+    )
+    expect(anthropicCatalog().fetchedAt).toBeNull()
+    expect(localStorage.getItem(ANTHROPIC_CATALOG_KEY)).toBeNull()
+  })
+
   it('reads a stored list back and rejects a damaged one', () => {
     const good = {
       fetchedAt: '2026-11-23T22:10:00.000Z',

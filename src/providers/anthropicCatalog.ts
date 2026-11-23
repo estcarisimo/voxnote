@@ -26,6 +26,8 @@ const BUILT_IN: AnthropicCatalog = {
 }
 
 let current: AnthropicCatalog | null = null
+/** Bumped by every reset, so a refresh started for an earlier key is dropped. */
+let generation = 0
 const listeners = new Set<() => void>()
 
 /** The catalog now in use; read once from storage, then kept in memory. */
@@ -48,14 +50,21 @@ export function subscribeAnthropicCatalog(listener: () => void): () => void {
 /**
  * Asks Anthropic which models the key can use, keeps the newest of each
  * family, and stores the result. Throws, leaving the catalog as it was, when
- * the request fails, nothing usable is listed, or storage refuses the write.
+ * the request fails, nothing usable is listed, the key was replaced or
+ * removed while the request ran, or storage refuses the write.
  */
 export async function refreshAnthropicCatalog(
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
   now: () => Date = () => new Date(),
 ): Promise<AnthropicCatalog> {
+  const started = generation
   const models = newestPerFamily(await listAnthropicModels(apiKey, fetchImpl))
+  if (generation !== started) {
+    throw new Error(
+      'The Anthropic key changed while the model list was loading; update it again',
+    )
+  }
   if (models.length === 0) {
     throw new Error('Anthropic listed no Claude model VoxNote can offer')
   }
@@ -76,6 +85,7 @@ export async function refreshAnthropicCatalog(
  * described one key, so it goes when that key is removed or replaced.
  */
 export function resetAnthropicCatalog(): void {
+  generation += 1
   localStorage.removeItem(ANTHROPIC_CATALOG_KEY)
   if (current === BUILT_IN) return
   setCatalog(BUILT_IN)

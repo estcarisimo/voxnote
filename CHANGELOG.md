@@ -24,8 +24,7 @@ All notable changes to this project are documented here. The format follows
   preflight was checked on 2026-11-23 with
   `curl -X OPTIONS https://api.anthropic.com/v1/models -H "Origin: https://estcarisimo.github.io" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: x-api-key,anthropic-version,anthropic-dangerous-direct-browser-access"`:
   HTTP 200, `access-control-allow-origin: *`, the three headers allowed.
-  Verified with unit and component tests
-  against a mocked endpoint; no real `/v1/models` call has been made from
+  Verified with unit and component tests against a mocked endpoint; no real `/v1/models` call has been made from
   the app.
 - **Ask: from the toolbar, in threads, at the length you want.** A new
   **❓ Ask** button in the selection toolbar opens a question composer

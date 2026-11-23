@@ -384,6 +384,9 @@ describe('ProviderSettings (AI keys)', () => {
       )
       expect(fetchSpy).toHaveBeenCalledTimes(1)
       expect(providers.readKey).toHaveBeenCalledWith('anthropic')
+      // Re-checking the pick is useProviders' job; a save from here would
+      // write settings read before the request.
+      expect(providers.saveTextSettings).not.toHaveBeenCalled()
       const model = within(row).getByLabelText(
         'Polish model',
       ) as HTMLSelectElement
