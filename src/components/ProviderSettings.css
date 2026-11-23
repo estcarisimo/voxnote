@@ -159,3 +159,17 @@
 .keys-language input {
   max-width: 160px;
 }
+
+.keys-catalog {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.8rem;
+}
+
+.keys-catalog > span:first-child {
+  flex: 1;
+  min-width: 180px;
+}

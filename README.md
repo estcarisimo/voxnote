@@ -329,10 +329,10 @@ Deepgram has no prompt parameter, so the option is not offered for it.
 
 Polish (optional):
 
-| Setting  | Values                                                                                                           |
-| -------- | ---------------------------------------------------------------------------------------------------------------- |
-| Provider | OpenAI (default), Anthropic (Claude) or xAI (Grok)                                                               |
-| Model    | OpenAI `gpt-6.1-terra` (default); Anthropic `claude-opus-5-5` (default); xAI `grok-4.7` (default); others listed |
+| Setting  | Values                                                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider | OpenAI (default), Anthropic (Claude) or xAI (Grok)                                                                                                                  |
+| Model    | OpenAI `gpt-6.1-terra` (default); Anthropic `claude-opus-5-5` (default; newest of each family, updatable from **AI keys**); xAI `grok-4.7` (default); others listed |
 
 Local servers (optional; see [Local models](#-local-models)):
 

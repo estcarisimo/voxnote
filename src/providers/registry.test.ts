@@ -11,8 +11,8 @@ import {
   SECRET_NAMES,
   STT_MODELS,
   STT_PROVIDER_IDS,
-  TEXT_MODELS,
   TEXT_PROVIDER_IDS,
+  textModelsOf,
 } from './registry'
 
 describe('provider registry', () => {
@@ -74,7 +74,7 @@ describe('provider registry', () => {
       (id) => {
         const p = createTextProvider(id)
         expect(p.id).toBe(id)
-        expect(p.models).toBe(TEXT_MODELS[id])
+        expect(p.models).toBe(textModelsOf(id))
         return p.endpointHost
       },
     )
