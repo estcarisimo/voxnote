@@ -384,10 +384,6 @@ describe('ProviderSettings (AI keys)', () => {
       )
       expect(fetchSpy).toHaveBeenCalledTimes(1)
       expect(providers.readKey).toHaveBeenCalledWith('anthropic')
-      // The pick is re-validated so it can move to the newest of its family.
-      expect(providers.saveTextSettings).toHaveBeenCalledWith(
-        providers.textSettings,
-      )
       const model = within(row).getByLabelText(
         'Polish model',
       ) as HTMLSelectElement

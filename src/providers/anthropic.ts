@@ -46,8 +46,6 @@ export const ANTHROPIC_TEXT_MODELS: readonly TextModelInfo[] = [
   { id: 'claude-fable-5-2', label: 'Claude Fable 5.2 (claude-fable-5-2)' },
 ]
 
-export const DEFAULT_ANTHROPIC_TEXT_MODEL = ANTHROPIC_TEXT_MODELS[0].id
-
 /** Pages of 1000 are plenty; the cap only stops a server that never ends. */
 const MAX_MODEL_PAGES = 10
 

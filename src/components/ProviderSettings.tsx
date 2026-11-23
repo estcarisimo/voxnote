@@ -500,9 +500,8 @@ function ClaudeModelList({ providers }: { providers: Providers }) {
     try {
       const key = await providers.readKey('anthropic')
       if (key === null) throw new Error('No Anthropic key is stored')
+      // useProviders re-checks the pick against the new list.
       await refreshAnthropicCatalog(key)
-      // Re-validate the pick against the new list (newest of its family).
-      providers.saveTextSettings(providers.textSettings)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {

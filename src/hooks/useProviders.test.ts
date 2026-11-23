@@ -20,6 +20,12 @@ vi.mock('../core/secrets', () => ({
 }))
 
 const { useProviders } = await import('./useProviders')
+const {
+  ANTHROPIC_CATALOG_KEY,
+  anthropicCatalog,
+  refreshAnthropicCatalog,
+  resetAnthropicCatalog,
+} = await import('../providers/anthropicCatalog')
 
 const sttServer = { baseUrl: 'http://localhost:8080/v1', model: 'whisper-1' }
 const textServer = {
@@ -98,5 +104,95 @@ describe('useProviders with local servers', () => {
     unmount()
     const again = await ready()
     expect(again.result.current.textSettings.local).toEqual(textServer)
+  })
+})
+
+describe('useProviders and the Claude model list', () => {
+  beforeEach(() => {
+    secrets.clear()
+    localStorage.clear()
+    resetAnthropicCatalog()
+  })
+
+  function listing(...ids: string[]) {
+    return new Response(
+      JSON.stringify({ data: ids.map((id) => ({ id })), has_more: false }),
+      { status: 200 },
+    )
+  }
+
+  it('moves the picked Claude model to the newest of its family when the list changes, and saves it', async () => {
+    localStorage.setItem(
+      'voxnote.text.settings',
+      JSON.stringify({ provider: 'anthropic', model: 'claude-fable-5-2' }),
+    )
+    const { result } = await ready()
+    expect(result.current.textSettings.model).toBe('claude-fable-5-2')
+    const fetchImpl = vi.fn(async () =>
+      listing('claude-fable-5-3', 'claude-opus-5-5'),
+    ) as unknown as typeof fetch
+    await act(() => refreshAnthropicCatalog('sk-ant-test', fetchImpl))
+    expect(result.current.textSettings).toEqual({
+      provider: 'anthropic',
+      model: 'claude-fable-5-3',
+    })
+    expect(
+      JSON.parse(localStorage.getItem('voxnote.text.settings') ?? ''),
+    ).toEqual({ provider: 'anthropic', model: 'claude-fable-5-3' })
+  })
+
+  it('never undoes a provider change made while the list was loading', async () => {
+    localStorage.setItem(
+      'voxnote.text.settings',
+      JSON.stringify({ provider: 'anthropic', model: 'claude-opus-5-5' }),
+    )
+    const { result } = await ready()
+    let answer: (response: Response) => void = () => {}
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+    ) as unknown as typeof fetch
+    let pending: Promise<unknown> = Promise.resolve()
+    act(() => {
+      pending = refreshAnthropicCatalog('sk-ant-test', fetchImpl)
+    })
+    act(() =>
+      result.current.saveTextSettings({ provider: 'openai', model: '' }),
+    )
+    await act(async () => {
+      answer(listing('claude-opus-5-5'))
+      await pending
+    })
+    expect(result.current.textSettings.provider).toBe('openai')
+  })
+
+  it('goes back to the built-in list when the Anthropic key is removed or replaced', async () => {
+    const { result } = await ready()
+    await act(() => result.current.setKey('anthropic', 'sk-ant-one'))
+    await act(() =>
+      refreshAnthropicCatalog(
+        'sk-ant-one',
+        vi.fn(async () =>
+          listing('claude-mythos-5-2', 'claude-opus-5-5'),
+        ) as unknown as typeof fetch,
+      ),
+    )
+    expect(anthropicCatalog().fetchedAt).not.toBeNull()
+    await act(() => result.current.setKey('anthropic', 'sk-ant-two'))
+    expect(anthropicCatalog().fetchedAt).toBeNull()
+    expect(localStorage.getItem(ANTHROPIC_CATALOG_KEY)).toBeNull()
+
+    await act(() =>
+      refreshAnthropicCatalog(
+        'sk-ant-two',
+        vi.fn(async () =>
+          listing('claude-opus-5-5'),
+        ) as unknown as typeof fetch,
+      ),
+    )
+    await act(() => result.current.removeKey('anthropic'))
+    expect(anthropicCatalog().fetchedAt).toBeNull()
   })
 })

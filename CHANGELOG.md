@@ -18,9 +18,13 @@ All notable changes to this project are documented here. The format follows
   first update the built-in list is used. A picked model that is no longer
   listed moves to the newest of its family (a saved `claude-fable-5-1`
   becomes `claude-fable-5-2`) instead of falling back to the provider
-  default. A failed update shows Anthropic's error and keeps the list. The
-  endpoint's CORS preflight was checked on 2026-11-23 with an `OPTIONS`
-  request from the site's origin. Verified with unit and component tests
+  default. A failed update shows Anthropic's error and keeps the list.
+  Saving or removing the Anthropic key goes back to the built-in list,
+  since the fetched one described the old key. The endpoint's CORS
+  preflight was checked on 2026-11-23 with
+  `curl -X OPTIONS https://api.anthropic.com/v1/models -H "Origin: https://estcarisimo.github.io" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: x-api-key,anthropic-version,anthropic-dangerous-direct-browser-access"`:
+  HTTP 200, `access-control-allow-origin: *`, the three headers allowed.
+  Verified with unit and component tests
   against a mocked endpoint; no real `/v1/models` call has been made from
   the app.
 - **Ask: from the toolbar, in threads, at the length you want.** A new

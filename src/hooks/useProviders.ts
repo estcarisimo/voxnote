@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { openSecretStore, type SecretStore } from '../core/secrets'
+import {
+  resetAnthropicCatalog,
+  subscribeAnthropicCatalog,
+} from '../providers/anthropicCatalog'
 import type { LocalServer } from '../providers/local'
 import {
   DEFAULT_SETTINGS,
@@ -111,14 +115,29 @@ export function useProviders(): Providers {
   const saveTextSettings = useCallback((next: TextSettings) => {
     const normalized = normalizeTextSettings(next)
     setTextSettings(normalized)
-    try {
-      localStorage.setItem(TEXT_SETTINGS_KEY, JSON.stringify(normalized))
-    } catch (err: unknown) {
-      setError(
-        `Settings could not be saved: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
+    persistTextSettings(normalized, setError)
   }, [])
+
+  // When the Claude model list changes, re-check the settings as they are
+  // now (not as some earlier render saw them): a picked model that is no
+  // longer listed moves to the newest of its family.
+  useEffect(
+    () =>
+      subscribeAnthropicCatalog(() => {
+        setTextSettings((current) => {
+          const normalized = normalizeTextSettings(current)
+          if (
+            normalized.provider === current.provider &&
+            normalized.model === current.model
+          ) {
+            return current
+          }
+          persistTextSettings(normalized, setError)
+          return normalized
+        })
+      }),
+    [],
+  )
 
   const hasKey = useCallback(
     (id: ProviderId) => {
@@ -153,6 +172,8 @@ export function useProviders(): Providers {
       if (!store) throw new Error('The secret store is not ready')
       await store.set(SECRET_NAMES[id], value.trim())
       setStored(await store.list())
+      // A new key may belong to another organization, with other models.
+      if (id === 'anthropic') resetAnthropicCatalog()
     },
     [store],
   )
@@ -166,6 +187,8 @@ export function useProviders(): Providers {
       }
       const names = await store.list()
       setStored(names)
+      // The fetched list described the removed key; back to the built-in one.
+      if (id === 'anthropic') resetAnthropicCatalog()
       const keyed = (p: ProviderId) => names.includes(SECRET_NAMES[p])
       if (id === 'local-stt') {
         const provider =
@@ -233,6 +256,19 @@ export function useProviders(): Providers {
       readKey,
     ],
   )
+}
+
+function persistTextSettings(
+  settings: TextSettings,
+  setError: (message: string) => void,
+) {
+  try {
+    localStorage.setItem(TEXT_SETTINGS_KEY, JSON.stringify(settings))
+  } catch (err: unknown) {
+    setError(
+      `Settings could not be saved: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
 }
 
 function loadSettings(): SttSettings {

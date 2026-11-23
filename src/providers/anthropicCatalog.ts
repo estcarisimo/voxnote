@@ -71,13 +71,13 @@ export async function refreshAnthropicCatalog(
   return next
 }
 
-/** Back to the built-in list, and forgets the stored one. */
+/**
+ * Back to the built-in list, and forgets the stored one: the fetched list
+ * described one key, so it goes when that key is removed or replaced.
+ */
 export function resetAnthropicCatalog(): void {
-  try {
-    localStorage.removeItem(ANTHROPIC_CATALOG_KEY)
-  } catch {
-    // Unreadable storage holds nothing to forget.
-  }
+  localStorage.removeItem(ANTHROPIC_CATALOG_KEY)
+  if (current === BUILT_IN) return
   setCatalog(BUILT_IN)
 }
 
@@ -90,8 +90,12 @@ function setCatalog(next: AnthropicCatalog) {
 export function normalizeCatalog(value: unknown): AnthropicCatalog {
   if (typeof value !== 'object' || value === null) return BUILT_IN
   const v = value as Record<string, unknown>
-  if (typeof v.fetchedAt !== 'string' || Number.isNaN(Date.parse(v.fetchedAt)))
+  if (
+    typeof v.fetchedAt !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(v.fetchedAt)
+  ) {
     return BUILT_IN
+  }
   if (!Array.isArray(v.models)) return BUILT_IN
   const models: TextModelInfo[] = []
   for (const m of v.models as unknown[]) {
