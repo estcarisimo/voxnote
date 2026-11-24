@@ -9,11 +9,9 @@
  * lives in the encrypted secret store under `SECRET_NAMES[id]`; nothing here
  * reads or writes it.
  */
-import {
-  ANTHROPIC_TEXT_MODELS,
-  createAnthropicTextProvider,
-  DEFAULT_ANTHROPIC_TEXT_MODEL,
-} from './anthropic'
+import { choiceFor } from '../core/claudeModels'
+import { createAnthropicTextProvider } from './anthropic'
+import { anthropicModels } from './anthropicCatalog'
 import {
   createDeepgramProvider,
   DEEPGRAM_MODELS,
@@ -124,18 +122,36 @@ export const DEFAULT_STT_MODELS: Record<SttProviderId, string> = {
   'local-stt': '',
 }
 
-export const TEXT_MODELS: Record<TextProviderId, readonly TextModelInfo[]> = {
-  openai: OPENAI_TEXT_MODELS,
-  anthropic: ANTHROPIC_TEXT_MODELS,
-  xai: XAI_TEXT_MODELS,
-  'local-text': [],
+/**
+ * The models a text provider offers now. Anthropic's list can change at run
+ * time (anthropicCatalog.ts); the others are fixed in the build.
+ */
+export function textModelsOf(id: TextProviderId): readonly TextModelInfo[] {
+  switch (id) {
+    case 'openai':
+      return OPENAI_TEXT_MODELS
+    case 'anthropic':
+      return anthropicModels()
+    case 'xai':
+      return XAI_TEXT_MODELS
+    case 'local-text':
+      // A local server's model is whatever the user typed (settings.local).
+      return []
+  }
 }
 
-export const DEFAULT_TEXT_MODELS: Record<TextProviderId, string> = {
-  openai: DEFAULT_OPENAI_TEXT_MODEL,
-  anthropic: DEFAULT_ANTHROPIC_TEXT_MODEL,
-  xai: DEFAULT_XAI_TEXT_MODEL,
-  'local-text': '',
+/** The model a text provider starts on: the first it offers. */
+export function defaultTextModelOf(id: TextProviderId): string {
+  switch (id) {
+    case 'openai':
+      return DEFAULT_OPENAI_TEXT_MODEL
+    case 'anthropic':
+      return anthropicModels()[0].id
+    case 'xai':
+      return DEFAULT_XAI_TEXT_MODEL
+    case 'local-text':
+      return ''
+  }
 }
 
 /** Non-secret transcription settings, kept in localStorage. */
@@ -199,7 +215,7 @@ export function createTextProvider(
     case 'openai':
       return createOpenAiTextProvider(fetchImpl)
     case 'anthropic':
-      return createAnthropicTextProvider(fetchImpl)
+      return createAnthropicTextProvider(fetchImpl, anthropicModels())
     case 'xai':
       return createXaiTextProvider(fetchImpl)
     case 'local-text':
@@ -259,7 +275,9 @@ export function normalizeSettings(value: unknown): SttSettings {
 /**
  * Validates parsed clean-up settings. A model the provider does not list
  * falls back to that provider's default, so switching provider never keeps
- * another vendor's model id.
+ * another vendor's model id. A Claude model no longer listed moves to the
+ * listed model of its family first, so claude-fable-5-1 becomes
+ * claude-fable-5-2 once that is the newest Fable.
  */
 export function normalizeTextSettings(value: unknown): TextSettings {
   if (typeof value !== 'object' || value === null) return DEFAULT_TEXT_SETTINGS
@@ -271,13 +289,16 @@ export function normalizeTextSettings(value: unknown): TextSettings {
   if (provider === 'local-text' && !local) {
     provider = DEFAULT_TEXT_SETTINGS.provider
   }
+  const listed = textModelsOf(provider)
+  const saved = typeof v.model === 'string' ? v.model : ''
   const model =
     provider === 'local-text' && local
       ? local.model
-      : typeof v.model === 'string' &&
-          TEXT_MODELS[provider].some((m) => m.id === v.model)
-        ? v.model
-        : DEFAULT_TEXT_MODELS[provider]
+      : provider === 'anthropic'
+        ? (choiceFor(saved, listed) ?? defaultTextModelOf(provider))
+        : listed.some((m) => m.id === saved)
+          ? saved
+          : defaultTextModelOf(provider)
   const settings: TextSettings = { provider, model }
   if (local) settings.local = local
   return settings

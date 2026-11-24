@@ -13,6 +13,7 @@ import {
   DEFAULT_TEXT_SETTINGS,
   type ProviderId,
 } from '../providers/registry'
+import { resetAnthropicCatalog } from '../providers/anthropicCatalog'
 import { ProviderSettings } from './ProviderSettings'
 
 function providersWith(overrides: Partial<Providers> = {}): Providers {
@@ -335,13 +336,99 @@ describe('ProviderSettings (AI keys)', () => {
       'claude-opus-5-5',
       'claude-sonnet-5-5',
       'claude-haiku-5-5',
-      'claude-fable-5-1',
+      'claude-fable-5-2',
     ])
     fireEvent.change(model, { target: { value: 'claude-haiku-5-5' } })
     expect(providers.saveTextSettings).toHaveBeenCalledWith({
       provider: 'anthropic',
       model: 'claude-haiku-5-5',
     })
+  })
+
+  it('updates the Claude list from Anthropic only on a tap, after saying what it sends', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: 'claude-fable-5-3', display_name: 'Claude Fable 5.3' },
+            { id: 'claude-fable-5-2', display_name: 'Claude Fable 5.2' },
+            { id: 'claude-opus-5-5', display_name: 'Claude Opus 5.5' },
+          ],
+          has_more: false,
+        }),
+        { status: 200 },
+      ),
+    )
+    const providers = statefulProviders(['anthropic'])
+    providers.textSettings = {
+      provider: 'anthropic',
+      model: 'claude-fable-5-2',
+    }
+    providers.readKey = vi.fn(async () => 'sk-ant-test')
+    try {
+      render(<ProviderSettings providers={providers} onClose={() => {}} />)
+      const row = screen.getByRole('listitem', {
+        name: 'Anthropic (Claude) key',
+      })
+      expect(row.textContent).toContain('Built-in list')
+      expect(row.textContent).toContain(
+        'asks api.anthropic.com which models your key can use; it sends your key and nothing else',
+      )
+      expect(fetchSpy).not.toHaveBeenCalled()
+
+      fireEvent.click(
+        within(row).getByRole('button', { name: 'Update model list' }),
+      )
+      await waitFor(() =>
+        expect(row.textContent).toMatch(/as Anthropic listed them on .* UTC/),
+      )
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+      expect(providers.readKey).toHaveBeenCalledWith('anthropic')
+      // Re-checking the pick is useProviders' job; a save from here would
+      // write settings read before the request.
+      expect(providers.saveTextSettings).not.toHaveBeenCalled()
+      const model = within(row).getByLabelText(
+        'Polish model',
+      ) as HTMLSelectElement
+      expect(Array.from(model.options).map((o) => o.value)).toEqual([
+        'claude-opus-5-5',
+        'claude-fable-5-3',
+      ])
+    } finally {
+      fetchSpy.mockRestore()
+      resetAnthropicCatalog()
+    }
+  })
+
+  it('shows a failed model list update and keeps the list', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ error: { message: 'invalid x-api-key' } }),
+          { status: 401 },
+        ),
+      )
+    const providers = statefulProviders(['anthropic'])
+    providers.textSettings = { provider: 'anthropic', model: 'claude-opus-5-5' }
+    providers.readKey = vi.fn(async () => 'sk-ant-bad')
+    try {
+      render(<ProviderSettings providers={providers} onClose={() => {}} />)
+      const row = screen.getByRole('listitem', {
+        name: 'Anthropic (Claude) key',
+      })
+      fireEvent.click(
+        within(row).getByRole('button', { name: 'Update model list' }),
+      )
+      expect((await within(row).findByRole('alert')).textContent).toBe(
+        'Anthropic responded 401: invalid x-api-key',
+      )
+      expect(row.textContent).toContain('Built-in list')
+      expect(providers.saveTextSettings).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+      resetAnthropicCatalog()
+    }
   })
 
   it('saves the language hint on blur, not per keystroke', () => {

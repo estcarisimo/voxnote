@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, useSyncExternalStore, type FormEvent } from 'react'
 import { useDialogFocus } from '../hooks/useDialogFocus'
 import type { Providers } from '../hooks/useProviders'
 import {
@@ -9,6 +9,15 @@ import {
   normalizeBaseUrl,
 } from '../providers/local'
 import {
+  ANTHROPIC_MODELS_ENDPOINT,
+  ANTHROPIC_HOST,
+} from '../providers/anthropic'
+import {
+  anthropicCatalog,
+  refreshAnthropicCatalog,
+  subscribeAnthropicCatalog,
+} from '../providers/anthropicCatalog'
+import {
   isLanguageHint,
   isLocalProviderId,
   isSttProviderId,
@@ -17,8 +26,8 @@ import {
   PROVIDER_LABELS,
   STT_MODELS,
   STT_PROVIDER_IDS,
-  TEXT_MODELS,
   TEXT_PROVIDER_IDS,
+  textModelsOf,
   type ProviderId,
   type SttProviderId,
   type TextProviderId,
@@ -320,6 +329,8 @@ function KeyRow({
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Re-render when the Claude model list changes, so the select follows it.
+  useSyncExternalStore(subscribeAnthropicCatalog, anthropicCatalog)
   const label = PROVIDER_LABELS[id]
   const { settings, textSettings } = providers
   const local =
@@ -444,7 +455,7 @@ function KeyRow({
                 })
               }
             >
-              {TEXT_MODELS[id].map((m) => (
+              {textModelsOf(id).map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.deprecated
                     ? `${m.label} (deprecated ${m.deprecated})`
@@ -455,6 +466,10 @@ function KeyRow({
           </label>
         )}
 
+      {activeRoles.includes('clean-up') && id === 'anthropic' && (
+        <ClaudeModelList providers={providers} />
+      )}
+
       {error && (
         <span role="alert" className="dialog-error">
           {error}
@@ -462,6 +477,67 @@ function KeyRow({
       )}
     </li>
   )
+}
+
+/**
+ * Where the Claude menu comes from, and a button that asks Anthropic for
+ * the models the key can use. The menu keeps the newest of each family; a
+ * picked model that is no longer listed moves to the newest of its family.
+ * Nothing is sent until the button is tapped, and the line above it says
+ * what is sent.
+ */
+function ClaudeModelList({ providers }: { providers: Providers }) {
+  const catalog = useSyncExternalStore(
+    subscribeAnthropicCatalog,
+    anthropicCatalog,
+  )
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function refresh() {
+    setBusy(true)
+    setError(null)
+    try {
+      const key = await providers.readKey('anthropic')
+      if (key === null) throw new Error('No Anthropic key is stored')
+      // useProviders re-checks the pick against the new list.
+      await refreshAnthropicCatalog(key)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="keys-catalog">
+      <span>
+        {catalog.fetchedAt
+          ? `Newest of each family your key can use, as Anthropic listed them on ${formatUtc(catalog.fetchedAt)}.`
+          : 'Built-in list of the newest Claude models.'}{' '}
+        Updating asks {ANTHROPIC_HOST} which models your key can use; it sends
+        your key and nothing else.
+      </span>
+      <button
+        type="button"
+        disabled={busy}
+        title={`GET ${ANTHROPIC_MODELS_ENDPOINT}`}
+        onClick={() => void refresh()}
+      >
+        {busy ? 'Updating…' : 'Update model list'}
+      </button>
+      {error && (
+        <span role="alert" className="dialog-error">
+          {error}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** "2026-11-23 22:10 UTC". */
+function formatUtc(iso: string): string {
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`
 }
 
 /** The inline form that stores one new key; the field is cleared on save. */

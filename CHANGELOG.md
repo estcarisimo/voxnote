@@ -8,6 +8,24 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Claude models follow Anthropic's releases.** The Polish model menu for
+  Anthropic now offers the newest model of each Claude family your key can
+  use, as Anthropic lists them: under **AI keys**, **Update model list**
+  asks `GET https://api.anthropic.com/v1/models` (sending your key and
+  nothing else, only on that tap) and keeps the newest of each family
+  (Opus, Sonnet, Haiku, Fable, and Mythos for keys that list it). The list
+  is kept in this browser with the date it was fetched, in UTC; until the
+  first update the built-in list is used. A picked model that is no longer
+  listed moves to the newest of its family (a saved `claude-fable-5-1`
+  becomes `claude-fable-5-2`) instead of falling back to the provider
+  default. A failed update shows Anthropic's error and keeps the list.
+  Saving or removing the Anthropic key goes back to the built-in list,
+  since the fetched one described the old key. The endpoint's CORS
+  preflight was checked on 2026-11-23 with
+  `curl -X OPTIONS https://api.anthropic.com/v1/models -H "Origin: https://estcarisimo.github.io" -H "Access-Control-Request-Method: GET" -H "Access-Control-Request-Headers: x-api-key,anthropic-version,anthropic-dangerous-direct-browser-access"`:
+  HTTP 200, `access-control-allow-origin: *`, the three headers allowed.
+  Verified with unit and component tests against a mocked endpoint; no real `/v1/models` call has been made from
+  the app.
 - **Ask: from the toolbar, in threads, at the length you want.** A new
   **❓ Ask** button in the selection toolbar opens a question composer
   (typed, or dictated with the recorder) whose action is **Ask…**. Under an
@@ -74,6 +92,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Polish no longer calls Claude Fable 5.1.** The built-in Anthropic list
+  still offered `claude-fable-5-1` after Claude Fable 5.2
+  (`claude-fable-5-2`) was released, so picking Fable sent 5.1; the model
+  is chosen by VoxNote, not by the API key. The built-in list now has Fable
+  5.2, and a saved Fable 5.1 moves to it.
 - **Apple Pencil selection snaps to the nearest text.** The maintainer reported on 2026-11-13 that Pencil selection on the iPad no longer responded gently. Suspected cause, inferred from the code and not measured: since the text layer sizes each span to its printed glyphs (the two-column fix below), the spans are shorter than before and carry pdf.js's scale transform, which leaves gaps between lines, and the Pencil selection moved only where the browser's caret lookup found text under the pen. The pen now snaps to the nearest span within reach of the point (0.6 of the line's thickness across the text, 1.5 along it, following the span's direction so rotated text gets the same reach) and to the nearest character boundary along it, measured from the characters' rectangles (`snappingCaretLookup` in `src/core/penSelection.ts`); the browser's caret is kept when it lies in the span under the pen. Text at any angle other than a quarter turn, such as a diagonal "DRAFT" watermark, is left to the browser's caret. The layer is measured again when more of its text has been drawn, and a character outside the Basic Multilingual Plane is never split. Applies to any pen, desktop pens included. Mouse and finger selection are unchanged: the reported firmer finger press (iPadOS's native long press) is not addressed here. Verified with unit and component tests only; not yet tried on an iPad.
 - **Picking a highlight color no longer loses the selection toolbar on a
   tap.** The toolbar lives only as long as the text selection under it, and
